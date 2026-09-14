@@ -1,1 +1,1 @@
-OpenWrt & GL.iNet router manager with LuCI, ubus, VPN & parental controls.
+OpenWrt & GL.iNet router manager with LuCI, ubus, VPN & parental controls
