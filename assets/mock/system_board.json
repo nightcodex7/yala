@@ -1,14 +1,14 @@
 {
-  "hostname": "LuCI-Router",
-  "model": "Netgear Nighthawk R7800",
+  "hostname": "Office-Router",
+  "model": "GL-AX6000",
   "release": {
     "distribution": "OpenWrt",
-    "version": "23.05.0",
-    "revision": "r23497-6637af95aa",
-    "target": "ipq806x/generic",
-    "description": "OpenWrt 23.05.0 r23497-6637af95aa"
+    "version": "25.10.0",
+    "revision": "r27666-40bb882939",
+    "target": "mt7986/generic",
+    "description": "OpenWrt 25.10.0 r27666-40bb882939"
   },
-  "kernel": "5.15.134",
-  "board_name": "netgear-r7800",
-  "system": "ARMv7 Processor rev 0 (v7l)"
+  "kernel": "6.1.86",
+  "board_name": "gl-ax6000",
+  "system": "Amlogic A311D2 (armv8l)"
 }

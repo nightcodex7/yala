@@ -1,17 +1,21 @@
 {
   "uptime": 345600,
-  "load": [2048, 1536, 1024],
+  "load": [
+    1048,
+    699,
+    260
+  ],
   "memory": {
-    "total": 536870912,
-    "free": 268435456,
-    "shared": 2097152,
-    "buffered": 20971520,
-    "cached": 41943040,
-    "available": 331350016
+    "total": 2075996288,
+    "free": 698175488,
+    "shared": 30949888,
+    "buffered": 353601536,
+    "cached": 550621184,
+    "available": 953559040
   },
-  "localtime": 1700000000,
+  "localtime": 1755395049,
   "swap": {
-    "total": 0,
-    "free": 0
+    "total": 104853504,
+    "free": 104853504
   }
 }

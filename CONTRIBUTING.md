@@ -1,10 +1,11 @@
-# Contributing to LuCI Mobile
+# Contributing to YALA (Yet Another LuCI App)
 
-Thank you for your interest in contributing to LuCI Mobile! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to YALA! This project is an open-source, GPLv3-licensed mobile client for OpenWrt, directly forked from [`cogwheel0/luci-mobile`](https://github.com/cogwheel0/luci-mobile). We welcome contributions, bug fixes, and feature enhancements that respect open-source licensing and upstream authorship.
 
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
+- [Licensing Requirements](#licensing-requirements)
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
 - [Coding Standards](#coding-standards)
@@ -17,6 +18,10 @@ Thank you for your interest in contributing to LuCI Mobile! This document provid
 ## Code of Conduct
 
 By participating in this project, you agree to abide by our Code of Conduct. Please be respectful and inclusive in all interactions.
+
+## Licensing Requirements
+
+All contributions to this repository must be licensed under the **GNU General Public License v3.0 (GPL-3.0-or-later)**. By submitting a pull request, you confirm that your contributions comply with GPLv3 and do not incorporate proprietary code or conflicting open-source licenses. Original upstream authorship from `cogwheel0/luci-mobile` is strictly preserved.
 
 ## Getting Started
 
@@ -33,10 +38,10 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 1. Fork the repository on GitHub
 2. Clone your fork locally:
    ```bash
-   git clone https://github.com/cogwheel0/luci-mobile.git
-   cd luci-mobile
+   git clone https://github.com/nightcodex7/yala.git
+   cd yala
    ```
-3. Add the upstream repository:
+3. Track the repositories:
    ```bash
    git remote add upstream https://github.com/cogwheel0/luci-mobile.git
    ```
@@ -339,4 +344,4 @@ Contributors will be recognized in:
 - Contributor hall of fame
 - GitHub contributors page
 
-Thank you for contributing to LuCI Mobile! Your contributions help make this project better for everyone. 
+Thank you for contributing to YALA! Your contributions help make this project better for everyone. 

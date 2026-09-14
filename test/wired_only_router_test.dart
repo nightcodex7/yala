@@ -1,5 +1,10 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:luci_mobile/models/interface.dart';
+import 'package:yet_another_luci_app/models/interface.dart';
+import 'package:yet_another_luci_app/modules/system_monitoring/models/system_metrics.dart';
 
 /// Tests for wired-only router support (GitHub issues #46, #24, #6).
 ///
@@ -169,6 +174,95 @@ void main() {
       expect(interfacesList, hasLength(2));
       expect(interfacesList[0].name, 'lan');
       expect(interfacesList[1].name, 'wan');
+    });
+  });
+
+  group('SystemMetrics.fromSysInfo CPU parsing', () {
+    test('parses ubus 16-bit integer load array correctly', () {
+      final sysInfo = {
+        'uptime': 3600,
+        'load': [2580, 1920, 1024],
+        'memory': {'total': 134217728, 'free': 67108864, 'buffered': 4194304},
+      };
+
+      final metrics = SystemMetrics.fromSysInfo(sysInfo);
+      expect(metrics.load1m, closeTo(0.0393, 0.001));
+      expect(metrics.cpuUsagePercent, closeTo(3.93, 0.1));
+    });
+
+    test('parses String load array correctly', () {
+      final sysInfo = {
+        'uptime': 3600,
+        'load': ['2580', '1920', '1024'],
+        'memory': {'total': 134217728, 'free': 67108864, 'buffered': 4194304},
+      };
+
+      final metrics = SystemMetrics.fromSysInfo(sysInfo);
+      expect(metrics.load1m, closeTo(0.0393, 0.001));
+      expect(metrics.cpuUsagePercent, closeTo(3.93, 0.1));
+    });
+
+    test('parses float load average correctly', () {
+      final sysInfo = {
+        'uptime': 3600,
+        'load': [0.15, 0.10, 0.05],
+        'memory': {'total': 100, 'free': 50, 'buffered': 10},
+      };
+
+      final metrics = SystemMetrics.fromSysInfo(sysInfo);
+      expect(metrics.load1m, equals(0.15));
+      expect(metrics.cpuUsagePercent, equals(15.0));
+    });
+
+    test('parses Map load format correctly', () {
+      final sysInfo = {
+        'uptime': 3600,
+        'load': {'1m': 2580, '5m': 1920},
+      };
+
+      final metrics = SystemMetrics.fromSysInfo(sysInfo);
+      expect(metrics.cpuUsagePercent, closeTo(3.93, 0.1));
+    });
+
+    test('parses explicit cpu_usage key correctly', () {
+      final sysInfo = {'uptime': 3600, 'cpu_usage': 18.5};
+
+      final metrics = SystemMetrics.fromSysInfo(sysInfo);
+      expect(metrics.cpuUsagePercent, equals(18.5));
+    });
+
+    test(
+      'normalizes 1.0+ load average on multi-core router instead of false 100%',
+      () {
+        final sysInfo = {
+          'uptime': 3600,
+          'load': [
+            68812,
+            40000,
+            20000,
+          ], // 1.05 1m load average in 16-bit integer format
+        };
+        final boardInfo = {'model': 'MediaTek MT7621'};
+
+        final metrics = SystemMetrics.fromSysInfo(
+          sysInfo,
+          boardInfo: boardInfo,
+        );
+        expect(metrics.load1m, closeTo(1.05, 0.01));
+        // 1.05 load average on 4-thread MT7621 should yield ~28% CPU load, NOT 100%
+        expect(metrics.cpuUsagePercent, lessThan(50.0));
+        expect(metrics.cpuUsagePercent, greaterThan(15.0));
+      },
+    );
+
+    test('parses map format for cpu usage correctly', () {
+      final sysInfo = {
+        'uptime': 3600,
+        'cpu': {'usage': 14.2},
+      };
+
+      final metrics = SystemMetrics.fromSysInfo(sysInfo);
+      expect(metrics.cpuUsagePercent, equals(14.2));
     });
   });
 }

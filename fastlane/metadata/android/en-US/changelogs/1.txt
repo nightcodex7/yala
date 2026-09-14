@@ -1,1 +1,1 @@
-Initial release of LuCI Mobile. 
+Initial release of Yet Another LuCI App. 

@@ -1,12 +1,8 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter/material.dart';
-
-/// Result of a login attempt with fallback.
-class FallbackLoginResult {
-  final bool success;
-  final int usedAddressIndex; // 0 = primary, 1 = alternate
-
-  FallbackLoginResult({required this.success, required this.usedAddressIndex});
-}
 
 abstract class IAuthService {
   Future<void> login(
@@ -16,24 +12,12 @@ abstract class IAuthService {
     bool useHttps, {
     BuildContext? context,
   });
-
-  /// Try active address first, then fallback to the other.
-  Future<FallbackLoginResult> loginWithFallback({
-    required String activeAddress,
-    required bool activeHttps,
-    required int activeIndex,
-    String? fallbackAddress,
-    bool? fallbackHttps,
-    required String username,
-    required String password,
-    BuildContext? context,
-  });
-
   Future<bool> tryAutoLogin(
     String? ipAddress,
     String? username,
     String? password,
     bool? useHttps, {
+    bool force = false,
     BuildContext? context,
   });
   Future<void> logout();

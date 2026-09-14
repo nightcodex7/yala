@@ -1,9 +1,14 @@
+# Copyright (C) 2026 @nightcodex7
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v2.0.0+220)'
+        required: false
 
 concurrency:
   group: release-${{ github.ref }}
@@ -82,108 +87,32 @@ jobs:
         working-directory: android
 
       - name: Build APKs (split per ABI)
-        run: flutter build apk --split-per-abi --release
+        run: |
+          flutter build apk --split-per-abi --release --flavor community --dart-define=FLAVOR=community --dart-define=OFFICIAL_BUILD=true
+          mkdir -p build/app/outputs/apk-staging
+          cp build/app/outputs/flutter-apk/app-*-community-release.apk build/app/outputs/apk-staging/
+
+      - name: Build Universal APK
+        run: |
+          flutter build apk --release --flavor community --dart-define=FLAVOR=community --dart-define=OFFICIAL_BUILD=true
+          cp build/app/outputs/apk-staging/app-*-community-release.apk build/app/outputs/flutter-apk/
 
       - name: Build appBundle
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --flavor community --dart-define=FLAVOR=community --dart-define=OFFICIAL_BUILD=true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Android-Release
           path: |
-            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-            build/app/outputs/flutter-apk/app-x86_64-release.apk
-            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/flutter-apk/app-*-community-release.apk
+            build/app/outputs/flutter-apk/app-community-release.apk
+            build/app/outputs/bundle/communityRelease/app-community-release.aab
 
       - name: Update Release with Artifacts
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
-          artifacts: "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk,build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk,build/app/outputs/flutter-apk/app-x86_64-release.apk,build/app/outputs/bundle/release/app-release.aab"
-          tag: ${{ github.ref_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          makeLatest: true
-          omitBody: true
-          omitBodyDuringUpdate: true
-          omitNameDuringUpdate: true
-
-  build-ios:
-    name: Build iOS
-    runs-on: macos-26
-    needs: generate-release-notes
-    permissions:
-      contents: write
-
-    steps:
-        #1 Checkout Repository
-      - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-
-        #2 Setup Flutter
-      - name: Set Up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
-        with:
-          flutter-version: '3.47.1'
-          channel: 'stable'
-          cache: true
-
-        #3 Install Dependencies
-      - name: Install Dependencies
-        run: flutter pub get
-
-        #4 Setup Xcode
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
-        with:
-          xcode-version: 'latest-stable'
-
-        #5 Cache CocoaPods
-      - name: Cache CocoaPods
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ios/Pods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
-
-      - name: Install CocoaPods
-        run: |
-          cd ios
-          pod install --verbose
-
-        #6 Build iOS App
-      - name: Build iOS App
-        run: |
-          flutter build ios --release --no-codesign
-
-        #7 Create IPA from App Bundle
-      - name: Create IPA
-        run: |
-          mkdir -p build/ios/ipa
-          cd build/ios/Release-iphoneos
-          mkdir Payload
-          cp -r Runner.app Payload/
-          zip -r ../ipa/luci-mobile.ipa Payload
-          cd ../ipa
-
-        #8 Upload Artifacts
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: iOS-Release
-          path: |
-            build/ios/ipa/*.ipa
-
-        #9 Update Release
-      - name: Update Release with IPA
-        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
-        with:
-          artifacts: "build/ios/ipa/luci-mobile.ipa"
+          artifacts: "build/app/outputs/flutter-apk/app-arm64-v8a-community-release.apk,build/app/outputs/flutter-apk/app-armeabi-v7a-community-release.apk,build/app/outputs/flutter-apk/app-x86_64-community-release.apk,build/app/outputs/flutter-apk/app-community-release.apk,build/app/outputs/bundle/communityRelease/app-community-release.aab"
           tag: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true

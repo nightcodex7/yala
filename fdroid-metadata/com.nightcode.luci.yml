@@ -1,0 +1,66 @@
+Categories:
+  - Connectivity
+  - System
+License: GPLv3
+SourceCode: https://github.com/nightcodex7/yala
+IssueTracker: https://github.com/nightcodex7/yala/issues
+Changelog: https://github.com/nightcodex7/yala/releases
+
+AutoName: Yet Another LuCI App
+Description: |-
+  Yet Another LuCI App is a free and open-source Android application designed to manage OpenWrt routers running the standard LuCI web interface.
+
+  Features:
+  * Comprehensive router dashboard (CPU, RAM, Bandwidth, Uptime)
+  * Network Interface management & WAN/LAN configuration
+  * Wireless SSID management & Wi-Fi security controls
+  * Connected client tracking & DHCP static lease configuration
+  * Router reboot & system management utilities
+  * 100% Ad-Free with zero telemetry or background tracking
+
+RepoType: git
+Repo: https://github.com/nightcodex7/yala.git
+
+Builds:
+  - versionName: 1.0.1
+    versionCode: 110
+    commit: v1.0.1
+    output: build/app/outputs/flutter-apk/app-community-release.apk
+    srclibs:
+      - flutter@stable
+    prebuild:
+      - FLUTTER_REV=$(sed -n -E 's/.*revision:\ "(.*)"$/\1/p' .metadata)
+      - git -C $$flutter$$ checkout -f $FLUTTER_REV
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get
+    scandelete:
+      - .pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --flavor community --dart-define=FLAVOR=community
+        --dart-define=OFFICIAL_BUILD=true
+
+  - versionName: 1.0.2
+    versionCode: 112
+    commit: v1.0.2
+    output: build/app/outputs/flutter-apk/app-community-release.apk
+    srclibs:
+      - flutter@stable
+    prebuild:
+      - FLUTTER_REV=$(sed -n -E 's/.*revision:\ "(.*)"$/\1/p' .metadata)
+      - git -C $$flutter$$ checkout -f $FLUTTER_REV
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get
+    scandelete:
+      - .pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --flavor community --dart-define=FLAVOR=community
+        --dart-define=OFFICIAL_BUILD=true
+
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: 1.0.2
+CurrentVersionCode: 112

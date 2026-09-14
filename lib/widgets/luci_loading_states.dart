@@ -1,3 +1,7 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter/material.dart';
 import '../design/luci_design_system.dart';
 
@@ -224,30 +228,48 @@ class LuciChartSkeleton extends StatelessWidget {
                 children: [
                   // Chart lines simulation
                   ...List.generate(5, (index) {
-                    return Positioned(
-                      left: LuciSpacing.md,
-                      right: LuciSpacing.md,
-                      bottom: LuciSpacing.md + (index * (height - 80) / 5),
-                      child: LuciSkeleton(width: double.infinity, height: 2),
+                    return Align(
+                      alignment: Alignment.bottomLeft,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: LuciSpacing.md,
+                          right: LuciSpacing.md,
+                          bottom: LuciSpacing.md + (index * (height - 80) / 5),
+                        ),
+                        child: const LuciSkeleton(
+                          width: double.infinity,
+                          height: 2,
+                        ),
+                      ),
                     );
                   }),
                   // Data points simulation
-                  Positioned(
-                    bottom: LuciSpacing.lg,
-                    left: MediaQuery.of(context).size.width * 0.3,
-                    child: const LuciSkeleton(
-                      width: 8,
-                      height: 8,
-                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                  Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: LuciSpacing.lg,
+                        left: MediaQuery.of(context).size.width * 0.3,
+                      ),
+                      child: const LuciSkeleton(
+                        width: 8,
+                        height: 8,
+                        borderRadius: BorderRadius.all(Radius.circular(4)),
+                      ),
                     ),
                   ),
-                  Positioned(
-                    bottom: LuciSpacing.xl,
-                    left: MediaQuery.of(context).size.width * 0.6,
-                    child: const LuciSkeleton(
-                      width: 8,
-                      height: 8,
-                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                  Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: LuciSpacing.xl,
+                        left: MediaQuery.of(context).size.width * 0.6,
+                      ),
+                      child: const LuciSkeleton(
+                        width: 8,
+                        height: 8,
+                        borderRadius: BorderRadius.all(Radius.circular(4)),
+                      ),
                     ),
                   ),
                 ],

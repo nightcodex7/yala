@@ -1,3 +1,6 @@
+// Copyright (C) 2026 @nightcodex7
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import java.util.Properties
 import java.io.FileInputStream
 
@@ -9,13 +12,12 @@ if (keystorePropertiesFile.exists()) {
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // The Flutter Gradle Plugin must be applied after the Android Gradle plugin.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
-    namespace = "com.cogwheel.LuCIMobile"
+    namespace = "com.nightcode.luci"
     compileSdk = 37
     ndkVersion = "28.2.13676358"
 
@@ -24,32 +26,57 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+    buildFeatures {
+        resValues = true
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.cogwheel.LuCIMobile"
+        applicationId = "com.nightcode.luci"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
+        val storeFilePath = (keystoreProperties["storeFile"] as? String) ?: System.getenv("KEYSTORE_PATH")
+        val storePass = (keystoreProperties["storePassword"] as? String) ?: System.getenv("KEYSTORE_PASSWORD")
+        val alias = (keystoreProperties["keyAlias"] as? String) ?: System.getenv("KEY_ALIAS")
+        val keyPass = (keystoreProperties["keyPassword"] as? String) ?: System.getenv("KEY_PASSWORD")
+
+        if (!storeFilePath.isNullOrEmpty() && !storePass.isNullOrEmpty() && !alias.isNullOrEmpty() && !keyPass.isNullOrEmpty()) {
             create("release") {
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(storeFilePath)
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
             }
+        }
+    }
+
+
+    flavorDimensions += "version"
+    productFlavors {
+        create("community") {
+            dimension = "version"
+            applicationId = "com.nightcode.luci"
+            resValue("string", "app_name", "Yet Another LuCI App")
+        }
+        create("playstore") {
+            dimension = "version"
+            applicationId = "com.nightcode.luci"
+            resValue("string", "app_name", "Yet Another LuCI App")
         }
     }
 
     buildTypes {
         getByName("release") {
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
+            val releaseSigning = signingConfigs.findByName("release")
+            if (releaseSigning != null) {
+                signingConfig = releaseSigning
             }
             isMinifyEnabled = true
             isShrinkResources = true
@@ -70,6 +97,34 @@ android {
         // Disables dependency metadata when building Android App Bundles (for Google Play)
         includeInBundle = false
     }
+
+    bundle {
+        language {
+            enableSplit = true
+        }
+        density {
+            enableSplit = true
+        }
+        abi {
+            enableSplit = true
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/license.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/notice.txt",
+                "META-INF/ASL2.0",
+                "META-INF/*.kotlin_module"
+            )
+        }
+    }
 }
 
 kotlin {
@@ -79,8 +134,7 @@ kotlin {
 }
 
 dependencies {
-    implementation("androidx.core:core:1.12.0")
-    implementation("androidx.activity:activity:1.8.2")
+    implementation("androidx.core:core:1.13.1")
 }
 
 flutter {

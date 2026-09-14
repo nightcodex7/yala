@@ -1,14 +1,14 @@
 name: 💡 Feature Request
-description: Suggest an idea for Luci Mobile.
+description: Suggest an idea for Yet Another LuCI App.
 title: '[FEAT] '
 labels: ['enhancement', 'triage']
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for suggesting a new feature! This helps make Luci Mobile better.
+        Thanks for suggesting a new feature! This helps make Yet Another LuCI App better.
         
-        Please provide as much detail as possible so I can understand what you're looking for.
+        Please provide as much detail as possible to understand what you're looking for.
 
   - type: textarea
     id: feature-description
@@ -35,7 +35,6 @@ body:
       description: "Where should this feature work?"
       options:
         - label: "Android"
-        - label: "iOS"
 
   - type: textarea
     id: examples

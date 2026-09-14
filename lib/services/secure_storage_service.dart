@@ -1,6 +1,10 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
-import 'package:luci_mobile/models/router.dart';
+import 'package:yet_another_luci_app/models/router.dart';
 import '../utils/logger.dart';
 
 class SecureStorageService {
@@ -9,21 +13,6 @@ class SecureStorageService {
   static const String _routersKey = 'routers';
   static const String _selectedRouterKey = 'selectedRouterId';
 
-  // Single source of truth for session credential keys: read, write and
-  // clear paths all reference these constants so a new key cannot be added
-  // to one path and omitted from logout cleanup.
-  static const String _keyIpAddress = 'ipAddress';
-  static const String _keyUsername = 'username';
-  static const String _keyPassword = 'password';
-  static const String _keyUseHttps = 'useHttps';
-
-  static const List<String> _credentialKeys = [
-    _keyIpAddress,
-    _keyUsername,
-    _keyPassword,
-    _keyUseHttps,
-  ];
-
   Future<void> saveCredentials({
     required String ipAddress,
     required String username,
@@ -31,10 +20,10 @@ class SecureStorageService {
     required bool useHttps,
   }) async {
     try {
-      await _storage.write(key: _keyIpAddress, value: ipAddress);
-      await _storage.write(key: _keyUsername, value: username);
-      await _storage.write(key: _keyPassword, value: password);
-      await _storage.write(key: _keyUseHttps, value: useHttps.toString());
+      await _storage.write(key: 'ipAddress', value: ipAddress);
+      await _storage.write(key: 'username', value: username);
+      await _storage.write(key: 'password', value: password);
+      await _storage.write(key: 'useHttps', value: useHttps.toString());
     } catch (e, stack) {
       Logger.exception('Failed to save credentials', e, stack);
       rethrow;
@@ -43,15 +32,45 @@ class SecureStorageService {
 
   Future<Map<String, String?>> getCredentials() async {
     try {
-      final ipAddress = await _storage.read(key: _keyIpAddress);
-      final username = await _storage.read(key: _keyUsername);
-      final password = await _storage.read(key: _keyPassword);
-      final useHttps = await _storage.read(key: _keyUseHttps);
+      final all = await _storage.readAll();
+      final routers = await getRouters();
+      if (routers.isNotEmpty) {
+        // Prefer the explicitly selected router; fall back to first in list
+        final selectedId = all[_selectedRouterKey];
+        final router = selectedId != null
+            ? routers.firstWhere(
+                (r) => r.id == selectedId,
+                orElse: () => routers.first,
+              )
+            : routers.first;
+        return {
+          'ipAddress': router.ipAddress,
+          'username': router.username,
+          'password': router.password,
+          'useHttps': router.useHttps.toString(),
+        };
+      }
+
+      final ipAddress = all['ipAddress'];
+      final username = all['username'];
+      final password = all['password'];
+      final useHttps = all['useHttps'];
+      if (ipAddress != null &&
+          ipAddress.isNotEmpty &&
+          username != null &&
+          password != null) {
+        return {
+          'ipAddress': ipAddress,
+          'username': username,
+          'password': password,
+          'useHttps': useHttps,
+        };
+      }
       return {
-        'ipAddress': ipAddress,
-        'username': username,
-        'password': password,
-        'useHttps': useHttps,
+        'ipAddress': null,
+        'username': null,
+        'password': null,
+        'useHttps': null,
       };
     } catch (e, stack) {
       Logger.exception('Failed to get credentials', e, stack);
@@ -64,29 +83,15 @@ class SecureStorageService {
     }
   }
 
-  /// Clears session credentials. Every key is attempted even if one delete
-  /// fails; the first failure is rethrown afterwards so callers (logout)
-  /// can observe that cleanup was incomplete.
   Future<void> clearCredentials() async {
-    // Clear only session credentials. Deleting everything here would also
-    // wipe the saved routers list (including per-router passwords), the
-    // selected router, dashboard preferences, theme and accepted certs.
-    Object? firstFailure;
-    StackTrace? firstTrace;
-    for (final key in _credentialKeys) {
-      try {
-        await _storage.delete(key: key);
-      } catch (e, stack) {
-        // Keep deleting the remaining keys - aborting early could leave
-        // the stored password behind after a logout.
-        firstFailure ??= e;
-        firstTrace ??= stack;
-        Logger.exception('Failed to clear credential key: $key', e, stack);
-      }
-    }
-    if (firstFailure != null) {
-      // Preserve the original trace of the first deletion failure.
-      Error.throwWithStackTrace(firstFailure, firstTrace ?? StackTrace.current);
+    try {
+      await _storage.delete(key: 'ipAddress');
+      await _storage.delete(key: 'username');
+      await _storage.delete(key: 'password');
+      await _storage.delete(key: 'useHttps');
+    } catch (e, stack) {
+      Logger.exception('Failed to clear credentials', e, stack);
+      // Don't rethrow as this is often called during cleanup
     }
   }
 

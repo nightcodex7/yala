@@ -1,0 +1,60 @@
+{
+  "values": {
+    "defaults": {
+      ".type": "defaults",
+      "input": "ACCEPT",
+      "output": "ACCEPT",
+      "forward": "REJECT",
+      "syn_flood": "1",
+      "flow_offloading": "1"
+    },
+    "lan": {
+      ".type": "zone",
+      "name": "lan",
+      "input": "ACCEPT",
+      "output": "ACCEPT",
+      "forward": "ACCEPT",
+      "network": ["lan"]
+    },
+    "wan": {
+      ".type": "zone",
+      "name": "wan",
+      "input": "REJECT",
+      "output": "ACCEPT",
+      "forward": "REJECT",
+      "masq": "1",
+      "network": ["wan", "wan6"]
+    },
+    "fwd_lan_wan": {
+      ".type": "forwarding",
+      "src": "lan",
+      "dest": "wan"
+    },
+    "redirect_https": {
+      ".type": "redirect",
+      "name": "HTTPS Forward",
+      "src": "wan",
+      "src_dport": "8443",
+      "dest": "lan",
+      "dest_ip": "192.168.1.50",
+      "dest_port": "443",
+      "proto": "tcp"
+    },
+    "rule_notrack": {
+      ".type": "rule",
+      "name": "Bypass-CT-Local",
+      "src": "lan",
+      "dest": "wan",
+      "target": "NOTRACK",
+      "enabled": "1"
+    },
+    "rule_nft_custom": {
+      ".type": "rule",
+      "name": "Custom-NFT-Set",
+      "src": "wan",
+      "dest": "lan",
+      "target": "NFT_EXPRESSION_SET",
+      "enabled": "1"
+    }
+  }
+}

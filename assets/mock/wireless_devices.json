@@ -13,50 +13,67 @@
     "noise": -95,
     "bitrate": 144400,
     "country": "US",
-    "hwmodes": ["b", "g", "n"],
-    "htmodes": ["HT20", "HT40"],
+    "hwmodes": [
+      "b",
+      "g",
+      "n"
+    ],
+    "htmodes": [
+      "HT20",
+      "HT40"
+    ],
     "hardware": {
       "name": "Qualcomm Atheros QCA9984"
     },
-    "interfaces": [{
-      "section": "wifinet0",
-      "ifname": "wlan0",
-      "config": {
-        "mode": "ap",
-        "ssid": "LuCI-WiFi",
-        "channel": "auto",
-        "disabled": false,
-        "encryption": "psk2",
-        "key": "********",
-        "ieee80211r": false,
-        "ieee80211w": 0,
-        "wps_pushbutton": true
-      },
-      "iwinfo": {
-        "channel": 6,
-        "frequency": 2437,
-        "txpower": 20,
-        "bitrate": 144400,
-        "signal": -45,
-        "noise": -95,
-        "quality": 70,
-        "quality_max": 70,
-        "mode": "Master",
-        "ssid": "LuCI-WiFi",
-        "bssid": "E4:95:6E:40:00:03",
-        "encryption": {
-          "enabled": true,
-          "auth_algs": ["open"],
-          "description": "WPA2 PSK (CCMP)",
-          "wep": false,
-          "wpa": 2,
-          "pair_ciphers": ["CCMP"],
-          "group_ciphers": ["CCMP"],
-          "auth_suites": ["PSK"]
+    "interfaces": [
+      {
+        "section": "wifinet0",
+        "ifname": "wlan0",
+        "config": {
+          "mode": "ap",
+          "ssid": "Office-WiFi",
+          "channel": "auto",
+          "disabled": false,
+          "encryption": "psk2",
+          "key": "********",
+          "ieee80211r": false,
+          "ieee80211w": 0,
+          "wps_pushbutton": true
         },
-        "associations": 5
+        "iwinfo": {
+          "channel": 6,
+          "frequency": 2437,
+          "txpower": 20,
+          "bitrate": 144400,
+          "signal": -45,
+          "noise": -95,
+          "quality": 70,
+          "quality_max": 70,
+          "mode": "Master",
+          "ssid": "Office-WiFi",
+          "bssid": "E4:95:6E:40:00:03",
+          "encryption": {
+            "enabled": true,
+            "auth_algs": [
+              "open"
+            ],
+            "description": "WPA2 PSK (CCMP)",
+            "wep": false,
+            "wpa": 2,
+            "pair_ciphers": [
+              "CCMP"
+            ],
+            "group_ciphers": [
+              "CCMP"
+            ],
+            "auth_suites": [
+              "PSK"
+            ]
+          },
+          "associations": 5
+        }
       }
-    }]
+    ]
   },
   "radio1": {
     "up": true,
@@ -72,49 +89,140 @@
     "noise": -100,
     "bitrate": 866700,
     "country": "US",
-    "hwmodes": ["a", "n", "ac"],
-    "htmodes": ["HT20", "HT40", "VHT20", "VHT40", "VHT80"],
+    "hwmodes": [
+      "a",
+      "n",
+      "ac",
+      "ax"
+    ],
+    "htmodes": [
+      "HT20",
+      "HT40",
+      "VHT20",
+      "VHT40",
+      "VHT80",
+      "HE80"
+    ],
     "hardware": {
-      "name": "Qualcomm Atheros QCA9984"
+      "name": "Qualcomm Atheros QCN9074"
     },
-    "interfaces": [{
-      "section": "wifinet1",
-      "ifname": "wlan1",
-      "config": {
-        "mode": "ap",
-        "ssid": "LuCI-WiFi-5G",
-        "channel": "auto",
-        "disabled": false,
-        "encryption": "psk2",
-        "key": "********",
-        "ieee80211r": false,
-        "ieee80211w": 0,
-        "wps_pushbutton": true
-      },
-      "iwinfo": {
-        "channel": 36,
-        "frequency": 5180,
-        "txpower": 23,
-        "bitrate": 866700,
-        "signal": -50,
-        "noise": -100,
-        "quality": 70,
-        "quality_max": 70,
-        "mode": "Master",
-        "ssid": "LuCI-WiFi-5G",
-        "bssid": "E4:95:6E:40:00:04",
-        "encryption": {
-          "enabled": true,
-          "auth_algs": ["open"],
-          "description": "WPA2 PSK (CCMP)",
-          "wep": false,
-          "wpa": 2,
-          "pair_ciphers": ["CCMP"],
-          "group_ciphers": ["CCMP"],
-          "auth_suites": ["PSK"]
+    "interfaces": [
+      {
+        "section": "wifinet1",
+        "ifname": "wlan1",
+        "config": {
+          "mode": "ap",
+          "ssid": "LuCI-WiFi-WPA3-Only",
+          "channel": "36",
+          "disabled": false,
+          "encryption": "sae",
+          "key": "********",
+          "ieee80211w": 2,
+          "wps_pushbutton": false
         },
-        "associations": 3
+        "iwinfo": {
+          "channel": 36,
+          "frequency": 5180,
+          "txpower": 23,
+          "bitrate": 866700,
+          "signal": -50,
+          "noise": -100,
+          "quality": 70,
+          "quality_max": 70,
+          "mode": "Master",
+          "ssid": "LuCI-WiFi-WPA3-Only",
+          "bssid": "E4:95:6E:40:00:04",
+          "encryption": {
+            "enabled": true,
+            "auth_algs": [
+              "open"
+            ],
+            "description": "WPA3 SAE (CCMP)",
+            "wep": false,
+            "wpa": 3,
+            "pair_ciphers": [
+              "CCMP"
+            ],
+            "group_ciphers": [
+              "CCMP"
+            ],
+            "auth_suites": [
+              "SAE"
+            ]
+          },
+          "associations": 3
+        }
       }
-    }]
+    ]
+  },
+  "radio2": {
+    "up": true,
+    "pending": false,
+    "disabled": false,
+    "channel": 149,
+    "frequency": 5745,
+    "txpower": 23,
+    "country": "US",
+    "interfaces": [
+      {
+        "section": "wifinet2",
+        "ifname": "wlan2",
+        "config": {
+          "mode": "ap",
+          "ssid": "LuCI-WiFi-Transitional",
+          "channel": "149",
+          "disabled": false,
+          "encryption": "sae-mixed",
+          "ieee80211w": 1
+        },
+        "iwinfo": {
+          "channel": 149,
+          "frequency": 5745,
+          "mode": "Master",
+          "ssid": "LuCI-WiFi-Transitional",
+          "encryption": {
+            "enabled": true,
+            "description": "WPA2/WPA3 PSK/SAE (CCMP)",
+            "auth_suites": [
+              "PSK",
+              "SAE"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "radio3": {
+    "up": true,
+    "pending": false,
+    "disabled": false,
+    "channel": 1,
+    "txpower": 18,
+    "country": "US",
+    "interfaces": [
+      {
+        "section": "wifinet3",
+        "ifname": "wlan3",
+        "config": {
+          "mode": "ap",
+          "ssid": "Legacy-Radio-No-Freq",
+          "channel": "1",
+          "disabled": false,
+          "encryption": "psk2"
+        },
+        "iwinfo": {
+          "channel": 1,
+          "mode": "Master",
+          "ssid": "Legacy-Radio-No-Freq",
+          "encryption": {
+            "enabled": true,
+            "description": "WPA2 PSK",
+            "auth_suites": [
+              "PSK"
+            ]
+          }
+        }
+      }
+    ]
   }
 }

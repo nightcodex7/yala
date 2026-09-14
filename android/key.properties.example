@@ -1,0 +1,8 @@
+# Android Release Signing Configuration Example
+# Copy this file to android/key.properties and update the credentials.
+# DO NOT COMMIT key.properties OR YOUR KEYSTORE FILE TO VERSION CONTROL!
+
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+storeFile=../upload-keystore.jks

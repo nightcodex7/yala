@@ -1,6 +1,29 @@
-import 'package:luci_mobile/utils/wifi_utils.dart';
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+enum ClientCategoryFilter { all, wired, wireless, banned, dumbAp }
 
 enum ConnectionType { wired, wireless, unknown }
+
+/// Neighbor Unreachability Detection (NUD) state from the kernel's neighbor table.
+/// Used for three-state wired client active status instead of binary on/off.
+enum NeighborReachability {
+  /// Confirmed active — kernel has verified reachability within reachable_time (~30s).
+  /// Also covers DELAY and PROBE states (kernel is in the process of confirming).
+  reachable,
+
+  /// Probably active but idle — device was reachable but hasn't communicated recently.
+  /// Entry persists until gc_stale_time, typically 60s.
+  stale,
+
+  /// Disconnected — ARP probe failed or entry absent from neighbor table entirely.
+  failed,
+
+  /// Unknown — fallback when `ip neigh` is unavailable and we're using /proc/net/arp
+  /// which can't distinguish REACHABLE from STALE.
+  unknown,
+}
 
 class Client {
   final String ipAddress;
@@ -15,10 +38,15 @@ class Client {
   final int? expiresAt; // timestamp in seconds
   final ConnectionType connectionType;
   final List<String>? ipv6Addresses;
-  // GL.iNet-specific enrichment fields
-  final String? wifiBand; // "2G", "5G", "6G", or null (wired/unknown)
-  final bool? isOnline; // true/false from GL.iNet API, null if unknown
-  final String? deviceClass; // "phone", "laptop", "tv", etc.
+  final String? ssid;
+  final String? wirelessIface;
+  final bool isConnected;
+  final NeighborReachability neighState;
+  final String? staticLeaseName;
+  final bool isStaticLease;
+  final String? staticLeaseTime;
+  final bool isDumbApClient;
+  final String? apName;
 
   Client({
     required this.ipAddress,
@@ -33,91 +61,71 @@ class Client {
     this.expiresAt,
     this.connectionType = ConnectionType.unknown,
     this.ipv6Addresses,
-    this.wifiBand,
-    this.isOnline,
-    this.deviceClass,
+    this.ssid,
+    this.wirelessIface,
+    this.isConnected = true,
+    this.neighState = NeighborReachability.unknown,
+    this.staticLeaseName,
+    this.isStaticLease = false,
+    this.staticLeaseTime,
+    this.isDumbApClient = false,
+    this.apName,
   });
 
-  // Helper function to determine connection type from MAC address or other data
+  // Helper function to determine connection type from interface parameters
   static ConnectionType _determineConnectionType(Map<String, dynamic> lease) {
-    // Check for wireless-specific fields first
-    if (lease['signal'] != null || lease['noise'] != null) {
+    // Check for explicit wireless fields
+    if (lease['signal'] != null ||
+        lease['noise'] != null ||
+        lease['ssid'] != null) {
       return ConnectionType.wireless;
     }
 
-    // Check for wired-specific fields
-    if (lease['port'] != null ||
-        lease['ifname']?.toString().startsWith('eth') == true) {
+    final hostname = (lease['hostname'] ?? lease['name'] ?? '')
+        .toString()
+        .toLowerCase();
+    final vendor = (lease['vendor'] ?? '').toString().toLowerCase();
+    if (hostname.contains('iphone') ||
+        hostname.contains('ipad') ||
+        hostname.contains('galaxy') ||
+        hostname.contains('android') ||
+        hostname.contains('pixel') ||
+        hostname.contains('phone') ||
+        hostname.contains('tab') ||
+        hostname.contains('mobile') ||
+        hostname.contains('macbook') ||
+        hostname.contains('firestick') ||
+        hostname.contains('chromecast') ||
+        hostname.contains('roku') ||
+        hostname.contains('echo') ||
+        hostname.contains('alexa') ||
+        vendor.contains('apple') ||
+        vendor.contains('samsung') ||
+        vendor.contains('xiaomi') ||
+        vendor.contains('oneplus') ||
+        vendor.contains('oppo') ||
+        vendor.contains('vivo') ||
+        vendor.contains('realme') ||
+        vendor.contains('huawei')) {
+      return ConnectionType.wireless;
+    }
+
+    final ifname = (lease['ifname'] ?? lease['device'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (ifname.startsWith('wlan') ||
+        ifname.startsWith('phy') ||
+        ifname.startsWith('ra') ||
+        ifname.startsWith('wifi') ||
+        ifname.startsWith('ath')) {
+      return ConnectionType.wireless;
+    }
+
+    if (ifname.startsWith('eth') || ifname.startsWith('lan1')) {
       return ConnectionType.wired;
     }
 
-    // Check hostname for common wireless indicators
-    final hostname = (lease['hostname'] ?? '').toString().toLowerCase();
-    if (hostname.contains('android') ||
-        hostname.contains('iphone') ||
-        hostname.contains('ipad') ||
-        hostname.contains('wireless') ||
-        hostname.contains('wifi') ||
-        hostname.contains('wl')) {
-      return ConnectionType.wireless;
-    }
-
-    // Check MAC address OUI for common wireless vendors
-    final mac = (lease['macaddr'] ?? '').toString().toLowerCase();
-    if (mac.isNotEmpty) {
-      // Common wireless MAC OUI prefixes
-      const wirelessOuis = [
-        '00:1e:2a',
-        '00:23:69',
-        '00:26:5e',
-        '00:26:5f',
-        '00:26:ab',
-        '00:26:b8',
-        '00:26:f2',
-        '00:1d:0f',
-        '00:1e:2a',
-        '00:21:29',
-        '00:22:3f',
-        '00:22:5f',
-        '00:23:08',
-        '00:23:15',
-        'a4:4c:c8', 'a4:4c:c9', 'a4:4c:ca', 'a4:4c:cb', 'a4:83:e7', // Apple
-        '90:72:40', 'f8:0f:f9', 'f8:95:ea', // Google
-        '4c:57:ca', // TP-Link
-        'a0:14:3d',
-        '00:1a:11',
-        '00:1d:60',
-        '00:25:9e',
-        '00:26:5a',
-        '00:50:43', // Microsoft
-        '34:ab:37', // Amazon
-      ];
-
-      final oui = mac.length > 8 ? mac.substring(0, 8) : '';
-      if (wirelessOuis.any((prefix) => oui.startsWith(prefix.toLowerCase()))) {
-        return ConnectionType.wireless;
-      }
-
-      // If MAC starts with common wired OUI, mark as wired
-      const wiredOuis = [
-        '00:1d:60', '00:25:9e', '00:26:5a', '00:50:43', // Dell
-        '00:1a:4d', '00:1a:4e', '00:1a:4f', // ASUS
-        '00:1b:21',
-        '00:1b:fc',
-        '00:24:8c',
-        '00:26:18',
-        '00:26:5e',
-        '00:26:5f',
-        '00:26:ab',
-        '00:26:b8',
-        '00:26:f2', // Intel
-      ];
-
-      if (wiredOuis.any((prefix) => oui.startsWith(prefix.toLowerCase()))) {
-        return ConnectionType.wired;
-      }
-    }
-
+    // Default to unknown for bridge interfaces (e.g. br-lan) to defer to dynamic station/maclist/ethernet resolution
     return ConnectionType.unknown;
   }
 
@@ -172,13 +180,19 @@ class Client {
       }
     }
 
+    final rawName =
+        toStringValue(lease['hostname']) ??
+        toStringValue(lease['name']) ??
+        toStringValue(lease['dnsname']);
+    final parsedHostname =
+        (rawName != null && rawName.trim().isNotEmpty && rawName.trim() != '*')
+        ? rawName.trim()
+        : 'Unknown';
+
     return Client(
       ipAddress: toStringValue(lease['ipaddr']) ?? 'N/A',
       macAddress: toStringValue(lease['macaddr']) ?? 'N/A',
-      hostname:
-          toStringValue(lease['hostname']) ??
-          toStringValue(lease['name']) ??
-          'Unknown',
+      hostname: parsedHostname,
       hostId: toStringValue(lease['hostid']),
       leaseTime: remainingLeaseTime, // Use the 'expires' value directly
       vendor: toStringValue(lease['vendor']),
@@ -188,23 +202,51 @@ class Client {
       expiresAt: expiresAtTimestamp, // Store the calculated absolute timestamp
       connectionType: _determineConnectionType(lease),
       ipv6Addresses: ipv6Addresses,
+      staticLeaseName: toStringValue(lease['staticLeaseName']),
+      isStaticLease: lease['isStaticLease'] == true,
+      staticLeaseTime: toStringValue(
+        lease['staticLeaseTime'] ?? lease['leasetime'],
+      ),
     );
   }
 
   /// Creates a Client from a wireless association MAC address (no DHCP data).
   /// Used as a fallback for AP-mode routers where DHCP is handled upstream.
-  factory Client.fromWirelessStation(String macAddress) {
+  factory Client.fromWirelessStation(
+    String macAddress, {
+    String? ssid,
+    String? wirelessIface,
+    bool isDumbApClient = false,
+    String? apName,
+  }) {
     return Client(
       ipAddress: 'N/A',
       macAddress: macAddress,
       hostname: 'Unknown',
       connectionType: ConnectionType.wireless,
+      neighState: NeighborReachability
+          .reachable, // Wireless stations are confirmed live by association
+      ssid: ssid,
+      wirelessIface: wirelessIface,
+      isDumbApClient: isDumbApClient,
+      apName: apName,
     );
   }
 
-  // Get formatted lease time (e.g., "2d 4h 30m")
+  // Get formatted lease time (e.g., "2d 4h 30m" or "Static (Permanent)")
   String get formattedLeaseTime {
-    if (leaseTime == null || leaseTime == 0) return 'Unlimited';
+    if (isStatic) {
+      final lt = staticLeaseTime?.trim();
+      if (lt != null &&
+          lt.isNotEmpty &&
+          lt.toLowerCase() != 'infinite' &&
+          lt.toLowerCase() != '0') {
+        return 'Static ($lt)';
+      }
+      return 'Static (Permanent)';
+    }
+    if (leaseTime == null) return 'No active lease';
+    if (leaseTime == 0) return 'Unlimited';
     if (leaseTime! < 0) return 'Expired';
     return Client.formatDuration(leaseTime!);
   }
@@ -240,22 +282,56 @@ class Client {
     return parts.join(' ');
   }
 
-  /// Human-readable connection label using GL.iNet data when available.
-  String get connectionLabel {
-    if (isOnline == false) return 'Offline';
-    if (wifiBand != null) {
-      final formattedBand = formatWifiBand(wifiBand!);
-      return formattedBand.isEmpty ? wifiBand! : formattedBand;
+  /// Cached normalized MAC address (uppercase with colons)
+  late final String normalizedMac = macAddress
+      .toUpperCase()
+      .replaceAll('-', ':');
+
+  /// Returns display name following OpenWrt client naming rules:
+  /// 1. Client's Static Lease Name configured on router (highest priority).
+  /// 2. Router-assigned hostname / dnsName if present and valid.
+  /// 3. MAC address fallback.
+  late final String displayName = _computeDisplayName();
+
+  String _computeDisplayName() {
+    final normMac = normalizedMac
+        .split(':')
+        .map((b) => b.length == 1 ? '0$b' : b)
+        .join(':');
+    String norm(String val) => val
+        .toUpperCase()
+        .replaceAll('-', ':')
+        .split(':')
+        .map((b) => b.length == 1 ? '0$b' : b)
+        .join(':');
+
+    if (staticLeaseName != null &&
+        staticLeaseName!.trim().isNotEmpty &&
+        staticLeaseName != 'Unknown' &&
+        staticLeaseName != '*' &&
+        norm(staticLeaseName!) != normMac) {
+      return staticLeaseName!.trim();
     }
-    switch (connectionType) {
-      case ConnectionType.wireless:
-        return 'Wi-Fi';
-      case ConnectionType.wired:
-        return 'Ethernet';
-      case ConnectionType.unknown:
-        return 'Unknown';
+    if (hostname.isNotEmpty &&
+        hostname != 'Unknown' &&
+        hostname != '*' &&
+        norm(hostname) != normMac) {
+      return hostname;
     }
+    if (dnsName != null &&
+        dnsName!.isNotEmpty &&
+        dnsName != 'Unknown' &&
+        dnsName != '*' &&
+        norm(dnsName!) != normMac) {
+      return dnsName!;
+    }
+    return macAddress;
   }
+
+  /// Whether this client is configured as a static lease in UCI dhcp
+  bool get isStatic =>
+      isStaticLease ||
+      (staticLeaseName != null && staticLeaseName!.trim().isNotEmpty);
 
   Client copyWith({
     String? ipAddress,
@@ -270,9 +346,15 @@ class Client {
     int? expiresAt,
     ConnectionType? connectionType,
     List<String>? ipv6Addresses,
-    String? wifiBand,
-    bool? isOnline,
-    String? deviceClass,
+    String? ssid,
+    String? wirelessIface,
+    bool? isConnected,
+    NeighborReachability? neighState,
+    String? staticLeaseName,
+    bool? isStaticLease,
+    String? staticLeaseTime,
+    bool? isDumbApClient,
+    String? apName,
   }) {
     return Client(
       ipAddress: ipAddress ?? this.ipAddress,
@@ -287,9 +369,77 @@ class Client {
       expiresAt: expiresAt ?? this.expiresAt,
       connectionType: connectionType ?? this.connectionType,
       ipv6Addresses: ipv6Addresses ?? this.ipv6Addresses,
-      wifiBand: wifiBand ?? this.wifiBand,
-      isOnline: isOnline ?? this.isOnline,
-      deviceClass: deviceClass ?? this.deviceClass,
+      ssid: ssid ?? this.ssid,
+      wirelessIface: wirelessIface ?? this.wirelessIface,
+      isConnected: isConnected ?? this.isConnected,
+      neighState: neighState ?? this.neighState,
+      staticLeaseName: staticLeaseName ?? this.staticLeaseName,
+      isStaticLease: isStaticLease ?? this.isStaticLease,
+      staticLeaseTime: staticLeaseTime ?? this.staticLeaseTime,
+      isDumbApClient: isDumbApClient ?? this.isDumbApClient,
+      apName: apName ?? this.apName,
     );
+  }
+
+  /// Merges DHCP leases and active wireless station MACs into a sorted list of Clients.
+  static List<Client> buildMergedClientList(
+    List<Map<String, dynamic>> dhcpLeases,
+    Set<String> wirelessMacs, {
+    bool isDumbAp = false,
+    String? apName,
+  }) {
+    String norm(String m) => m
+        .toUpperCase()
+        .replaceAll('-', ':')
+        .split(':')
+        .map((b) => b.length == 1 ? '0$b' : b)
+        .join(':');
+
+    final normalizedWireless = wirelessMacs.map(norm).toSet();
+
+    final clients = <String, Client>{};
+    for (final lease in dhcpLeases) {
+      final client = Client.fromLease(lease);
+      final macNorm = norm(client.macAddress);
+      final isWireless = normalizedWireless.contains(macNorm);
+      clients[macNorm] = client.copyWith(
+        connectionType: isWireless
+            ? ConnectionType.wireless
+            : ConnectionType.wired,
+        isDumbApClient: isWireless && isDumbAp,
+        apName: isWireless && isDumbAp ? apName : null,
+      );
+    }
+
+    for (final mac in normalizedWireless) {
+      if (!clients.containsKey(mac)) {
+        clients[mac] = Client.fromWirelessStation(
+          mac,
+          isDumbApClient: isDumbAp,
+          apName: apName,
+        );
+      }
+    }
+
+    final list = clients.values.toList();
+    list.sort((a, b) {
+      int typeOrder(ConnectionType t) {
+        switch (t) {
+          case ConnectionType.wireless:
+            return 0;
+          case ConnectionType.wired:
+            return 1;
+          default:
+            return 2;
+        }
+      }
+
+      final cmpType = typeOrder(
+        a.connectionType,
+      ).compareTo(typeOrder(b.connectionType));
+      if (cmpType != 0) return cmpType;
+      return a.hostname.toLowerCase().compareTo(b.hostname.toLowerCase());
+    });
+    return list;
   }
 }

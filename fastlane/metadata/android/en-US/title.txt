@@ -1,1 +1,1 @@
-LuCI Mobile 
+Yet Another LuCI App

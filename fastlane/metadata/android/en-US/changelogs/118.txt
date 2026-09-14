@@ -1,0 +1,5 @@
+YALA 2.0.0:
+• Open Source & Privacy: Full GPLv3 compliance, zero ads, zero tracking, local-only router control
+• Visual Polish: High-contrast YALA Amber & Material You dynamic palettes
+• Navigation & Stability: Smart tab back-stack with exit confirmation & black-screen fix on reopen
+• OpenWrt 24.10+ Support: Package manager (apk/opkg), multi-router switching & parental controls

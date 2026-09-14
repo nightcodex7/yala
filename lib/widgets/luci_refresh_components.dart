@@ -1,9 +1,13 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'luci_toast.dart';
 import 'package:flutter/services.dart';
 import '../design/luci_design_system.dart';
-import '../l10n/luci_localizations.dart';
 
 /// A standardized pull-to-refresh widget that provides consistent
 /// visual feedback and behavior across all screens in the app.
@@ -100,16 +104,9 @@ class _LuciPullToRefreshState extends State<LuciPullToRefresh>
     } catch (e) {
       // Handle any errors that might occur during refresh
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.l10n.refreshFailed(e)),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(LuciSpacing.md),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(LuciSpacing.sm),
-            ),
-          ),
+        context.showToastError(
+          'Refresh Failed',
+          subtitle: 'Unable to refresh router data. Please check connection.',
         );
       }
     }
@@ -149,7 +146,7 @@ class LuciListPullToRefresh extends StatelessWidget {
     this.physics,
     this.shrinkWrap = false,
     this.padding,
-    this.emptyMessage,
+    this.emptyMessage = 'No items to display',
     this.emptyIcon = Icons.inbox_outlined,
     this.showEmptyState = true,
   });
@@ -179,7 +176,7 @@ class LuciListPullToRefresh extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   /// Message to show when the list is empty.
-  final String? emptyMessage;
+  final String emptyMessage;
 
   /// Icon to show when the list is empty.
   final IconData emptyIcon;
@@ -207,7 +204,7 @@ class LuciListPullToRefresh extends StatelessWidget {
                   ),
                   SizedBox(height: LuciSpacing.md),
                   Text(
-                    emptyMessage ?? context.l10n.noItemsToDisplay,
+                    emptyMessage,
                     style: LuciTextStyles.cardTitle(
                       context,
                     ).copyWith(color: Theme.of(context).colorScheme.outline),
@@ -215,7 +212,7 @@ class LuciListPullToRefresh extends StatelessWidget {
                   ),
                   SizedBox(height: LuciSpacing.sm),
                   Text(
-                    context.l10n.pullDownToRefresh,
+                    'Pull down to refresh',
                     style: LuciTextStyles.cardSubtitle(
                       context,
                     ).copyWith(color: Theme.of(context).colorScheme.outline),
@@ -238,6 +235,10 @@ class LuciListPullToRefresh extends StatelessWidget {
         itemCount: itemCount,
         itemBuilder: itemBuilder,
         separatorBuilder: separatorBuilder!,
+        // ignore: deprecated_member_use
+        cacheExtent: 350.0,
+        addAutomaticKeepAlives: true,
+        addRepaintBoundaries: true,
       );
     } else {
       listView = ListView.builder(
@@ -247,6 +248,10 @@ class LuciListPullToRefresh extends StatelessWidget {
         padding: padding,
         itemCount: itemCount,
         itemBuilder: itemBuilder,
+        // ignore: deprecated_member_use
+        cacheExtent: 350.0,
+        addAutomaticKeepAlives: true,
+        addRepaintBoundaries: true,
       );
     }
 

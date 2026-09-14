@@ -1,21 +1,61 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Core App Functionality Permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <!-- Local Network Access Permission for Android 15+ / Target API 37 -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK"/>
+
+
+    <!-- Universal Target Compatibility Declarations: Android Phones, Tablets, Foldables, Chromebooks (ARC), & Android Derivatives -->
+    <!-- Supports GrapheneOS, CalyxOS, LineageOS, Fire OS, HarmonyOS, Waydroid, Samsung DeX, Desktop mode & custom ROMs -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+    <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
+    <uses-feature android:name="android.hardware.type.pc" android:required="false" />
+    <uses-feature android:name="android.hardware.type.television" android:required="false" />
+    <uses-feature android:name="android.hardware.type.automotive" android:required="false" />
     <application
-        android:enableOnBackInvokedCallback="true"
-        android:label="LuCI Mobile"
+        android:allowBackup="false"
+        android:fullBackupOnly="false"
+        android:extractNativeLibs="false"
+        android:largeHeap="false"
+        android:hardwareAccelerated="true"
+        android:resizeableActivity="true"
+        android:enableOnBackInvokedCallback="false"
+        android:label="Yet Another LuCI App"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher">
+        android:roundIcon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <activity
-            android:name="com.cogwheel.LuCIMobile.MainActivity"
+            android:name="com.nightcode.luci.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
+            android:autoRemoveFromRecents="false"
+            android:stateNotNeeded="false"
+            android:resizeableActivity="true"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
+            <!-- Universal OEM Multi-Window & Freeform / Pop-up window sizing rules -->
+            <layout
+                android:defaultHeight="720dp"
+                android:defaultWidth="1080dp"
+                android:gravity="top|end"
+                android:minHeight="200dp"
+                android:minWidth="200dp" />
+            <!-- Informs Android 10+, Foldables, Samsung One UI & ChromeOS of dynamic resize capability -->
+            <meta-data
+                android:name="android.supports_size_changes"
+                android:value="true" />
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues
@@ -23,6 +63,11 @@
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
+              />
+            <!-- Opt-out of restricted display cutout bounds on Android 15+ -->
+            <meta-data
+              android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_DISPLAY_CUTOUT"
+              android:value="false"
               />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -34,12 +79,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-    </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
 
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+        <!-- Google Play & Third-Party App Store Automated Distribution Metadata -->
+        <meta-data
+            android:name="com.google.android.play.allow_third_party_distribution"
+            android:value="true" />
+        <meta-data
+            android:name="com.google.android.play.app_distribution.auto_update"
+            android:value="true" />
+    </application>
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

@@ -1,0 +1,194 @@
+{
+  "AA:BB:CC:11:22:33": {
+    "name": "Pixel-9-Pro",
+    "staticLeaseName": "Pixel-9-Pro-Static",
+    "isStaticLease": true,
+    "vendor": "Google LLC",
+    "ipaddrs": ["192.168.1.100"],
+    "ip6addrs": ["2409:4060:2e81:a102::100", "fd00:192:168:1::100", "fe80::aabb:ccff:fe11:2233"]
+  },
+  "AA:BB:CC:44:55:66": {
+    "name": "MacBook-Pro-16-M3",
+    "vendor": "Apple Inc.",
+    "ipaddrs": ["192.168.1.101"],
+    "ip6addrs": ["2409:4060:2e81:a102::101", "fd00:192:168:1::101", "fe80::aabb:ccff:fe44:5566"]
+  },
+  "AA:BB:CC:77:88:99": {
+    "name": "Sony-Bravia-4K-TV",
+    "staticLeaseName": "Media-Room-TV",
+    "isStaticLease": true,
+    "vendor": "Sony Corporation",
+    "ipaddrs": ["192.168.1.102"],
+    "ip6addrs": ["fe80::aabb:ccff:fe77:8899"]
+  },
+  "AA:BB:CC:AA:BB:CC": {
+    "name": "ASUS-ROG-Gaming-PC",
+    "staticLeaseName": "Gaming-Rig-Ethernet",
+    "isStaticLease": true,
+    "vendor": "ASUSTeK Computer Inc.",
+    "ipaddrs": ["192.168.1.103"],
+    "ip6addrs": ["2409:4060:2e81:a102::103", "fe80::aabb:ccff:feaa:bbcc"]
+  },
+  "AA:BB:CC:DD:EE:FF": {
+    "name": "Google-Nest-Thermostat",
+    "vendor": "Google LLC",
+    "ipaddrs": ["192.168.1.104"],
+    "ip6addrs": ["fe80::aabb:ccff:fedd:eeff"]
+  },
+  "AA:BB:CC:12:34:56": {
+    "name": "iPad-Air-M2",
+    "vendor": "Apple Inc.",
+    "ipaddrs": ["192.168.1.105"],
+    "ip6addrs": ["2409:4060:2e81:a102::105", "fe80::aabb:ccff:fe12:3456"]
+  },
+  "AA:BB:CC:65:43:21": {
+    "name": "Amazon-Echo-Show-10",
+    "vendor": "Amazon.com Services LLC",
+    "ipaddrs": ["192.168.1.106"],
+    "ip6addrs": ["fe80::aabb:ccff:fe65:4321"]
+  },
+  "AA:BB:CC:98:76:54": {
+    "name": "HP-Color-LaserJet-Pro",
+    "staticLeaseName": "Office-Printer-LAN",
+    "isStaticLease": true,
+    "vendor": "HP Inc.",
+    "ipaddrs": ["192.168.1.107"],
+    "ip6addrs": ["fe80::aabb:ccff:fe98:7654"]
+  },
+  "BB:CC:DD:11:22:33": {
+    "name": "Samsung-Galaxy-S24-Ultra",
+    "vendor": "Samsung Electronics",
+    "ipaddrs": ["192.168.1.108"],
+    "ip6addrs": ["2409:4060:2e81:a102::108", "fe80::bbcc:ddff:fe11:2233"]
+  },
+  "BB:CC:DD:44:55:66": {
+    "name": "Dell-XPS-15-Workstation",
+    "vendor": "Dell Inc.",
+    "ipaddrs": ["192.168.1.109"],
+    "ip6addrs": ["2409:4060:2e81:a102::109", "fe80::bbcc:ddff:fe44:5566"]
+  },
+  "BB:CC:DD:77:88:99": {
+    "name": "Ring-Video-Doorbell-Pro",
+    "vendor": "Ring LLC",
+    "ipaddrs": ["192.168.1.110"],
+    "ip6addrs": ["fe80::bbcc:ddff:fe77:8899"]
+  },
+  "BB:CC:DD:AA:BB:CC": {
+    "name": "PlayStation-5-Console",
+    "vendor": "Sony Interactive Entertainment",
+    "ipaddrs": ["192.168.1.111"],
+    "ip6addrs": ["2409:4060:2e81:a102::111", "fe80::bbcc:ddff:feaa:bbcc"]
+  },
+  "BB:CC:DD:DD:EE:FF": {
+    "name": "Philips-Hue-Bridge-V2",
+    "vendor": "Signify Netherlands B.V.",
+    "ipaddrs": ["192.168.1.112"],
+    "ip6addrs": ["fe80::bbcc:ddff:fedd:eeff"]
+  },
+  "BB:CC:DD:12:34:56": {
+    "name": "Nintendo-Switch-OLED",
+    "vendor": "Nintendo Co., Ltd.",
+    "ipaddrs": ["192.168.1.113"],
+    "ip6addrs": ["2409:4060:2e81:a102::113", "fe80::bbcc:ddff:fe12:3456"]
+  },
+  "BB:CC:DD:65:43:21": {
+    "name": "Sonos-Era-100-Speaker",
+    "vendor": "Sonos Inc.",
+    "ipaddrs": ["192.168.1.114"],
+    "ip6addrs": ["fe80::bbcc:ddff:fe65:4321"]
+  },
+  "CC:DD:EE:11:22:33": {
+    "name": "Tesla-Model-3-EV",
+    "vendor": "Tesla Inc.",
+    "ipaddrs": ["192.168.1.116"],
+    "ip6addrs": ["fe80::ccdd:eeff:fe11:2233"]
+  },
+  "CC:DD:EE:44:55:66": {
+    "name": "LG-C3-OLED-TV",
+    "vendor": "LG Electronics",
+    "ipaddrs": ["192.168.1.117"],
+    "ip6addrs": ["fe80::ccdd:eeff:fe44:5566"]
+  },
+  "CC:DD:EE:77:88:99": {
+    "name": "Steam-Deck-OLED",
+    "vendor": "Valve Corporation",
+    "ipaddrs": ["192.168.1.118"],
+    "ip6addrs": ["2409:4060:2e81:a102::118", "fe80::ccdd:eeff:fe77:8899"]
+  },
+  "CC:DD:EE:AA:BB:CC": {
+    "name": "Eufy-Security-Camera",
+    "vendor": "Anker Innovations",
+    "ipaddrs": ["192.168.1.119"],
+    "ip6addrs": ["fe80::ccdd:eeff:feaa:bbcc"]
+  },
+  "CC:DD:EE:DD:EE:FF": {
+    "name": "Raspberry-Pi-5-HomeAssistant",
+    "staticLeaseName": "Home-Vault-NAS",
+    "isStaticLease": true,
+    "vendor": "Raspberry Pi Foundation",
+    "ipaddrs": ["192.168.1.120"],
+    "ip6addrs": ["2409:4060:2e81:a102::120", "fd00:192:168:1::120", "fe80::ccdd:eeff:fedd:eeff"]
+  },
+  "CC:DD:EE:12:34:56": {
+    "name": "Apple-Watch-Ultra-2",
+    "vendor": "Apple Inc.",
+    "ipaddrs": ["192.168.1.121"],
+    "ip6addrs": ["fe80::ccdd:eeff:fe12:3456"]
+  },
+  "CC:DD:EE:65:43:21": {
+    "name": "Chromecast-with-Google-TV",
+    "vendor": "Google LLC",
+    "ipaddrs": ["192.168.1.122"],
+    "ip6addrs": ["fe80::ccdd:eeff:fe65:4321"]
+  },
+  "CC:DD:EE:98:76:54": {
+    "name": "ThinkPad-X1-Carbon",
+    "vendor": "Lenovo Group Ltd.",
+    "ipaddrs": ["192.168.1.123"],
+    "ip6addrs": ["2409:4060:2e81:a102::123", "fe80::ccdd:eeff:fe98:7654"]
+  },
+  "DD:EE:FF:11:22:33": {
+    "name": "RayBan-Meta-Smart-Glasses",
+    "vendor": "Meta Platforms Inc.",
+    "ipaddrs": ["192.168.1.124"],
+    "ip6addrs": ["fe80::ddee:ffff:fe11:2233"]
+  },
+  "DD:EE:FF:44:55:66": {
+    "name": "ESP32-Environmental-Sensor",
+    "vendor": "Espressif Systems",
+    "ipaddrs": ["192.168.1.125"],
+    "ip6addrs": ["fe80::ddee:ffff:fe44:5566"]
+  },
+  "DD:EE:FF:77:88:99": {
+    "name": "Yale-Assure-Smart-Lock",
+    "vendor": "Assa Abloy Americas",
+    "ipaddrs": ["192.168.1.126"],
+    "ip6addrs": ["fe80::ddee:ffff:fe77:8899"]
+  },
+  "DD:EE:FF:AA:BB:CC": {
+    "name": "Roborock-S8-MaxV-Vacuum",
+    "vendor": "Beijing Roborock Technology",
+    "ipaddrs": ["192.168.1.127"],
+    "ip6addrs": ["fe80::ddee:ffff:feaa:bbcc"]
+  },
+  "DD:EE:FF:DD:EE:FF": {
+    "name": "Synology-DiskStation-NAS",
+    "staticLeaseName": "Storage-Vault-NAS",
+    "isStaticLease": true,
+    "vendor": "Synology Inc.",
+    "ipaddrs": ["192.168.1.128"],
+    "ip6addrs": ["2409:4060:2e81:a102::128", "fe80::ddee:ffff:fedd:eeff"]
+  },
+  "DD:EE:FF:12:34:56": {
+    "name": "Meta-Quest-3-VR-Headset",
+    "vendor": "Meta Platforms Inc.",
+    "ipaddrs": ["192.168.1.129"],
+    "ip6addrs": ["fe80::ddee:ffff:fe12:3456"]
+  },
+  "DD:EE:FF:65:43:21": {
+    "name": "Aqara-Smart-Motion-Sensor",
+    "vendor": "Lumi United Technology",
+    "ipaddrs": ["192.168.1.130"],
+    "ip6addrs": ["fe80::ddee:ffff:fe65:4321"]
+  }
+}

@@ -1,0 +1,9 @@
+# Copyright (C) 2026 @nightcodex7
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Fastlane Appfile configuration for Yet Another LuCI App
+# Package identifier matching AndroidManifest.xml and build.gradle.kts
+package_name("com.nightcode.luci")
+
+# JSON Key File for Google Play Developer API (populate path when using automated supply)
+# json_key_file("path/to/pc-api-key.json")

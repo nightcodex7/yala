@@ -1,26 +1,33 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:luci_mobile/main.dart';
+import 'package:yet_another_luci_app/main.dart';
 import 'package:flutter/services.dart';
-import 'package:luci_mobile/models/glinet_data.dart';
-import 'package:luci_mobile/models/interface.dart';
-import 'package:luci_mobile/utils/wifi_utils.dart';
+import 'package:yet_another_luci_app/models/interface.dart';
+import 'package:yet_another_luci_app/models/router_capabilities.dart';
+import 'package:yet_another_luci_app/models/network_topology.dart';
+import 'package:yet_another_luci_app/widgets/network_topology_card.dart';
 import 'dart:math';
-import 'package:luci_mobile/widgets/luci_app_bar.dart';
-import 'package:luci_mobile/design/luci_design_system.dart';
-import 'package:luci_mobile/widgets/luci_loading_states.dart';
-import 'package:luci_mobile/widgets/luci_refresh_components.dart';
-import 'package:luci_mobile/screens/wifi_scan_screen.dart';
-import 'package:luci_mobile/l10n/luci_localizations.dart';
+import 'package:yet_another_luci_app/widgets/luci_app_bar.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
+import 'package:yet_another_luci_app/widgets/luci_loading_states.dart';
+import 'package:yet_another_luci_app/widgets/luci_refresh_components.dart';
+import 'package:yet_another_luci_app/widgets/luci_toast.dart';
+import 'package:yet_another_luci_app/state/app_state.dart';
 
 class InterfacesScreen extends ConsumerStatefulWidget {
   final String? scrollToInterface;
   final VoidCallback? onScrollComplete;
+  final bool isTabActive;
 
   const InterfacesScreen({
     super.key,
     this.scrollToInterface,
     this.onScrollComplete,
+    this.isTabActive = true,
   });
 
   @override
@@ -32,10 +39,529 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
   String? _targetInterface;
   String? _expandedInterface;
   final Map<String, GlobalKey> _interfaceKeys = {};
+  final Map<String, bool> _stagedWiredInterfaceStates = {};
+  final Map<String, bool> _stagedWirelessInterfaceStates = {};
+  bool _isSaving = false;
+  Widget? _lastRenderedScaffold;
+  String? _lastSelectedRouterId;
+
+  dynamic _lastInterfaceDump;
+  dynamic _lastNetworkDevices;
+  String? _lastWiredRouterIp;
+  int _lastStagedWiredHash = 0;
+  List<NetworkInterface>? _cachedWiredList;
+
+  dynamic _lastWirelessData;
+  dynamic _lastUciWireless;
+  String? _lastWirelessRouterIp;
+  int _lastStagedWirelessHash = 0;
+  List<Map<String, dynamic>>? _cachedWirelessList;
+
+  bool _isWiredAccessInterface(NetworkInterface iface, String? routerIp) {
+    if (routerIp == null || routerIp.isEmpty) return false;
+    if (iface.ipAddress == routerIp) return true;
+    final gate = iface.gateway;
+    if (gate != null && gate == routerIp) return true;
+    return false;
+  }
+
+  bool _isWirelessAccessInterface(
+    Map<String, dynamic> iface,
+    String? routerIp,
+  ) {
+    if (routerIp == null || routerIp.isEmpty) return false;
+    final details = iface['details'] as Map<String, dynamic>?;
+    if (details != null) {
+      final ip = details['IP Address']?.toString();
+      if (ip != null && ip == routerIp) return true;
+    }
+    return false;
+  }
+
+  Future<bool> _showCriticalLockoutWarningDialog(String interfaceName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.gpp_maybe_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'CRITICAL LOCKOUT WARNING',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Disabling active access interface "$interfaceName" will lock you out of this router!\n',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Text(
+              'This is your ACTIVE ACCESS INTERFACE hosting your management session. Disabling it will immediately break communication between the app and the router.',
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade300),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.report_problem, size: 18, color: Colors.red),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Are you absolutely sure you want to proceed?',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.red,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade800),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Disable Interface'),
+          ),
+        ],
+      ),
+    );
+    return confirm ?? false;
+  }
+
+  Future<bool> _showRestartAccessWarningDialog(String interfaceName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'ACTIVE ACCESS RESTART',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Restarting active access interface "$interfaceName" will temporarily sever your app connection!\n',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Text(
+              'This is your ACTIVE ACCESS INTERFACE hosting your management session. Restarting it will temporarily break communication until the interface re-establishes network binding.',
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.sync_problem, size: 18, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Temporary Disconnection: Please allow a few seconds for the router to complete interface re-binding.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.orange.shade800,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Restart (Temporary Disconnect)'),
+          ),
+        ],
+      ),
+    );
+    return confirm ?? false;
+  }
+
+  Future<bool> _showRestartWanWarningDialog(String interfaceName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.public_off_outlined, color: Colors.indigo, size: 28),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'RESTART WAN INTERFACE',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Restarting WAN interface "$interfaceName" will renew its internet lease and drop active WAN connections.\n',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Text(
+              'All devices connected to this router will temporarily lose external internet access until the WAN link re-connects.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.indigo),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Restart WAN Interface'),
+          ),
+        ],
+      ),
+    );
+    return confirm ?? false;
+  }
+
+  Future<bool> _showRestartGeneralConfirmDialog(String interfaceName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Restart Interface "$interfaceName"?'),
+        content: Text(
+          'Are you sure you want to restart network interface "$interfaceName"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Restart Interface'),
+          ),
+        ],
+      ),
+    );
+    return confirm ?? false;
+  }
+
+  Future<void> _restartWiredInterface(
+    NetworkInterface iface,
+    String? routerIp,
+  ) async {
+    final isAccess = _isWiredAccessInterface(iface, routerIp);
+    final isWan =
+        iface.name.toLowerCase().contains('wan') || iface.gateway != null;
+
+    bool confirm = false;
+    if (isAccess) {
+      confirm = await _showRestartAccessWarningDialog(iface.name);
+    } else if (isWan) {
+      confirm = await _showRestartWanWarningDialog(iface.name);
+    } else {
+      confirm = await _showRestartGeneralConfirmDialog(iface.name);
+    }
+
+    if (!confirm) return;
+
+    if (!mounted) return;
+
+    final actionKey = 'restart_iface_${iface.name}';
+    context.showToastLoading(
+      'Restarting Interface',
+      subtitle: 'Restarting interface "${iface.name}"...',
+      actionKey: actionKey,
+    );
+
+    final appState = ref.read(appStateProvider);
+    final success = await appState.restartWiredInterface(
+      iface.name,
+      context: context,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      context.showToastSuccess(
+        'Interface Restarted',
+        subtitle: 'Interface "${iface.name}" restarted successfully.',
+        actionKey: actionKey,
+      );
+      await appState.fetchDashboardData();
+    } else {
+      context.showToastError(
+        'Restart Failed',
+        subtitle: 'Failed to restart interface "${iface.name}".',
+        actionKey: actionKey,
+      );
+    }
+  }
+
+  Future<void> _restartWirelessInterface(
+    String sectionKey,
+    String displayName,
+    bool isAccess,
+    bool isWan, {
+    String? radioName,
+  }) async {
+    bool confirm = false;
+    if (isAccess) {
+      confirm = await _showRestartAccessWarningDialog(displayName);
+    } else if (isWan) {
+      confirm = await _showRestartWanWarningDialog(displayName);
+    } else {
+      confirm = await _showRestartGeneralConfirmDialog(displayName);
+    }
+
+    if (!confirm) return;
+
+    if (!mounted) return;
+
+    final actionKey = 'restart_wifi_$sectionKey';
+    context.showToastLoading(
+      'Restarting Wireless',
+      subtitle: 'Restarting wireless interface "$displayName"...',
+      actionKey: actionKey,
+    );
+
+    final appState = ref.read(appStateProvider);
+    final success = await appState.restartWirelessInterface(
+      sectionKey,
+      radioName: radioName,
+      context: context,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      context.showToastSuccess(
+        'Wireless Restarted',
+        subtitle: 'Wireless interface "$displayName" restarted successfully.',
+        actionKey: actionKey,
+      );
+      await appState.fetchDashboardData();
+    } else {
+      context.showToastError(
+        'Restart Failed',
+        subtitle: 'Failed to restart wireless interface "$displayName".',
+        actionKey: actionKey,
+      );
+    }
+  }
+
+  Future<void> _toggleWiredInterface(
+    NetworkInterface iface,
+    bool newValue,
+    String? routerIp,
+  ) async {
+    final isAccess = _isWiredAccessInterface(iface, routerIp);
+    if (!newValue && isAccess) {
+      final confirm = await _showCriticalLockoutWarningDialog(iface.name);
+      if (!confirm) return;
+    }
+
+    setState(() {
+      if (newValue == iface.isUp) {
+        _stagedWiredInterfaceStates.remove(iface.name);
+      } else {
+        _stagedWiredInterfaceStates[iface.name] = newValue;
+      }
+    });
+  }
+
+  Future<void> _toggleWirelessInterface(
+    String sectionKey,
+    String displayName,
+    bool originalEnabled,
+    bool isAccess,
+    bool newValue,
+  ) async {
+    if (!newValue && isAccess) {
+      final confirm = await _showCriticalLockoutWarningDialog(displayName);
+      if (!confirm) return;
+    }
+
+    setState(() {
+      if (newValue == originalEnabled) {
+        _stagedWirelessInterfaceStates.remove(sectionKey);
+      } else {
+        _stagedWirelessInterfaceStates[sectionKey] = newValue;
+      }
+    });
+  }
+
+  Future<void> _saveChanges() async {
+    if (_stagedWiredInterfaceStates.isEmpty &&
+        _stagedWirelessInterfaceStates.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    final appState = ref.read(appStateProvider);
+    bool overallSuccess = true;
+
+    for (final entry in _stagedWiredInterfaceStates.entries) {
+      if (!mounted) return;
+      final success = await appState.updateWiredInterfaceStatus(
+        entry.key,
+        entry.value,
+        context: context,
+      );
+      if (!success) overallSuccess = false;
+    }
+
+    for (final entry in _stagedWirelessInterfaceStates.entries) {
+      if (!mounted) return;
+      final success = await appState.updateWirelessInterfaceStatus(
+        entry.key,
+        entry.value,
+        context: context,
+      );
+      if (!success) overallSuccess = false;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSaving = false;
+      if (overallSuccess) {
+        _stagedWiredInterfaceStates.clear();
+        _stagedWirelessInterfaceStates.clear();
+      }
+    });
+
+    if (overallSuccess) {
+      context.showToastSuccess(
+        'Changes Applied',
+        subtitle: 'Interface state changes applied successfully.',
+      );
+      await appState.fetchDashboardData();
+    } else {
+      context.showToastError(
+        'Apply Failed',
+        subtitle: 'Some interface state changes failed to apply.',
+      );
+    }
+  }
+
+  Future<void> _confirmAndDiscardChanges() async {
+    setState(() {
+      _stagedWiredInterfaceStates.clear();
+      _stagedWirelessInterfaceStates.clear();
+    });
+  }
+
+  Widget _buildUnsavedChangesBottomBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final count =
+        _stagedWiredInterfaceStates.length +
+        _stagedWirelessInterfaceStates.length;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          top: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Icon(Icons.edit_note, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$count interface(s) modified',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            OutlinedButton(
+              onPressed: _isSaving ? null : _confirmAndDiscardChanges,
+              child: const Text('Discard'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: _isSaving ? null : () => _saveChanges(),
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check, size: 18),
+              label: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   /// Safely extract a String from a UCI config value that may be a List or String.
-  static String _uciString(dynamic value, [String fallback = '']) =>
-      uciString(value, fallback);
+  static String _uciString(dynamic value, [String fallback = '']) {
+    if (value is String) return value;
+    if (value is List) {
+      return value.isNotEmpty ? value.first.toString() : fallback;
+    }
+    return value?.toString() ?? fallback;
+  }
 
   // Unified key generator for all interfaces
   String _interfaceKey({String? name, String? ssid, String? deviceName}) {
@@ -59,47 +585,28 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
     String? radioName,
     String? deviceName,
     String? name,
-    String? sectionName,
-    String? ifname,
   }) {
     final radio = (radioName ?? '').trim();
     final ssidTrimmed = (ssid ?? '').trim();
 
-    // The UCI section name is the primary identity: it is unique per
-    // wireless interface config and computable by both the scroll-targeting
-    // and rendering paths. Keying on the section alone keeps state stable
-    // across SSID edits and runtime/configuration-only transitions. Section
-    // names are case-sensitive on the router, so preserve case here - two
-    // sections may differ only by case and must not share a GlobalKey.
-    //
-    // Section- and ifname-derived keys use distinct namespaces so a missing
-    // section on one row cannot collide with another row whose section
-    // happens to equal an ifname (e.g. section 'wlan0' vs ifname 'wlan0').
-    final section = (sectionName ?? '').trim();
-    if (section.isNotEmpty) {
-      return 'uci-section__$section';
+    // If SSID is empty, we need to ensure uniqueness even with same radio
+    if (ssidTrimmed.isEmpty) {
+      // Use device name as fallback for uniqueness
+      final device = (deviceName ?? '').trim();
+      if (device.isNotEmpty && device != radio) {
+        return '${ssidTrimmed.toLowerCase()}__${device.toLowerCase()}';
+      }
+      // Use interface name as fallback
+      final interfaceName = (name ?? '').trim();
+      if (interfaceName.isNotEmpty && interfaceName != radio) {
+        return '${ssidTrimmed.toLowerCase()}__${interfaceName.toLowerCase()}';
+      }
+      // If all names are the same, use deterministic radio fallback
+      return '${ssidTrimmed.toLowerCase()}__${radio.toLowerCase()}_fallback';
     }
 
-    // Runtime interfaces expose their OS interface name as a secondary
-    // unique identity, in its own namespace (see above).
-    final ifnameTrimmed = (ifname ?? '').trim();
-    if (ifnameTrimmed.isNotEmpty) {
-      return 'ifname__$ifnameTrimmed';
-    }
-
-    // Compose whatever distinct fields remain so records cannot collide on
-    // a shared prefix; two records agreeing on every field are data-wise
-    // indistinguishable.
-    final parts = <String>[
-      if (ssidTrimmed.isNotEmpty) ssidTrimmed.toLowerCase(),
-      if (deviceName != null && deviceName.trim().isNotEmpty)
-        deviceName.trim().toLowerCase(),
-      if (name != null && name.trim().isNotEmpty) name.trim().toLowerCase(),
-    ];
-    if (parts.isNotEmpty) {
-      return ['wireless', ...parts].join('__');
-    }
-    return 'wireless__$radio';
+    // If SSID is not empty, use SSID + radio
+    return '${ssidTrimmed.toLowerCase()}__${radio.toLowerCase()}';
   }
 
   @override
@@ -118,7 +625,11 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
   void didUpdateWidget(InterfacesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Handle parameter changes (important for iOS navigation)
+    if (oldWidget.isTabActive != widget.isTabActive && widget.isTabActive) {
+      _lastRenderedScaffold = null;
+    }
+
+    // Handle parameter changes
     if (widget.scrollToInterface != oldWidget.scrollToInterface) {
       _targetInterface = widget.scrollToInterface;
       if (_targetInterface != null) {
@@ -139,6 +650,7 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
   void dispose() {
     // Clear target interface when widget is disposed
     _targetInterface = null;
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -154,8 +666,10 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
 
         if (dashboardData != null) {
           // Check wired interfaces first
-          final wiredInterfaces =
-              dashboardData['interfaceDump']?['interface'] as List<dynamic>?;
+          final rawWired = dashboardData['interfaceDump']?['interface'];
+          final wiredInterfaces = rawWired is List
+              ? rawWired
+              : (rawWired is Map ? rawWired.values.toList() : null);
           if (wiredInterfaces != null) {
             for (int i = 0; i < wiredInterfaces.length; i++) {
               final iface = wiredInterfaces[i] as Map<String, dynamic>;
@@ -174,49 +688,12 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
               dashboardData['wireless'] as Map<String, dynamic>?;
           if (wirelessData != null) {
             final normalizedTarget = _normalizeInterfaceKey(interfaceName);
-            final rawTarget = interfaceName.trim();
-
-            // Returns the card key for a wireless interface whose UCI
-            // section matches the target exactly (case-sensitive), so an
-            // exact variant always wins over a merely normalized one.
-            String? findExactSectionMatch() {
-              String? match;
-              wirelessData.forEach((radioName, radioData) {
-                if (match != null) return;
-                final interfaces = radioData['interfaces'] as List<dynamic>?;
-                if (interfaces == null) return;
-                for (final interface in interfaces) {
-                  final sectionName = interface['section'] as String?;
-                  if (sectionName != null &&
-                      sectionName.trim().isNotEmpty &&
-                      sectionName.trim() == rawTarget) {
-                    final config = interface['config'] ?? {};
-                    final iwinfo = interface['iwinfo'] ?? {};
-                    match = _interfaceKeyForWireless(
-                      ssid: _uciString(iwinfo['ssid']).isNotEmpty
-                          ? _uciString(iwinfo['ssid'])
-                          : _uciString(config['ssid']),
-                      radioName: radioName,
-                      deviceName: _uciString(config['device'], radioName),
-                      name: interface['name'] ?? '',
-                      sectionName: sectionName,
-                      ifname: interface['ifname'] as String?,
-                    );
-                    return;
-                  }
-                }
-              });
-              return match;
-            }
-
-            // Returns the card key using the broader alias matching
-            // (normalized SSID/device/name/section).
-            String? findAliasMatch() {
-              String? match;
-              wirelessData.forEach((radioName, radioData) {
-                if (match != null) return;
-                final interfaces = radioData['interfaces'] as List<dynamic>?;
-                if (interfaces == null) return;
+            wirelessData.forEach((radioName, radioData) {
+              final rawIfaces = radioData['interfaces'];
+              final interfaces = rawIfaces is List
+                  ? rawIfaces
+                  : (rawIfaces is Map ? rawIfaces.values.toList() : null);
+              if (interfaces != null) {
                 for (var i = 0; i < interfaces.length; i++) {
                   final interface = interfaces[i];
                   final config = interface['config'] ?? {};
@@ -226,38 +703,26 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
                       ? _uciString(iwinfo['ssid'])
                       : _uciString(config['ssid']);
                   final name = interface['name'] ?? '';
-                  final sectionName = interface['section'] as String?;
                   final keyStr = _interfaceKeyForWireless(
                     ssid: ssid,
                     radioName: radioName,
                     deviceName: deviceName,
                     name: name,
-                    sectionName: sectionName,
-                    ifname: interface['ifname'] as String?,
                   );
-                  // Keys preserve section case (distinct sections must not
-                  // share a GlobalKey), but target matching normalizes case
-                  // so e.g. "GUEST" finds "Guest".
-                  if (normalizedTarget == _normalizeInterfaceKey(ssid) ||
-                      normalizedTarget == _normalizeInterfaceKey(deviceName) ||
-                      normalizedTarget == _normalizeInterfaceKey(name) ||
-                      normalizedTarget == _normalizeInterfaceKey(sectionName)) {
-                    match = keyStr;
+                  // Generate all possible normalized keys for matching
+                  final ssidKey = _normalizeInterfaceKey(ssid);
+                  final deviceKey = _normalizeInterfaceKey(deviceName);
+                  final nameKey = _normalizeInterfaceKey(name);
+                  // Match against all possible keys
+                  if (normalizedTarget == ssidKey ||
+                      normalizedTarget == deviceKey ||
+                      normalizedTarget == nameKey) {
+                    _scrollToExpandedCard(keyStr);
                     return;
                   }
                 }
-              });
-              return match;
-            }
-
-            final matchedKey = findExactSectionMatch() ?? findAliasMatch();
-            if (matchedKey != null) {
-              // Returning from the outer callback is essential: falling
-              // through would start the fallback section scroll on top of
-              // this one and could invoke onScrollComplete twice.
-              _scrollToExpandedCard(matchedKey);
-              return;
-            }
+              }
+            });
           }
         }
 
@@ -411,9 +876,25 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = ref.read(appStateProvider);
+    final currentRouterId = appState.selectedRouter?.id;
+    if (currentRouterId != _lastSelectedRouterId) {
+      _lastSelectedRouterId = currentRouterId;
+      _lastRenderedScaffold = null;
+    }
 
-    return Scaffold(
-      appBar: LuciAppBar(title: context.l10n.interfaces),
+    if (!widget.isTabActive && _lastRenderedScaffold != null) {
+      return _lastRenderedScaffold!;
+    }
+
+    final hasStagedChanges =
+        _stagedWiredInterfaceStates.isNotEmpty ||
+        _stagedWirelessInterfaceStates.isNotEmpty;
+
+    final scaffold = Scaffold(
+      appBar: const LuciAppBar(title: 'Interfaces'),
+      bottomNavigationBar: hasStagedChanges
+          ? _buildUnsavedChangesBottomBar(context)
+          : null,
       body: SafeArea(
         top: true,
         bottom: false,
@@ -454,9 +935,10 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
 
                   if (dashboardError != null && dashboardData == null) {
                     return LuciErrorDisplay(
-                      title: context.l10n.failedToLoadInterfaces,
-                      message: dashboardError,
-                      actionLabel: context.l10n.retry,
+                      title: 'Failed to Load Interfaces',
+                      message:
+                          'Could not connect to the router. Please check your network connection and router settings.',
+                      actionLabel: 'Retry',
                       onAction: () => appState.fetchDashboardData(),
                       icon: Icons.wifi_off_rounded,
                     );
@@ -464,65 +946,103 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
 
                   if (dashboardData == null) {
                     return LuciEmptyState(
-                      title: context.l10n.noInterfaceData,
-                      message: context.l10n.noInterfaceDataDescription,
+                      title: 'No Interface Data',
+                      message:
+                          'Unable to fetch interface information. Pull down to refresh or tap the button below.',
                       icon: Icons.device_hub_outlined,
-                      actionLabel: context.l10n.fetchData,
+                      actionLabel: 'Fetch Data',
                       onAction: () => appState.fetchDashboardData(),
                     );
                   }
 
+                  final wiredList = _getWiredInterfacesList(appState);
+                  final wirelessList = _getWirelessInterfacesList(appState);
+                  final topology = _getNetworkTopology(appState);
+
+                  final isWiredAvailable = wiredList.isNotEmpty;
+                  final isWirelessAvailable = wirelessList.isNotEmpty;
+                  final isTopologyAvailable =
+                      topology != null &&
+                      topology.isAvailable &&
+                      !topology.isZeroVlans;
+
+                  final routerIp = appState.currentRouterIp;
+
+                  final sections = <_SectionSpec>[
+                    _SectionSpec(
+                      defaultOrder: 0,
+                      isAvailable: isWiredAvailable,
+                      header: const LuciSectionHeader(
+                        'Wired',
+                        icon: Icons.settings_ethernet,
+                      ),
+                      sliverOrWidget: isWiredAvailable
+                          ? _buildWiredSliverList(wiredList, routerIp)
+                          : _buildCompactUnavailableCard(
+                              icon: Icons.lan_outlined,
+                              title: 'Wired Interfaces Unavailable',
+                              subtitle:
+                                  'No active or configured ethernet network interfaces detected.',
+                            ),
+                      isSliver: isWiredAvailable,
+                    ),
+                    _SectionSpec(
+                      defaultOrder: 1,
+                      isAvailable: isTopologyAvailable,
+                      header: const LuciSectionHeader(
+                        'Switch Topology & VLANs',
+                        icon: Icons.hub_outlined,
+                      ),
+                      sliverOrWidget: NetworkTopologyCard(
+                        topology: topology,
+                        onRetry: () => appState.redetectCapabilities(),
+                      ),
+                      isSliver: false,
+                    ),
+                    _SectionSpec(
+                      defaultOrder: 2,
+                      isAvailable: isWirelessAvailable,
+                      header: const LuciSectionHeader(
+                        'Wireless',
+                        icon: Icons.wifi,
+                      ),
+                      sliverOrWidget: isWirelessAvailable
+                          ? _buildWirelessSliverList(wirelessList, routerIp)
+                          : _buildCompactUnavailableCard(
+                              icon: Icons.wifi_off_rounded,
+                              title: 'Wireless Interfaces Unavailable',
+                              subtitle:
+                                  'No wireless physical radios or SSIDs configured on this router.',
+                            ),
+                      isSliver: isWirelessAvailable,
+                    ),
+                  ];
+
+                  sections.sort((a, b) {
+                    if (a.isAvailable != b.isAvailable) {
+                      return a.isAvailable ? -1 : 1;
+                    }
+                    return a.defaultOrder.compareTo(b.defaultOrder);
+                  });
+
+                  final slivers = <Widget>[];
+                  for (final sec in sections) {
+                    slivers.add(SliverToBoxAdapter(child: sec.header));
+                    if (sec.isSliver) {
+                      slivers.add(sec.sliverOrWidget);
+                    } else {
+                      slivers.add(
+                        SliverToBoxAdapter(child: sec.sliverOrWidget),
+                      );
+                    }
+                  }
+                  slivers.add(
+                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                  );
+
                   return CustomScrollView(
                     controller: _scrollController,
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: LuciSectionHeader(context.l10n.wired),
-                      ),
-                      _buildWiredInterfacesList(),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 8.0,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                context.l10n.wireless,
-                                style: LuciTextStyles.sectionHeader(context),
-                              ),
-                              TextButton.icon(
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const WifiScanScreen(),
-                                    ),
-                                  );
-                                },
-                                icon: Icon(Icons.cell_tower, size: 16),
-                                label: Text(context.l10n.radio),
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 4,
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      _buildWirelessInterfacesList(),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.only(bottom: 16),
-                          child: SizedBox.shrink(),
-                        ),
-                      ),
-                    ],
+                    slivers: slivers,
                   );
                 },
               ),
@@ -531,12 +1051,129 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
         ),
       ),
     );
+    _lastRenderedScaffold = scaffold;
+    return scaffold;
   }
 
-  Widget _buildWiredInterfacesList() {
-    final appState = ref.watch(appStateProvider);
+  Widget _buildCompactUnavailableCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onRetry,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      shape: RoundedRectangleBorder(
+        borderRadius: LuciCardStyles.standardRadius,
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+        ),
+      ),
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: colorScheme.onSurfaceVariant, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                tooltip: 'Retry',
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(),
+                color: colorScheme.primary,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  NetworkTopology? _getNetworkTopology(AppState appState) {
+    final capabilities = appState.capabilities;
+    final model = capabilities?.networkModel ?? NetworkModel.unknown;
+
+    if (model == NetworkModel.unknown) {
+      return NetworkTopology.unavailable(
+        NetworkModel.unknown,
+        'Conservative fallback active — network model could not be verified automatically.',
+      );
+    }
+
+    final uciNetwork = appState.dashboardData?['uciNetworkConfig'];
+    Map<String, dynamic> uciMap = {};
+    if (uciNetwork is Map) {
+      uciMap = Map<String, dynamic>.from(uciNetwork);
+    }
+
+    if (model == NetworkModel.dsa) {
+      return DsaTopologyParser.parse(
+        uciMap,
+        appState.dashboardData?['networkDevices'] as Map<String, dynamic>?,
+      );
+    } else {
+      return SwconfigTopologyParser.parse(
+        uciMap,
+        appState.dashboardData?['networkDevices'] as Map<String, dynamic>?,
+      );
+    }
+  }
+
+  List<NetworkInterface> _getWiredInterfacesList(AppState appState) {
     final dynamic detailedData = appState.dashboardData?['interfaceDump'];
     final dynamic statsDataSource = appState.dashboardData?['networkDevices'];
+    final routerIp = appState.currentRouterIp;
+    final stagedHash = Object.hashAllUnordered(
+      _stagedWiredInterfaceStates.entries.map(
+        (e) => Object.hash(e.key, e.value),
+      ),
+    );
+
+    if (_cachedWiredList != null &&
+        identical(_lastInterfaceDump, detailedData) &&
+        identical(_lastNetworkDevices, statsDataSource) &&
+        _lastWiredRouterIp == routerIp &&
+        _lastStagedWiredHash == stagedHash) {
+      return _cachedWiredList!;
+    }
+
     var interfacesList = <NetworkInterface>[];
 
     if (detailedData is Map &&
@@ -564,36 +1201,35 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
         }
         return NetworkInterface.fromJson(detailedInterfaceMap);
       }).toList();
+    }
 
-      // Enrich Tailscale interface with GL.iNet API data
-      final glInetData = appState.dashboardData?['glinet'] as GlInetData?;
-      if (glInetData?.tailscaleIp != null) {
-        interfacesList = interfacesList.map((iface) {
-          if (iface.name.toLowerCase() == 'tailscale' &&
-              iface.ipAddress == null) {
-            return NetworkInterface(
-              name: iface.name,
-              isUp: iface.isUp,
-              protocol: 'tailscale',
-              uptime: iface.uptime,
-              device: iface.device,
-              ipAddress: glInetData!.tailscaleIp,
-              netmask: iface.netmask,
-              gateway: iface.gateway,
-              dnsServers: iface.dnsServers,
-              stats: iface.stats,
-              ipv6Addresses: iface.ipv6Addresses,
-            );
-          }
-          return iface;
-        }).toList();
+    interfacesList.sort((a, b) {
+      final aUp = _stagedWiredInterfaceStates[a.name] ?? a.isUp;
+      final bUp = _stagedWiredInterfaceStates[b.name] ?? b.isUp;
+      if (aUp != bUp) {
+        return aUp ? -1 : 1;
       }
-    }
+      final aAccess = _isWiredAccessInterface(a, routerIp);
+      final bAccess = _isWiredAccessInterface(b, routerIp);
+      if (aAccess != bAccess) {
+        return aAccess ? -1 : 1;
+      }
+      return a.name.compareTo(b.name);
+    });
 
-    final interfaces = interfacesList;
-    if (interfaces.isEmpty) {
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    }
+    _lastInterfaceDump = detailedData;
+    _lastNetworkDevices = statsDataSource;
+    _lastWiredRouterIp = routerIp;
+    _lastStagedWiredHash = stagedHash;
+    _cachedWiredList = interfacesList;
+
+    return interfacesList;
+  }
+
+  Widget _buildWiredSliverList(
+    List<NetworkInterface> interfaces,
+    String? routerIp,
+  ) {
     return SliverList(
       delegate: SliverChildBuilderDelegate((context, index) {
         final iface = interfaces[index];
@@ -603,45 +1239,75 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
 
         final keyStr = _interfaceKey(name: iface.name);
         final key = _interfaceKeys.putIfAbsent(keyStr, () => GlobalKey());
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: _UnifiedNetworkCard(
-            key: key,
-            name: iface.name.toUpperCase(),
-            subtitle: _buildMinimalInterfaceSubtitle(iface),
-            isUp: iface.isUp,
-            icon: _getInterfaceIcon(iface.protocol),
-            details: _buildWiredDetails(context, iface),
-            initiallyExpanded:
-                isTargetInterface || _expandedInterface == keyStr,
+
+        final isStaged = _stagedWiredInterfaceStates.containsKey(iface.name);
+        final currentEnabled =
+            _stagedWiredInterfaceStates[iface.name] ?? iface.isUp;
+        final isAccess = _isWiredAccessInterface(iface, routerIp);
+        final isWan =
+            iface.name.toLowerCase().contains('wan') || iface.gateway != null;
+
+        return RepaintBoundary(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: _UnifiedNetworkCard(
+              key: key,
+              name: iface.name.toUpperCase(),
+              subtitle: _buildMinimalInterfaceSubtitle(iface),
+              isUp: currentEnabled,
+              icon: _getInterfaceIcon(iface.protocol),
+              details: _buildWiredDetails(context, iface),
+              initiallyExpanded:
+                  isTargetInterface || _expandedInterface == keyStr,
+              isAccessInterface: isAccess,
+              isWanInterface: isWan,
+              isStaged: isStaged,
+              currentEnabled: currentEnabled,
+              onToggle: (val) => _toggleWiredInterface(iface, val, routerIp),
+              onRestart: () => _restartWiredInterface(iface, routerIp),
+              isSaving: _isSaving,
+            ),
           ),
         );
       }, childCount: interfaces.length),
     );
   }
 
-  Widget _buildWirelessInterfacesList() {
-    final appState = ref.watch(appStateProvider);
+  List<Map<String, dynamic>> _getWirelessInterfacesList(AppState appState) {
     final dashboardData = appState.dashboardData;
     final wirelessData = dashboardData?['wireless'] as Map<String, dynamic>?;
     final uciWirelessConfig = dashboardData?['uciWirelessConfig'];
-    final glInetData = dashboardData?['glinet'] as GlInetData?;
+    final routerIp = appState.currentRouterIp;
+    final stagedHash = Object.hashAllUnordered(
+      _stagedWirelessInterfaceStates.entries.map(
+        (e) => Object.hash(e.key, e.value),
+      ),
+    );
+
+    if (_cachedWirelessList != null &&
+        identical(_lastWirelessData, wirelessData) &&
+        identical(_lastUciWireless, uciWirelessConfig) &&
+        _lastWirelessRouterIp == routerIp &&
+        _lastStagedWirelessHash == stagedHash) {
+      return _cachedWirelessList!;
+    }
+
     final interfacesList = <Map<String, dynamic>>[];
 
     final uciRadios = <String, Map>{};
-    final uciInterfaces = <String, Map<String, dynamic>>{};
+    final uciInterfaces = <String, Map>{};
 
-    // Try 'values' key (real API) then 'wireless' key (mock data)
-    final uciValues =
-        (uciWirelessConfig?['values'] as Map?) ??
-        (uciWirelessConfig?['wireless'] as Map?);
+    final uciValues = uciWirelessConfig?['values'] as Map?;
     if (uciValues != null) {
       uciValues.forEach((key, value) {
-        if (value is! Map) return;
-        if (value['.type'] == 'wifi-device') {
-          uciRadios[key.toString()] = value;
-        } else if (value['.type'] == 'wifi-iface') {
-          uciInterfaces[key.toString()] = Map<String, dynamic>.from(value);
+        final typedValue = value as Map?;
+        if (typedValue?['.type'] == 'wifi-device') {
+          uciRadios[key] = typedValue!;
+        } else if (typedValue?['.type'] == 'wifi-iface') {
+          uciInterfaces[key] = typedValue!;
         }
       });
     }
@@ -649,7 +1315,10 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
     final runtimeInterfaces = <String>{};
     if (wirelessData != null) {
       wirelessData.forEach((radioName, radioData) {
-        final interfaces = radioData['interfaces'] as List<dynamic>?;
+        final rawIfaces = radioData['interfaces'];
+        final interfaces = rawIfaces is List
+            ? rawIfaces
+            : (rawIfaces is Map ? rawIfaces.values.toList() : null);
         if (interfaces != null) {
           for (final iface in interfaces) {
             final config = iface['config'] ?? {};
@@ -660,10 +1329,7 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
             }
 
             final isRadioEnabled = uciRadios[radioName]?['disabled'] != '1';
-            final isIfaceEnabled =
-                config['disabled'] != '1' &&
-                config['disabled'] != 1 &&
-                config['disabled'] != true;
+            final isIfaceEnabled = config['disabled'] != '1';
             final isEnabled = isRadioEnabled && isIfaceEnabled;
 
             final name = iface['name'] ?? '';
@@ -674,59 +1340,30 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
             final mode = _uciString(config['mode']).toUpperCase().isNotEmpty
                 ? _uciString(config['mode']).toUpperCase()
                 : (iwinfo['mode']?.toString().toUpperCase() ?? 'N/A');
-            final glInetRadio = glInetData?.radioForDevice(radioName);
-            final channel =
-                normalizeWifiChannel(iwinfo['channel']) ??
-                normalizeWifiChannel(config['channel']) ??
-                normalizeWifiChannel(glInetRadio?.channel) ??
-                'N/A';
-            final bandStr =
-                glInetRadio?.band ?? config['band']?.toString() ?? '';
-            final bandLabel = formatWifiBand(bandStr);
-            final subtitleParts = <String>[mode];
-            if (bandLabel.isNotEmpty) subtitleParts.add(bandLabel);
-            subtitleParts.add(context.l10n.channelShort(channel));
-
-            // Build encryption description
-            final rawEncIwinfo = iwinfo['encryption'];
-            final encIwinfo = rawEncIwinfo is Map ? rawEncIwinfo : null;
-            final encDescription =
-                encIwinfo?['description'] ??
-                _uciString(config['encryption'], 'N/A');
-
             interfacesList.add({
+              'section':
+                  uciName ??
+                  (iface['section'] as String? ?? '$radioName-$ssid'),
               'name': _uciString(config['ssid']).isNotEmpty
                   ? _uciString(config['ssid'])
-                  : (iwinfo['ssid']?.toString() ?? context.l10n.unnamed),
-              'subtitle': subtitleParts.join(' • '),
+                  : (iwinfo['ssid']?.toString() ?? 'Unnamed'),
+              'subtitle':
+                  '$mode • Ch. ${iwinfo['channel']?.toString() ?? _uciString(config['channel'], 'N/A')}',
               'isEnabled': isEnabled,
-              'isIfaceEnabled': isIfaceEnabled,
-              'isRadioEnabled': isRadioEnabled,
               'deviceName': deviceName,
               'radioName': radioName,
               'ssid': ssid,
               'interfaceName': name,
-              'section': uciName,
-              'uciSection': uciName,
-              'ifname': iface['ifname'] as String?,
-              'mode': mode,
-              'encryption': _uciString(config['encryption']),
-              'encryptionDescription': encDescription,
-              'network': (config['network'] is List)
-                  ? (config['network'] as List).join(', ')
-                  : config['network']?.toString() ?? '',
-              'channel': channel,
-              'signal': iwinfo['signal']?.toString() ?? '--',
               'details': {
-                context.l10n.device: _uciString(config['device'], radioName),
-                context.l10n.mode: _uciString(config['mode']).isNotEmpty
+                'Device': _uciString(config['device'], radioName),
+                'Mode': _uciString(config['mode']).isNotEmpty
                     ? _uciString(config['mode'])
                     : (iwinfo['mode']?.toString() ?? 'N/A'),
-                context.l10n.band: bandLabel.isNotEmpty ? bandLabel : 'N/A',
-                context.l10n.channel: channel,
-                context.l10n.signal:
-                    '${iwinfo['signal']?.toString() ?? '--'} dBm',
-                context.l10n.network: (config['network'] is List)
+                'Channel':
+                    iwinfo['channel']?.toString() ??
+                    _uciString(config['channel'], 'N/A'),
+                'Signal': '${iwinfo['signal']?.toString() ?? '--'} dBm',
+                'Network': (config['network'] is List)
                     ? (config['network'] as List).join(', ')
                     : _uciString(config['network'], 'N/A'),
               },
@@ -741,41 +1378,25 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
         final radioName = _uciString(config['device']);
         final isRadioEnabled = uciRadios[radioName]?['disabled'] != '1';
         final isIfaceEnabled = _uciString(config['disabled']) != '1';
-        final mode = config['mode'] ?? 'N/A';
-        final glInetRadio = glInetData?.radioForDevice(radioName);
-        final channel = resolveWifiChannel(
-          actual: glInetRadio?.channel,
-          configured: uciRadios[radioName]?['channel'],
-        );
+        final isEnabled = isRadioEnabled && isIfaceEnabled;
 
-        final name = _uciString(config['ssid'], context.l10n.unnamed);
+        final name = _uciString(config['ssid'], 'Unnamed');
         interfacesList.add({
+          'section': uciName,
           'name': name,
           'subtitle':
-              '${_uciString(config['mode'], 'N/A').toUpperCase()} • ${context.l10n.notRunning}',
-          'isEnabled': false,
-          'isIfaceEnabled': isIfaceEnabled,
-          'isRadioEnabled': isRadioEnabled,
+              '${_uciString(config['mode'], 'N/A').toUpperCase()} • Disabled',
+          'isEnabled': isEnabled,
           'deviceName': radioName,
           'radioName': radioName,
-          'ssid': name,
-          'interfaceName': name,
-          'section': uciName,
-          'uciSection': uciName,
-          'mode': mode,
-          'encryption': _uciString(config['encryption']),
-          'encryptionDescription': _uciString(config['encryption'], 'N/A'),
-          'network': (config['network'] is List)
-              ? (config['network'] as List).join(', ')
-              : config['network']?.toString() ?? '',
-          'channel': channel,
-          'signal': '--',
+          'ssid': _uciString(config['ssid']),
+          'interfaceName': 'N/A',
           'details': {
-            context.l10n.device: radioName,
-            context.l10n.mode: _uciString(config['mode'], 'N/A'),
-            context.l10n.ssid: _uciString(config['ssid'], 'N/A'),
-            context.l10n.channel: channel,
-            context.l10n.network: (config['network'] is List)
+            'Device': _uciString(config['device'], radioName),
+            'Mode': _uciString(config['mode'], 'N/A'),
+            'Channel': _uciString(config['channel'], 'N/A'),
+            'Signal': '-- dBm',
+            'Network': (config['network'] is List)
                 ? (config['network'] as List).join(', ')
                 : _uciString(config['network'], 'N/A'),
           },
@@ -783,53 +1404,38 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
       }
     });
 
-    final interfaces = interfacesList;
-    if (interfaces.isEmpty) {
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    }
-    final target = _targetInterface;
-
-    // Resolve the target to exactly ONE wireless card key, using the same
-    // exact-section-first then normalized-alias order as the scroll
-    // targeting path. Resolving up front guarantees a case-insensitive
-    // target (e.g. "GUEST") cannot expand several case-variant cards at
-    // once - only the card the screen would scroll to expands.
-    String? resolvedTargetKey;
-    if (target != null) {
-      String? keyOf(Map<String, dynamic> iface) => _interfaceKeyForWireless(
-        ssid: iface['ssid'] ?? '',
-        radioName: iface['radioName'] ?? '',
-        deviceName: iface['deviceName'] ?? '',
-        name: iface['interfaceName'] ?? '',
-        sectionName: iface['section'] as String?,
-        ifname: iface['ifname'] as String?,
-      );
-      // Pass 1: exact (case-sensitive) section match.
-      for (final iface in interfaces) {
-        final section = (iface['section'] as String?)?.trim() ?? '';
-        if (section.isNotEmpty && section == target.trim()) {
-          resolvedTargetKey = keyOf(iface);
-          break;
-        }
+    interfacesList.sort((a, b) {
+      final sectionA = a['section'] as String?;
+      final sectionB = b['section'] as String?;
+      final aEnabled =
+          (sectionA != null &&
+              _stagedWirelessInterfaceStates.containsKey(sectionA))
+          ? _stagedWirelessInterfaceStates[sectionA]!
+          : (a['isEnabled'] == true);
+      final bEnabled =
+          (sectionB != null &&
+              _stagedWirelessInterfaceStates.containsKey(sectionB))
+          ? _stagedWirelessInterfaceStates[sectionB]!
+          : (b['isEnabled'] == true);
+      if (aEnabled != bEnabled) {
+        return aEnabled ? -1 : 1;
       }
-      // Pass 2: normalized alias fallback (SSID/device/name/section).
-      final normalizedTarget = _normalizeInterfaceKey(target);
-      if (resolvedTargetKey == null) {
-        for (final iface in interfaces) {
-          if (normalizedTarget == _normalizeInterfaceKey(iface['ssid'] ?? '') ||
-              normalizedTarget ==
-                  _normalizeInterfaceKey(iface['deviceName'] ?? '') ||
-              normalizedTarget ==
-                  _normalizeInterfaceKey(iface['interfaceName'] ?? '') ||
-              normalizedTarget ==
-                  _normalizeInterfaceKey(iface['section'] as String?)) {
-            resolvedTargetKey = keyOf(iface);
-            break;
-          }
-        }
-      }
-    }
+      return (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? '');
+    });
 
+    _lastWirelessData = wirelessData;
+    _lastUciWireless = uciWirelessConfig;
+    _lastWirelessRouterIp = routerIp;
+    _lastStagedWirelessHash = stagedHash;
+    _cachedWirelessList = interfacesList;
+
+    return interfacesList;
+  }
+
+  Widget _buildWirelessSliverList(
+    List<Map<String, dynamic>> interfaces,
+    String? routerIp,
+  ) {
     return SliverList(
       delegate: SliverChildBuilderDelegate((context, index) {
         final iface = interfaces[index];
@@ -837,240 +1443,161 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
         final radioName = iface['radioName'] ?? '';
         final ssid = iface['ssid'] ?? '';
         final name = iface['interfaceName'] ?? '';
-        // Use the stored values for key generation
         final keyStr = _interfaceKeyForWireless(
           ssid: ssid,
           radioName: radioName,
           deviceName: deviceName,
           name: name,
-          sectionName: iface['section'] as String?,
-          ifname: iface['ifname'] as String?,
         );
         final key = _interfaceKeys.putIfAbsent(keyStr, () => GlobalKey());
         final displayName = ssid.toString().isNotEmpty
             ? ssid.toString()
             : deviceName.toString();
 
-        // Only the single resolved card expands; see resolution above.
         final isTargetInterface =
-            resolvedTargetKey != null && keyStr == resolvedTargetKey;
+            _targetInterface != null &&
+            (_normalizeInterfaceKey(ssid) ==
+                    _normalizeInterfaceKey(_targetInterface!) ||
+                _normalizeInterfaceKey(deviceName) ==
+                    _normalizeInterfaceKey(_targetInterface!) ||
+                _normalizeInterfaceKey(name) ==
+                    _normalizeInterfaceKey(_targetInterface!));
 
         final shouldExpand = isTargetInterface || _expandedInterface == keyStr;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: _UnifiedNetworkCard(
-            key: key,
-            name: displayName,
-            subtitle: iface['subtitle'],
-            isUp: iface['isEnabled'],
-            icon: Icons.wifi,
-            details: _buildWirelessDetails(context, iface),
-            initiallyExpanded: shouldExpand,
+
+        final sectionKey =
+            iface['section']?.toString() ??
+            (radioName.toString().isNotEmpty
+                ? radioName.toString()
+                : displayName);
+        final isStaged = _stagedWirelessInterfaceStates.containsKey(sectionKey);
+        final originalEnabled = iface['isEnabled'] as bool? ?? false;
+        final currentEnabled =
+            _stagedWirelessInterfaceStates[sectionKey] ?? originalEnabled;
+        final isAccess = _isWirelessAccessInterface(iface, routerIp);
+        final isWan =
+            iface['details']?['Network']?.toString().toLowerCase().contains(
+                  'wan',
+                ) ==
+                true ||
+            displayName.toLowerCase().contains('wan');
+
+        return RepaintBoundary(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: _UnifiedNetworkCard(
+              key: key,
+              name: displayName,
+              subtitle: iface['subtitle'],
+              isUp: currentEnabled,
+              icon: Icons.wifi,
+              details: _buildGenericDetails(context, iface['details']),
+              initiallyExpanded: shouldExpand,
+              isAccessInterface: isAccess,
+              isWanInterface: isWan,
+              isStaged: isStaged,
+              currentEnabled: currentEnabled,
+              onToggle: (val) => _toggleWirelessInterface(
+                sectionKey,
+                displayName,
+                originalEnabled,
+                isAccess,
+                val,
+              ),
+              onRestart: () => _restartWirelessInterface(
+                sectionKey,
+                displayName,
+                isAccess,
+                isWan,
+                radioName: radioName.toString(),
+              ),
+              isSaving: _isSaving,
+            ),
           ),
         );
       }, childCount: interfaces.length),
     );
   }
 
-  Widget _buildWirelessDetails(
-    BuildContext context,
-    Map<String, dynamic> iface,
-  ) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final details = iface['details'] as Map<String, dynamic>;
-    final uciSection = iface['uciSection'] as String? ?? '';
-    final isIfaceEnabled = iface['isIfaceEnabled'] as bool? ?? true;
-    final mode = iface['mode']?.toString() ?? '';
-    final encDescription = iface['encryptionDescription']?.toString() ?? '';
-
+  Widget _buildWiredDetails(BuildContext context, NetworkInterface interface) {
+    final parsedProto = WanProtocol.parse(interface.protocol);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Details rows
-        ...details.entries.map((entry) {
-          return _buildDetailRow(context, entry.key, entry.value.toString());
-        }),
-        // Encryption row
-        if (encDescription.isNotEmpty && encDescription != 'N/A')
-          _buildDetailRow(context, context.l10n.encryption, encDescription),
-
-        const Divider(height: 1, indent: 16, endIndent: 16),
-        const SizedBox(height: 8),
-
-        // Management action buttons
-        if (uciSection.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12.0,
-              vertical: 4.0,
-            ),
-            child: Column(
-              children: [
-                // Enable/Disable toggle row
-                _WifiToggleRow(
-                  uciSection: uciSection,
-                  isEnabled: isIfaceEnabled,
-                ),
-
-                const SizedBox(height: 8),
-
-                // Action buttons row
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showEditWifiSheet(context, iface),
-                        icon: Icon(Icons.edit_outlined, size: 18),
-                        label: Text(context.l10n.edit),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                          side: BorderSide(
-                            color: colorScheme.primary.withValues(alpha: 0.5),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showDeleteWifiDialog(context, iface),
-                        icon: Icon(Icons.delete_outline, size: 18),
-                        label: Text(context.l10n.remove),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.error,
-                          side: BorderSide(
-                            color: colorScheme.error.withValues(alpha: 0.5),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 4),
-
-                // Mode label
-                if (mode.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      mode.toLowerCase() == 'sta'
-                          ? context.l10n.clientStationMode
-                          : mode.toLowerCase() == 'ap'
-                          ? context.l10n.accessPointMode
-                          : context.l10n.modeValue(mode.toUpperCase()),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          )
-        else
-          // No UCI section - just show details
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              context.l10n.limitedInterfaceManagement,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                fontStyle: FontStyle.italic,
+        if (parsedProto == WanProtocol.unknown)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade900.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.amber.shade700.withValues(alpha: 0.5),
               ),
             ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.amber.shade700,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Unrecognized proto (${interface.protocol}) — showing raw fields',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-
-        const SizedBox(height: 8),
-      ],
-    );
-  }
-
-  void _showEditWifiSheet(BuildContext context, Map<String, dynamic> iface) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => _WifiEditBottomSheet(iface: iface),
-    );
-  }
-
-  void _showDeleteWifiDialog(BuildContext context, Map<String, dynamic> iface) {
-    final ssid = iface['ssid']?.toString() ?? context.l10n.thisInterface;
-    final uciSection = iface['uciSection'] as String? ?? '';
-    final mode = iface['mode']?.toString() ?? 'ap';
-    if (uciSection.isEmpty) return;
-
-    showDialog(
-      context: context,
-      builder: (ctx) =>
-          _WifiDeleteDialog(ssid: ssid, uciSection: uciSection, mode: mode),
-    );
-  }
-
-  Widget _buildWiredDetails(BuildContext context, NetworkInterface interface) {
-    return Column(
-      children: [
-        _buildDetailRow(context, context.l10n.device, interface.device),
-        _buildDetailRow(
-          context,
-          context.l10n.uptime,
-          interface.formattedUptime,
-        ),
+        _buildDetailRow(context, 'Device', interface.device),
+        _buildDetailRow(context, 'Uptime', interface.formattedUptime),
         if (interface.ipAddress != null)
           _buildDetailRow(
             context,
-            context.l10n.ipAddress,
+            _isPublicIp(interface.ipAddress!)
+                ? 'Public IP Address'
+                : (interface.name.toLowerCase().contains('wan')
+                      ? 'IP Address (WAN)'
+                      : 'IP Address'),
             interface.ipAddress!,
-            onTap: () => _copyToClipboard(
-              context,
-              interface.ipAddress!,
-              context.l10n.ipAddress,
-            ),
+            onTap: () =>
+                _copyToClipboard(context, interface.ipAddress!, 'IP Address'),
           ),
         if (interface.ipv6Addresses != null &&
             interface.ipv6Addresses!.isNotEmpty)
           ...interface.ipv6Addresses!.map(
             (ipv6) => _buildDetailRow(
               context,
-              context.l10n.ipv6Address,
+              _isPublicIp(ipv6) ? 'Public IPv6 Address' : 'IPv6 Address',
               ipv6,
-              onTap: () =>
-                  _copyToClipboard(context, ipv6, context.l10n.ipv6Address),
+              onTap: () => _copyToClipboard(context, ipv6, 'IPv6 Address'),
             ),
           ),
         if (interface.gateway != null)
           _buildDetailRow(
             context,
-            context.l10n.gateway,
+            'Gateway',
             interface.gateway!,
-            onTap: () => _copyToClipboard(
-              context,
-              interface.gateway!,
-              context.l10n.gatewayIp,
-            ),
+            onTap: () =>
+                _copyToClipboard(context, interface.gateway!, 'Gateway IP'),
           ),
         if (interface.dnsServers.isNotEmpty)
           _buildDetailRow(
             context,
-            context.l10n.dns,
+            'DNS',
             interface.dnsServers.join(', '),
             onTap: () => _copyToClipboard(
               context,
               interface.dnsServers.join(', '),
-              context.l10n.dnsServers,
+              'DNS Servers',
             ),
           ),
         // Add WireGuard peer information if this is a WireGuard interface
@@ -1148,21 +1675,21 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
         ? '${publicKey.substring(0, 8)}...${publicKey.substring(publicKey.length - 8)}'
         : publicKey;
     String formatHandshakeTime(int timestamp) {
-      if (timestamp == 0) return context.l10n.never;
+      if (timestamp == 0) return 'Never';
       final now = DateTime.now();
       final handshakeTime = DateTime.fromMillisecondsSinceEpoch(
         timestamp * 1000,
       );
       final difference = now.difference(handshakeTime);
-      if (difference.inSeconds < 0) return context.l10n.never;
+      if (difference.inSeconds < 0) return 'Never';
       if (difference.inDays > 0) {
-        return context.l10n.daysAgo(difference.inDays);
+        return '${difference.inDays}d ago';
       } else if (difference.inHours > 0) {
-        return context.l10n.hoursAgo(difference.inHours);
+        return '${difference.inHours}h ago';
       } else if (difference.inMinutes > 0) {
-        return context.l10n.minutesAgo(difference.inMinutes);
+        return '${difference.inMinutes}m ago';
       } else {
-        return context.l10n.secondsAgo(difference.inSeconds);
+        return '${difference.inSeconds}s ago';
       }
     }
 
@@ -1213,7 +1740,7 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      context.l10n.lastHandshake,
+                      'Last Handshake',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                         fontSize: 12,
@@ -1238,7 +1765,7 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      context.l10n.endpoint,
+                      'Endpoint',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                         fontSize: 12,
@@ -1265,6 +1792,17 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
     );
   }
 
+  Widget _buildGenericDetails(
+    BuildContext context,
+    Map<String, dynamic> details,
+  ) {
+    return Column(
+      children: details.entries.map((entry) {
+        return _buildDetailRow(context, entry.key, entry.value.toString());
+      }).toList(),
+    );
+  }
+
   Widget _buildDetailRow(
     BuildContext context,
     String title,
@@ -1275,42 +1813,51 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
     final colorScheme = theme.colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(6),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 3.5),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              title,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurface,
+            SizedBox(
+              width: 115,
+              child: Text(
+                title,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 12.0,
+                ),
               ),
             ),
-            Row(
-              children: [
-                Text(
-                  value,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: colorScheme.onSurface,
-                  ),
-                  textAlign: TextAlign.end,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (onTap != null)
-                  GestureDetector(
-                    onTap: onTap,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: Icon(
-                        Icons.copy_all_outlined,
-                        size: 16,
-                        semanticLabel: context.l10n.copy,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      value,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                        fontSize: 12.5,
                       ),
+                      textAlign: TextAlign.end,
                     ),
                   ),
-              ],
+                  if (onTap != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6.0),
+                      child: Icon(
+                        Icons.copy_all_outlined,
+                        size: 14,
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.6,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1320,12 +1867,45 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
 
   void _copyToClipboard(BuildContext context, String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(context.l10n.copiedToClipboard(label)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    context.showToastSuccess('$label copied', subtitle: 'Copied to clipboard.');
+  }
+
+  bool _isPublicIp(String ipText) {
+    if (ipText.isEmpty ||
+        ipText == 'No IPv4' ||
+        ipText == 'No IPv6' ||
+        ipText == 'N/A') {
+      return false;
+    }
+    final raw = ipText.split('/')[0].trim();
+    if (raw.contains('.')) {
+      final parts = raw.split('.');
+      if (parts.length != 4) return false;
+      final octet1 = int.tryParse(parts[0]);
+      final octet2 = int.tryParse(parts[1]);
+      if (octet1 == null || octet2 == null) return false;
+      if (octet1 == 10) return false;
+      if (octet1 == 172 && octet2 >= 16 && octet2 <= 31) return false;
+      if (octet1 == 192 && octet2 == 168) return false;
+      if (octet1 == 127) return false;
+      if (octet1 == 169 && octet2 == 254) return false;
+      return true;
+    } else if (raw.contains(':')) {
+      final lower = raw.toLowerCase();
+      if (lower == '::1') return false;
+      if (lower.startsWith('fe80:') ||
+          lower.startsWith('fe8') ||
+          lower.startsWith('fe9') ||
+          lower.startsWith('fea') ||
+          lower.startsWith('feb')) {
+        return false;
+      }
+      if (lower.startsWith('fc') || lower.startsWith('fd')) {
+        return false;
+      }
+      return true;
+    }
+    return false;
   }
 
   Widget _buildStatsRow(BuildContext context, Map<String, dynamic> stats) {
@@ -1336,63 +1916,94 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
       return '${(bytes / pow(1024, i)).toStringAsFixed(2)} ${suffixes[i]}';
     }
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildStatColumn(
-          context,
-          context.l10n.received,
-          formatBytes(stats['rx_bytes'] ?? 0),
-          Icons.arrow_downward,
-          Colors.green,
-        ),
-        _buildStatColumn(
-          context,
-          context.l10n.transmitted,
-          formatBytes(stats['tx_bytes'] ?? 0),
-          Icons.arrow_upward,
-          Colors.blue,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatColumn(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
     final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurface,
-              ),
+    final rxStr = formatBytes(stats['rx_bytes'] ?? 0);
+    final txStr = formatBytes(stats['tx_bytes'] ?? 0);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.35,
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.arrow_downward_rounded,
+                  size: 14,
+                  color: Colors.green,
+                ),
+                const SizedBox(width: 6),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Received',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      rxStr,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.bold,
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+          Container(
+            height: 22,
+            width: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.arrow_upward_rounded,
+                  size: 14,
+                  color: Colors.orange,
+                ),
+                const SizedBox(width: 6),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Transmitted',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      txStr,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1430,21 +2041,47 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
   }
 }
 
+class _SectionSpec {
+  final int defaultOrder;
+  final bool isAvailable;
+  final Widget header;
+  final Widget sliverOrWidget;
+  final bool isSliver;
+
+  _SectionSpec({
+    required this.defaultOrder,
+    required this.isAvailable,
+    required this.header,
+    required this.sliverOrWidget,
+    required this.isSliver,
+  });
+}
+
 class LuciSectionHeader extends StatelessWidget {
   final String title;
-  const LuciSectionHeader(this.title, {super.key});
+  final IconData? icon;
+  const LuciSectionHeader(this.title, {this.icon, super.key});
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title,
-        style: theme.textTheme.titleMedium?.copyWith(
-          color: theme.colorScheme.onSurface,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
-        ),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1458,6 +2095,14 @@ class _UnifiedNetworkCard extends StatefulWidget {
   final Widget details;
   final bool initiallyExpanded;
 
+  final bool isAccessInterface;
+  final bool isWanInterface;
+  final bool isStaged;
+  final bool? currentEnabled;
+  final ValueChanged<bool>? onToggle;
+  final VoidCallback? onRestart;
+  final bool isSaving;
+
   const _UnifiedNetworkCard({
     required this.name,
     required this.subtitle,
@@ -1465,6 +2110,13 @@ class _UnifiedNetworkCard extends StatefulWidget {
     required this.icon,
     required this.details,
     this.initiallyExpanded = false,
+    this.isAccessInterface = false,
+    this.isWanInterface = false,
+    this.isStaged = false,
+    this.currentEnabled,
+    this.onToggle,
+    this.onRestart,
+    this.isSaving = false,
     super.key,
   });
 
@@ -1525,6 +2177,8 @@ class _UnifiedNetworkCardState extends State<_UnifiedNetworkCard>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final effectiveEnabled = widget.currentEnabled ?? widget.isUp;
+
     final card = Card(
       elevation: _isExpanded ? 6 : 2,
       margin: EdgeInsets.zero,
@@ -1539,9 +2193,9 @@ class _UnifiedNetworkCardState extends State<_UnifiedNetworkCard>
       ),
       clipBehavior: Clip.antiAlias,
       child: AnimatedScale(
-        scale: widget.initiallyExpanded && _isExpanded ? 1.02 : 1.0,
-        duration: LuciAnimations.standard,
-        curve: Curves.easeOutBack,
+        scale: widget.initiallyExpanded && _isExpanded ? 1.01 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
         child: Column(
           children: [
             InkWell(
@@ -1549,8 +2203,8 @@ class _UnifiedNetworkCardState extends State<_UnifiedNetworkCard>
               borderRadius: LuciCardStyles.standardRadius,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: LuciSpacing.lg,
-                  vertical: 10.0,
+                  horizontal: 14.0,
+                  vertical: 8.0,
                 ),
                 child: Row(
                   children: [
@@ -1558,7 +2212,7 @@ class _UnifiedNetworkCardState extends State<_UnifiedNetworkCard>
                       alignment: Alignment.topRight,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8.0),
+                          padding: const EdgeInsets.all(7.0),
                           decoration: BoxDecoration(
                             color: colorScheme.primaryContainer.withValues(
                               alpha: 0.13,
@@ -1567,83 +2221,215 @@ class _UnifiedNetworkCardState extends State<_UnifiedNetworkCard>
                           ),
                           child: AnimatedScale(
                             scale: widget.initiallyExpanded && _isExpanded
-                                ? 1.1
+                                ? 1.05
                                 : 1.0,
-                            duration: const Duration(milliseconds: 500),
-                            curve: Curves.elasticOut,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
                             child: Icon(
                               widget.icon,
-                              color: widget.isUp
+                              color: effectiveEnabled
                                   ? colorScheme.primary
                                   : colorScheme.onSurface,
-                              size: 22,
-                              semanticLabel: context.l10n.interfaceIcon,
+                              size: 20,
+                              semanticLabel: 'Interface icon',
                             ),
                           ),
                         ),
-                        Positioned(
-                          right: 0,
-                          top: 0,
+                        Align(
+                          alignment: Alignment.topRight,
                           child: Tooltip(
-                            message: widget.isUp
-                                ? context.l10n.interfaceIsUp
-                                : context.l10n.interfaceIsDown,
+                            message: effectiveEnabled
+                                ? 'Interface is up'
+                                : 'Interface is down',
                             child: LuciStatusIndicators.statusDot(
                               context,
-                              widget.isUp,
+                              effectiveEnabled,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            widget.name,
-                            style: LuciTextStyles.cardTitle(context),
-                            semanticsLabel: context.l10n.interfaceNameSemantics(
-                              widget.name,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  widget.name,
+                                  style: LuciTextStyles.cardTitle(context)
+                                      .copyWith(
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: false,
+                                  semanticsLabel:
+                                      'Interface name: ${widget.name}',
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: LuciSpacing.xs),
-                          Container(
-                            margin: const EdgeInsets.only(right: 32),
-                            child: Divider(
-                              color: colorScheme.surfaceContainerHighest
-                                  .withValues(alpha: 0.10),
-                              thickness: 1,
-                              height: 8,
+                          if (widget.isAccessInterface ||
+                              widget.isWanInterface ||
+                              widget.isStaged) ...[
+                            const SizedBox(height: 3),
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 3,
+                              children: [
+                                if (widget.isAccessInterface)
+                                  Tooltip(
+                                    message:
+                                        'Active management access interface',
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 1.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withValues(
+                                          alpha: 0.15,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: Colors.red.shade400,
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.lock,
+                                            size: 9,
+                                            color: Colors.red,
+                                          ),
+                                          SizedBox(width: 2),
+                                          Text(
+                                            'ACTIVE ACCESS',
+                                            style: TextStyle(
+                                              color: Colors.red,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 8.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                if (widget.isWanInterface)
+                                  Tooltip(
+                                    message: 'WAN / Gateway Interface',
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 1.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.indigo.shade800
+                                            .withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: Colors.indigo.shade400,
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.public,
+                                            size: 9,
+                                            color: Colors.indigo.shade300,
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            'WAN / GATEWAY',
+                                            style: TextStyle(
+                                              color: Colors.indigo.shade200,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 8.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                if (widget.isStaged)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: Colors.amber.shade700,
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'STAGED',
+                                      style: TextStyle(
+                                        color: Colors.amber.shade900,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 8.5,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ),
+                          ],
+                          const SizedBox(height: 2),
                           Text(
-                            widget.subtitle,
-                            style: LuciTextStyles.cardSubtitle(context),
-                            semanticsLabel: context.l10n
-                                .interfaceDetailsSemantics(widget.subtitle),
+                            widget.isStaged
+                                ? '${widget.subtitle} • Original: ${widget.isUp ? "UP" : "DOWN"}'
+                                : widget.subtitle,
+                            style: LuciTextStyles.cardSubtitle(
+                              context,
+                            ).copyWith(fontSize: 12.0),
+                            semanticsLabel:
+                                'Interface details: ${widget.subtitle}',
                           ),
                         ],
                       ),
                     ),
-                    if (!widget.isUp)
-                      Padding(
-                        padding: const EdgeInsets.only(right: LuciSpacing.xs),
-                        child: LuciStatusIndicators.statusChip(
-                          context,
-                          context.l10n.off.toUpperCase(),
-                          false,
+                    if (widget.onRestart != null) ...[
+                      IconButton(
+                        icon: const Icon(Icons.refresh_rounded, size: 19),
+                        color: colorScheme.primary,
+                        tooltip: 'Restart Interface',
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
+                        onPressed: widget.isSaving ? null : widget.onRestart,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    if (widget.onToggle != null) ...[
+                      Transform.scale(
+                        scale: 0.82,
+                        child: Switch(
+                          value: effectiveEnabled,
+                          onChanged: widget.isSaving ? null : widget.onToggle,
                         ),
                       ),
-                    const SizedBox(width: LuciSpacing.sm),
+                    ],
                     Icon(
-                      _isExpanded ? Icons.expand_less : Icons.expand_more,
+                      _isExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
                       color: colorScheme.onSurfaceVariant,
-                      size: 26,
+                      size: 22,
                       semanticLabel: _isExpanded
-                          ? context.l10n.collapseDetails
-                          : context.l10n.expandDetails,
+                          ? 'Collapse details'
+                          : 'Expand details',
                     ),
                   ],
                 ),
@@ -1652,8 +2438,9 @@ class _UnifiedNetworkCardState extends State<_UnifiedNetworkCard>
             if (_isExpanded)
               Column(
                 children: [
-                  const Divider(height: 1, indent: 18, endIndent: 18),
+                  const Divider(height: 1, indent: 14, endIndent: 14),
                   widget.details,
+                  const SizedBox(height: 6),
                 ],
               ),
           ],
@@ -1661,768 +2448,9 @@ class _UnifiedNetworkCardState extends State<_UnifiedNetworkCard>
       ),
     );
 
-    if (!widget.isUp) {
-      return ColorFiltered(
-        colorFilter: const ColorFilter.matrix([
-          0.2126,
-          0.7152,
-          0.0722,
-          0,
-          0,
-          0.2126,
-          0.7152,
-          0.0722,
-          0,
-          0,
-          0.2126,
-          0.7152,
-          0.0722,
-          0,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
-        ]),
-        child: card,
-      );
+    if (!effectiveEnabled && !widget.isStaged) {
+      return Opacity(opacity: 0.60, child: card);
     }
     return card;
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────
-// WiFi Enable/Disable Toggle Row
-// ──────────────────────────────────────────────────────────────────
-
-class _WifiToggleRow extends ConsumerStatefulWidget {
-  final String uciSection;
-  final bool isEnabled;
-
-  const _WifiToggleRow({required this.uciSection, required this.isEnabled});
-
-  @override
-  ConsumerState<_WifiToggleRow> createState() => _WifiToggleRowState();
-}
-
-class _WifiToggleRowState extends ConsumerState<_WifiToggleRow> {
-  bool _isToggling = false;
-
-  Future<void> _toggle(bool value) async {
-    if (_isToggling) return;
-    setState(() => _isToggling = true);
-
-    final appState = ref.read(appStateProvider);
-    final success = await appState.setWirelessInterfaceEnabled(
-      widget.uciSection,
-      value,
-      context: context,
-    );
-
-    if (mounted) {
-      setState(() => _isToggling = false);
-      if (!success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.l10n.failedToToggleInterface),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            widget.isEnabled ? Icons.wifi : Icons.wifi_off,
-            size: 20,
-            color: widget.isEnabled
-                ? colorScheme.primary
-                : colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              widget.isEnabled
-                  ? context.l10n.interfaceEnabled
-                  : context.l10n.interfaceDisabled,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          if (_isToggling)
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else
-            Switch(value: widget.isEnabled, onChanged: _toggle),
-        ],
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────
-// WiFi Edit Bottom Sheet
-// ──────────────────────────────────────────────────────────────────
-
-class _WifiEditBottomSheet extends ConsumerStatefulWidget {
-  final Map<String, dynamic> iface;
-
-  const _WifiEditBottomSheet({required this.iface});
-
-  @override
-  ConsumerState<_WifiEditBottomSheet> createState() =>
-      _WifiEditBottomSheetState();
-}
-
-class _WifiEditBottomSheetState extends ConsumerState<_WifiEditBottomSheet> {
-  late TextEditingController _ssidController;
-  late TextEditingController _passwordController;
-  late TextEditingController _networkController;
-  String? _selectedEncryption;
-  late String _originalEncryption; // tracks what was set before editing
-  bool _obscurePassword = true;
-  bool _isSaving = false;
-  String? _error;
-
-  static const _encryptionOptions = [
-    'none',
-    'owe',
-    'psk2',
-    'psk',
-    'psk-mixed',
-    'sae',
-    'sae-mixed',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _ssidController = TextEditingController(
-      text: widget.iface['ssid']?.toString() ?? '',
-    );
-    _passwordController = TextEditingController();
-    _networkController = TextEditingController(
-      text: widget.iface['network']?.toString() ?? 'lan',
-    );
-
-    final rawEncryption = widget.iface['encryption']?.toString().trim() ?? '';
-    final currentEnc = (rawEncryption.isEmpty ? 'none' : rawEncryption)
-        .split('+')
-        .first;
-    _originalEncryption = currentEnc;
-    _selectedEncryption = _encryptionOptions.contains(currentEnc)
-        ? currentEnc
-        : null;
-  }
-
-  @override
-  void dispose() {
-    _ssidController.dispose();
-    _passwordController.dispose();
-    _networkController.dispose();
-    super.dispose();
-  }
-
-  bool get _requiresPassword =>
-      _selectedEncryption != null &&
-      _selectedEncryption != 'none' &&
-      _selectedEncryption != 'owe';
-
-  bool get _isEncryptionSupported =>
-      _selectedEncryption != null &&
-      _encryptionOptions.contains(_selectedEncryption);
-
-  String _encryptionLabel(String value) => switch (value) {
-    'none' => context.l10n.encryptionNone,
-    'owe' => 'OWE',
-    'psk2' => 'WPA2-PSK',
-    'psk' => 'WPA-PSK',
-    'psk-mixed' => 'WPA/WPA2 Mixed PSK',
-    'sae' => 'WPA3-SAE',
-    'sae-mixed' => 'WPA2/WPA3 Mixed',
-    _ => value,
-  };
-
-  /// True when switching from an open interface to a password-protected one.
-  bool get _changingToEncrypted =>
-      (_originalEncryption == 'none' || _originalEncryption == 'owe') &&
-      _requiresPassword;
-
-  Future<void> _save() async {
-    final ssid = _ssidController.text.trim();
-    if (ssid.isEmpty) {
-      setState(() => _error = context.l10n.ssidEmptyError);
-      return;
-    }
-
-    // Block unsupported encryption modes (e.g. enterprise WPA-EAP)
-    if (!_isEncryptionSupported) {
-      setState(() => _error = context.l10n.unsupportedEncryptionError);
-      return;
-    }
-
-    // Require a password when changing an open interface to an encrypted one
-    if (_changingToEncrypted && _passwordController.text.isEmpty) {
-      setState(() => _error = context.l10n.encryptionPasswordRequiredError);
-      return;
-    }
-
-    if (_requiresPassword &&
-        _passwordController.text.isNotEmpty &&
-        _passwordController.text.length < 8) {
-      setState(() => _error = context.l10n.passwordLengthError);
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-      _error = null;
-    });
-
-    final uciSection = widget.iface['uciSection'] as String? ?? '';
-    if (uciSection.isEmpty) {
-      setState(() {
-        _isSaving = false;
-        _error = context.l10n.uciSectionMissingError;
-      });
-      return;
-    }
-
-    // Build values to update
-    final values = <String, String>{
-      'ssid': ssid,
-      'encryption': _selectedEncryption!,
-    };
-
-    if (!_requiresPassword) {
-      values['key'] = '';
-    } else if (_passwordController.text.isNotEmpty) {
-      values['key'] = _passwordController.text;
-    }
-
-    // Update network binding
-    final network = _networkController.text.trim();
-    if (network.isNotEmpty) {
-      values['network'] = network;
-    }
-
-    final appState = ref.read(appStateProvider);
-    final success = await appState.modifyWirelessInterface(
-      uciSection,
-      values,
-      context: context,
-    );
-
-    if (!mounted) return;
-
-    if (success) {
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.of(context).pop();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Text(context.l10n.wifiUpdated(ssid)),
-            ],
-          ),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } else {
-      setState(() {
-        _isSaving = false;
-        _error = context.l10n.saveChangesFailed;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final mode = widget.iface['mode']?.toString() ?? 'ap';
-
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer.withValues(
-                        alpha: 0.3,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.edit,
-                      color: colorScheme.primary,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          context.l10n.editWirelessInterface,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '${widget.iface['radioName']} • ${context.l10n.modeValue(mode.toUpperCase())}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // SSID field
-              _buildLabel(context, context.l10n.ssidNetworkName),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _ssidController,
-                enabled: !_isSaving,
-                decoration: _inputDecoration(
-                  context,
-                  hintText: context.l10n.enterSsid,
-                  prefixIcon: Icons.wifi,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Encryption selector
-              _buildLabel(context, context.l10n.encryption),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: colorScheme.outline.withValues(alpha: 0.3),
-                  ),
-                  color: colorScheme.surfaceContainerLow,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedEncryption,
-                    isExpanded: true,
-                    icon: Icon(
-                      Icons.arrow_drop_down,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    items: _encryptionOptions.map((opt) {
-                      return DropdownMenuItem<String>(
-                        value: opt,
-                        child: Text(
-                          _encryptionLabel(opt),
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: _isSaving
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() => _selectedEncryption = value);
-                            }
-                          },
-                  ),
-                ),
-              ),
-
-              // Password field (only for encrypted networks)
-              if (_requiresPassword) ...[
-                const SizedBox(height: 16),
-                _buildLabel(
-                  context,
-                  _changingToEncrypted
-                      ? context.l10n.passwordRequired
-                      : context.l10n.passwordKeepCurrent,
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  enabled: !_isSaving,
-                  decoration: _inputDecoration(
-                    context,
-                    hintText: context.l10n.enterNewPassword,
-                    prefixIcon: Icons.key,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                      ),
-                      onPressed: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
-                    ),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 16),
-
-              // Network binding
-              _buildLabel(context, context.l10n.network),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _networkController,
-                enabled: !_isSaving,
-                decoration: _inputDecoration(
-                  context,
-                  hintText: context.l10n.networkExample,
-                  prefixIcon: Icons.lan_outlined,
-                ),
-              ),
-
-              // Error
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colorScheme.errorContainer.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        color: colorScheme.error,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.error,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 20),
-
-              // Warning
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.tertiaryContainer.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: colorScheme.tertiary,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        context.l10n.wifiChangesWarning,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Save button
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _isSaving ? null : _save,
-                  icon: _isSaving
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colorScheme.onPrimary,
-                          ),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(
-                    _isSaving
-                        ? context.l10n.applying
-                        : context.l10n.saveChanges,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLabel(BuildContext context, String text) {
-    return Text(
-      text,
-      style: Theme.of(
-        context,
-      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-    );
-  }
-
-  InputDecoration _inputDecoration(
-    BuildContext context, {
-    required String hintText,
-    required IconData prefixIcon,
-    Widget? suffixIcon,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return InputDecoration(
-      hintText: hintText,
-      prefixIcon: Icon(prefixIcon),
-      suffixIcon: suffixIcon,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: colorScheme.outline.withValues(alpha: 0.3),
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: colorScheme.primary, width: 2),
-      ),
-      filled: true,
-      fillColor: colorScheme.surfaceContainerLow,
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────
-// WiFi Delete Confirmation Dialog
-// ──────────────────────────────────────────────────────────────────
-
-class _WifiDeleteDialog extends ConsumerStatefulWidget {
-  final String ssid;
-  final String uciSection;
-  final String mode;
-
-  const _WifiDeleteDialog({
-    required this.ssid,
-    required this.uciSection,
-    required this.mode,
-  });
-
-  @override
-  ConsumerState<_WifiDeleteDialog> createState() => _WifiDeleteDialogState();
-}
-
-class _WifiDeleteDialogState extends ConsumerState<_WifiDeleteDialog> {
-  bool _isDeleting = false;
-
-  Future<void> _delete() async {
-    setState(() => _isDeleting = true);
-
-    final appState = ref.read(appStateProvider);
-    final success = await appState.deleteWirelessInterface(
-      widget.uciSection,
-      context: context,
-    );
-
-    if (!mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final errorColor = Theme.of(context).colorScheme.error;
-    Navigator.of(context).pop();
-
-    if (success) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Text(context.l10n.interfaceRemoved(widget.ssid)),
-            ],
-          ),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } else {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.removeInterfaceFailed),
-          backgroundColor: errorColor,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final displayName = widget.ssid.isNotEmpty
-        ? widget.ssid
-        : widget.uciSection;
-    final modeLower = widget.mode.toLowerCase();
-    final isStaMode =
-        modeLower.contains('sta') ||
-        modeLower.contains('client') ||
-        modeLower == 'station';
-    final warningMessage = isStaMode
-        ? context.l10n.removeStaWarning
-        : context.l10n.removeApWarning;
-
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      icon: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colorScheme.errorContainer.withValues(alpha: 0.3),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(Icons.delete_forever, color: colorScheme.error, size: 32),
-      ),
-      title: Text(context.l10n.removeWirelessInterfaceQuestion),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            context.l10n.removeWirelessInterfaceDescription(displayName),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.errorContainer.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber, color: colorScheme.error, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    warningMessage,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.error,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isDeleting ? null : () => Navigator.of(context).pop(),
-          child: Text(context.l10n.cancel),
-        ),
-        FilledButton(
-          onPressed: _isDeleting ? null : _delete,
-          style: FilledButton.styleFrom(
-            backgroundColor: colorScheme.error,
-            foregroundColor: colorScheme.onError,
-          ),
-          child: _isDeleting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Text(context.l10n.remove),
-        ),
-      ],
-    );
   }
 }

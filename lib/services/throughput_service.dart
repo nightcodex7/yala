@@ -1,3 +1,7 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'dart:collection';
 import 'dart:math';
 
@@ -29,19 +33,57 @@ class ThroughputService {
 
   // Interface-specific getters
   List<double> getRxHistoryForInterface(String interface) {
-    return _rxHistoryPerInterface[interface]?.toList() ?? [];
+    if (_rxHistoryPerInterface.containsKey(interface)) {
+      return _rxHistoryPerInterface[interface]!.toList();
+    }
+    if (interface == 'lan' && _rxHistoryPerInterface.containsKey('br-lan')) {
+      return _rxHistoryPerInterface['br-lan']!.toList();
+    }
+    if (interface == 'wan' && _rxHistoryPerInterface.containsKey('eth0')) {
+      return _rxHistoryPerInterface['eth0']!.toList();
+    }
+    return [];
   }
 
   List<double> getTxHistoryForInterface(String interface) {
-    return _txHistoryPerInterface[interface]?.toList() ?? [];
+    if (_txHistoryPerInterface.containsKey(interface)) {
+      return _txHistoryPerInterface[interface]!.toList();
+    }
+    if (interface == 'lan' && _txHistoryPerInterface.containsKey('br-lan')) {
+      return _txHistoryPerInterface['br-lan']!.toList();
+    }
+    if (interface == 'wan' && _txHistoryPerInterface.containsKey('eth0')) {
+      return _txHistoryPerInterface['eth0']!.toList();
+    }
+    return [];
   }
 
   double getCurrentRxRateForInterface(String interface) {
-    return _currentRxRatePerInterface[interface] ?? 0.0;
+    if (_currentRxRatePerInterface.containsKey(interface)) {
+      return _currentRxRatePerInterface[interface]!;
+    }
+    if (interface == 'lan' &&
+        _currentRxRatePerInterface.containsKey('br-lan')) {
+      return _currentRxRatePerInterface['br-lan']!;
+    }
+    if (interface == 'wan' && _currentRxRatePerInterface.containsKey('eth0')) {
+      return _currentRxRatePerInterface['eth0']!;
+    }
+    return 0.0;
   }
 
   double getCurrentTxRateForInterface(String interface) {
-    return _currentTxRatePerInterface[interface] ?? 0.0;
+    if (_currentTxRatePerInterface.containsKey(interface)) {
+      return _currentTxRatePerInterface[interface]!;
+    }
+    if (interface == 'lan' &&
+        _currentTxRatePerInterface.containsKey('br-lan')) {
+      return _currentTxRatePerInterface['br-lan']!;
+    }
+    if (interface == 'wan' && _currentTxRatePerInterface.containsKey('eth0')) {
+      return _currentTxRatePerInterface['eth0']!;
+    }
+    return 0.0;
   }
 
   void updateThroughput(
@@ -60,11 +102,36 @@ class ThroughputService {
 
     // Update overall throughput
     if (specificInterface != null && specificInterface.isNotEmpty) {
-      // If specific interface requested, use only that interface's data
-      if (networkData != null && networkData.containsKey(specificInterface)) {
+      String? matchedKey;
+      if (networkData != null) {
+        if (networkData.containsKey(specificInterface)) {
+          matchedKey = specificInterface;
+        } else {
+          // Fallback matching: map logical interface names (e.g. lan -> br-lan, wan -> eth0)
+          for (final entry in networkData.entries) {
+            final devName = entry.key;
+            if (devName == specificInterface ||
+                (specificInterface == 'lan' && devName == 'br-lan') ||
+                (specificInterface == 'wan' && devName == 'eth0')) {
+              matchedKey = devName;
+              break;
+            }
+            final devData = entry.value;
+            if (devData is Map<String, dynamic>) {
+              if (devData['device'] == specificInterface ||
+                  devData['l3_device'] == specificInterface) {
+                matchedKey = devName;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (matchedKey != null) {
         _updateSpecificInterfaceThroughput(
-          specificInterface,
-          networkData[specificInterface],
+          matchedKey,
+          networkData![matchedKey],
           now,
         );
       } else {
@@ -124,30 +191,6 @@ class ThroughputService {
     }
   }
 
-  /// Safely coerces a counter value to a finite [num]. Some firmware builds
-  /// report byte counters as strings; a hard cast would throw and kill the
-  /// update. Non-finite values (NaN/Infinity, also parseable from strings)
-  /// are rejected so they cannot propagate into rates and history.
-  static num _asNum(Object? value) {
-    if (value is num) return value.isFinite ? value : 0;
-    if (value is String) {
-      final parsed = num.tryParse(value);
-      return (parsed != null && parsed.isFinite) ? parsed : 0;
-    }
-    return 0;
-  }
-
-  /// Reads a byte counter that may live under `stats.<key>` or directly at
-  /// `<key>`. Some firmware builds return a non-map `stats` value - treat
-  /// that as absent and fall back to the direct field.
-  static Object? _counterValue(Map<String, dynamic> device, String key) {
-    final stats = device['stats'];
-    if (stats is Map) {
-      return stats[key] ?? device[key];
-    }
-    return device[key];
-  }
-
   void _updateInterfaceThroughput(
     String interface,
     dynamic devData,
@@ -174,12 +217,17 @@ class ThroughputService {
         now.difference(lastTimestamp).inMilliseconds / 1000.0;
 
     if (elapsedSeconds >= _minElapsedSeconds) {
-      // Handle both formats: stats.rx_bytes and direct rx_bytes, tolerating
-      // malformed `stats` values from non-standard firmware.
-      final lastRx = _asNum(_counterValue(lastStats, 'rx_bytes'));
-      final lastTx = _asNum(_counterValue(lastStats, 'tx_bytes'));
-      final currentRx = _asNum(_counterValue(devData, 'rx_bytes'));
-      final currentTx = _asNum(_counterValue(devData, 'tx_bytes'));
+      // Handle both formats: stats.rx_bytes and direct rx_bytes
+      final lastRx =
+          (lastStats['stats']?['rx_bytes'] ?? lastStats['rx_bytes'] ?? 0)
+              as num;
+      final lastTx =
+          (lastStats['stats']?['tx_bytes'] ?? lastStats['tx_bytes'] ?? 0)
+              as num;
+      final currentRx =
+          (devData['stats']?['rx_bytes'] ?? devData['rx_bytes'] ?? 0) as num;
+      final currentTx =
+          (devData['stats']?['tx_bytes'] ?? devData['tx_bytes'] ?? 0) as num;
 
       final rxRate = max(0, (currentRx - lastRx) / elapsedSeconds);
       final txRate = max(0, (currentTx - lastTx) / elapsedSeconds);
@@ -273,9 +321,9 @@ class ThroughputService {
           // Handle both formats: stats.rx_bytes and direct rx_bytes
           if (devData['stats'] is Map<String, dynamic> &&
               devData['stats'][key] != null) {
-            total += _asNum(devData['stats'][key]);
+            total += devData['stats'][key];
           } else if (devData[key] != null) {
-            total += _asNum(devData[key]);
+            total += devData[key];
           }
         }
       }

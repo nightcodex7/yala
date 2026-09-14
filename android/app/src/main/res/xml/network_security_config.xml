@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+        Allow cleartext HTTP traffic for local network router management.
+        Covers all RFC-1918 private IP ranges that OpenWrt and other router firmware
+        commonly use as default gateway addresses.
+
+        Note: Android's network-security-config does NOT support subnet ranges or wildcards
+        for IP octets. Each known gateway pattern must be listed explicitly. The app also
+        sets android:usesCleartextTraffic="true" at the application level, which together
+        with this config ensures HTTP access to any LAN IP the user configures manually.
+    -->
+    <domain-config cleartextTrafficPermitted="true">
+
+        <!-- ── 192.168.x.x common router defaults ───────────────────────── -->
+        <domain includeSubdomains="true">192.168.0.1</domain>
+        <domain includeSubdomains="true">192.168.1.1</domain>
+        <domain includeSubdomains="true">192.168.2.1</domain>
+        <domain includeSubdomains="true">192.168.8.1</domain>
+        <domain includeSubdomains="true">192.168.10.1</domain>
+        <domain includeSubdomains="true">192.168.11.1</domain>
+        <domain includeSubdomains="true">192.168.100.1</domain>
+        <domain includeSubdomains="true">192.168.123.1</domain>
+        <domain includeSubdomains="true">192.168.178.1</domain>
+
+        <!-- ── 10.x.x.x common OpenWrt / ISP router defaults ───────────── -->
+        <domain includeSubdomains="true">10.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.1.1</domain>
+        <domain includeSubdomains="true">10.1.1.1</domain>
+        <domain includeSubdomains="true">10.10.10.1</domain>
+        <domain includeSubdomains="true">10.10.0.1</domain>
+
+        <!-- ── 172.16.x.x – 172.31.x.x common enterprise/ISP gateways ─── -->
+        <domain includeSubdomains="true">172.16.0.1</domain>
+        <domain includeSubdomains="true">172.16.1.1</domain>
+        <domain includeSubdomains="true">172.17.0.1</domain>
+        <domain includeSubdomains="true">172.31.0.1</domain>
+
+        <!-- ── Localhost / testing ───────────────────────────────────────── -->
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+
+        <!-- ── mDNS .local hostnames (router hostname resolution) ────────── -->
+        <domain includeSubdomains="true">router.local</domain>
+        <domain includeSubdomains="true">openwrt.local</domain>
+        <domain includeSubdomains="true">gateway.local</domain>
+    </domain-config>
+
+    <!-- Base config: secure HTTPS required for all other public traffic -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Debug overrides: trust user-installed certs in debug builds only -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

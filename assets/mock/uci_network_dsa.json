@@ -1,0 +1,41 @@
+{
+  "values": {
+    "loopback": {
+      ".type": "interface",
+      "device": "lo",
+      "proto": "static",
+      "ipaddr": "127.0.0.1",
+      "netmask": "255.0.0.0"
+    },
+    "lan": {
+      ".type": "interface",
+      "device": "br-lan",
+      "proto": "static",
+      "ipaddr": "192.168.1.1",
+      "netmask": "255.255.255.0"
+    },
+    "wan": {
+      ".type": "interface",
+      "device": "eth1",
+      "proto": "map"
+    },
+    "br_lan_dev": {
+      ".type": "device",
+      "name": "br-lan",
+      "type": "bridge",
+      "ports": ["lan1", "lan2", "lan3", "lan4"]
+    },
+    "vlan10": {
+      ".type": "bridge-vlan",
+      "device": "br-lan",
+      "vlan": "10",
+      "ports": ["lan1:u", "lan2:u", "lan3:t"]
+    },
+    "vlan20": {
+      ".type": "bridge-vlan",
+      "device": "br-lan",
+      "vlan": "20",
+      "ports": ["lan3:t", "lan4:u"]
+    }
+  }
+}

@@ -1,5 +1,9 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter/material.dart';
-import 'package:luci_mobile/services/interfaces/auth_service_interface.dart';
+import 'package:yet_another_luci_app/services/interfaces/auth_service_interface.dart';
 
 class MockAuthService implements IAuthService {
   String? _sysauth = 'mock_sysauth_token_12345';
@@ -43,6 +47,7 @@ class MockAuthService implements IAuthService {
     String? username,
     String? password,
     bool? useHttps, {
+    bool force = false,
     BuildContext? context,
   }) async {
     // Simulate a short delay for realism
@@ -54,25 +59,6 @@ class MockAuthService implements IAuthService {
     _isAuthenticated = true;
     _sysauth = 'mock_sysauth_token_12345';
     return true;
-  }
-
-  @override
-  Future<FallbackLoginResult> loginWithFallback({
-    required String activeAddress,
-    required bool activeHttps,
-    required int activeIndex,
-    String? fallbackAddress,
-    bool? fallbackHttps,
-    required String username,
-    required String password,
-    BuildContext? context,
-  }) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _ipAddress = activeAddress;
-    _useHttps = activeHttps;
-    _isAuthenticated = true;
-    _sysauth = 'mock_sysauth_token_12345';
-    return FallbackLoginResult(success: true, usedAddressIndex: activeIndex);
   }
 
   @override

@@ -1,1 +1,1 @@
-Manage your OpenWrt router from your phone. 
+OpenWrt & GL.iNet router manager with LuCI, ubus, VPN & parental controls.

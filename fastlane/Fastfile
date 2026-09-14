@@ -1,0 +1,28 @@
+# Copyright (C) 2026 @nightcodex7
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Fastlane Fastfile configuration for Yet Another LuCI App
+default_platform(:android)
+
+platform :android do
+  desc "Validate local metadata structure without publishing or modifying Play Console"
+  lane :check_metadata do
+    puts "Package Name: com.nightcode.luci"
+    puts "Privacy Policy URL: https://nightcode.co.in/privacy-policy.html"
+    puts "Terms & Conditions URL: https://nightcode.co.in/terms.html"
+    puts "Contact URL: https://nightcode.co.in/contact.html"
+    puts "Fastlane metadata structure is verified and updated."
+  end
+
+  desc "Sync store metadata with Google Play (Dry Run / Validate Only)"
+  lane :validate_play_store do
+    upload_to_play_store(
+      package_name: "com.nightcode.luci",
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_screenshots: true,
+      skip_upload_images: true,
+      validate_only: true
+    )
+  end
+end

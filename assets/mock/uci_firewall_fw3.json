@@ -1,0 +1,51 @@
+{
+  "values": {
+    "defaults": {
+      ".type": "defaults",
+      "input": "ACCEPT",
+      "output": "ACCEPT",
+      "forward": "REJECT",
+      "syn_flood": "1"
+    },
+    "lan": {
+      ".type": "zone",
+      "name": "lan",
+      "input": "ACCEPT",
+      "output": "ACCEPT",
+      "forward": "ACCEPT",
+      "network": ["lan"]
+    },
+    "wan": {
+      ".type": "zone",
+      "name": "wan",
+      "input": "REJECT",
+      "output": "ACCEPT",
+      "forward": "REJECT",
+      "masq": "1",
+      "network": ["wan", "wan6"]
+    },
+    "fwd_lan_wan": {
+      ".type": "forwarding",
+      "src": "lan",
+      "dest": "wan"
+    },
+    "redirect_ssh": {
+      ".type": "redirect",
+      "name": "SSH External",
+      "src": "wan",
+      "src_dport": "2222",
+      "dest": "lan",
+      "dest_ip": "192.168.1.100",
+      "dest_port": "22",
+      "proto": "tcp"
+    },
+    "rule_icmp": {
+      ".type": "rule",
+      "name": "Allow-Ping",
+      "src": "wan",
+      "dest": "lan",
+      "target": "ACCEPT",
+      "enabled": "1"
+    }
+  }
+}

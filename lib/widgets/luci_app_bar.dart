@@ -1,6 +1,9 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter/material.dart';
-import 'package:luci_mobile/design/luci_design_system.dart';
-import 'package:luci_mobile/l10n/luci_localizations.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 
 class LuciAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String? title;
@@ -39,7 +42,7 @@ class LuciAppBar extends StatelessWidget implements PreferredSizeWidget {
                 color: theme.colorScheme.onSurface,
               ),
               onPressed: () => Navigator.of(context).maybePop(),
-              tooltip: context.l10n.back,
+              tooltip: 'Back',
             )
           : null,
       title:
@@ -51,6 +54,7 @@ class LuciAppBar extends StatelessWidget implements PreferredSizeWidget {
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.onSurface,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 )
               : null),
       actions: actions,
@@ -155,7 +159,7 @@ class LuciErrorDisplay extends StatelessWidget {
                 ElevatedButton.icon(
                   onPressed: onAction,
                   icon: const Icon(Icons.refresh_rounded),
-                  label: Text(actionLabel ?? context.l10n.retry),
+                  label: Text(actionLabel ?? 'Retry'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorScheme.primary,
                     foregroundColor: colorScheme.onPrimary,
@@ -228,7 +232,7 @@ class LuciEmptyState extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: onAction,
                 icon: const Icon(Icons.add_rounded),
-                label: Text(actionLabel ?? context.l10n.add),
+                label: Text(actionLabel ?? 'Add'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorScheme.primary,
                   foregroundColor: colorScheme.onPrimary,

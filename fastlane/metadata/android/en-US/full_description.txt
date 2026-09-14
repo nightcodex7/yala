@@ -1,33 +1,72 @@
-Take full control of your OpenWrt router with LuCI Mobile. Our app offers a modern, intuitive interface to securely manage your home network from anywhere.
+Manage your OpenWrt routers directly from Android with a modern, high-performance native interface built for everyday administration, wireless monitoring, and advanced network control.
 
-Designed for both power users and network enthusiasts, LuCI Mobile simplifies router management without sacrificing functionality.
+Yet Another LuCI App (YALA) is a privacy-first mobile client connecting directly to your router via standard LuCI HTTP/HTTPS and ubus JSON-RPC APIs. Designed for speed, it provides a touch-friendly alternative to mobile browsers without depending on cloud servers, external accounts, or remote telemetry.
 
-<b>Key Features:</b>
+COMPATIBLE FIRMWARES & ROUTERS
+Works with stock OpenWrt (19.07–24.10+), ImmortalWrt, Turris OS, GL.iNet, Gargoyle, LEDE, X-WRT, and FriendlyWrt across TP-Link, Netgear, Linksys, Xiaomi, Asus, and custom x86/ARM devices with LuCI or ubus RPC.
 
-* <b>Multiple Router Management:</b> Add, switch, and manage any number of OpenWrt routers. Each router’s data is kept separate and secure.
-* <b>Real-Time Dashboard:</b> Instantly view system status, performance metrics, and uptime with interactive charts.
-* <b>Complete Network Management:</b> Monitor all wired and wireless interfaces, track bandwidth usage, and check IP configurations.
-* <b>Detailed Client Oversight:</b> See a live list of all connected devices with their IP/MAC addresses, hostnames, and active connection times.
-* <b>Powerful System Control:</b> Remotely reboot your router with a single tap.
-* <b>Secure & Flexible Connection:</b> Connect via HTTP or HTTPS, with support for self-signed certificates and secure credential storage.
-* <b>Modern UI:</b> Enjoy a clean experience with Material Design 3, including full support for light and dark themes.
+KEY FEATURES
 
------
+MULTI-ROUTER MANAGEMENT & SECURE VAULT
+• Manage multiple OpenWrt routers with quick profile switching
+• Encrypted local vault backed by Android Keystore
+• Supports LuCI RPC, ubus JSON-RPC, and sysauth session logins
 
-<b>Requirements:</b>
+CONNECTED CLIENTS & DUMB AP SUPPORT
+• Live view of active wired, wireless, and DHCP lease clients
+• Dumb AP support: inspect clients connected to secondary bridged APs
+• Filter clients by hostname, IP, MAC address, or radio band
+• One-tap MAC access control (allowlist / banlist) and static DHCP leases
+• Clear IPv4, IPv6, and SSID connection details
 
-This app requires an OpenWrt router with the LuCI web interface enabled. For remote access, ensure your router's firewall is configured correctly.
+PARENTAL CONTROLS & SCHEDULES
+• Group devices into customizable parental profiles
+• Set access schedules with automatic firewall enforcement
+• 1-tap internet pause and resume for individual devices
+• Unrestricted bypass mode for temporary overrides
+• Activity logs and usage duration metrics
 
------
+ISOLATED GUEST WI-FI
+• 1-tap provisioning of dedicated guest Wi-Fi networks
+• Firewall rules isolating guests from your private LAN
+• L2 client isolation (ap_isolate) preventing client-to-client snooping
+• Wi-Fi QR code sharing for instant guest onboarding
 
-<b>Support & Source Code:</b>
+REAL-TIME MONITORING & DIAGNOSTICS
+• Live CPU load, RAM usage, swap space, and storage gauges
+• Real-time network throughput graphs (Rx/Tx)
+• Built-in Ping, Traceroute, and NSLookup diagnostic network tools
+• System log inspection and procd daemon status monitoring
 
-LuCI Mobile is an open-source project. For support, to report issues, or to view the source code, please visit our GitHub repository:
+WIRELESS NETWORK MANAGEMENT
+• Tri-band support for 2.4, 5, and 6 GHz (Wi-Fi 6E/7) radios
+• Monitor stations, signal strength (dBm), channel, and noise floor
+• Configure SSID visibility, transmit power, and WPA2/WPA3 security
 
-https://github.com/cogwheel0/luci-mobile
+FIREWALL, ROUTING & NETWORKING
+• Supports both iptables (fw3) and modern nftables (fw4)
+• Enable, disable, or reorder firewall rules, zones, and port forwards
+• Inspect interfaces, physical bindings, and switch / DSA topologies
 
-Email: cogwheel@cogwheel.app
+VPN & ENCRYPTED TUNNELS
+• Monitor WireGuard, OpenVPN, Tailscale, and ZeroTier tunnels
+• Live tunnel handshake status and transfer statistics
+• Manage DNS settings (dnsmasq), domain aliases, and upstream resolvers
 
------
+OPKG & APK PACKAGE MANAGER
+• Dual package manager supporting legacy opkg and OpenWrt 24.10+ apk
+• Discover, install, update, or remove packages and LuCI apps
+• Start, stop, restart, or toggle autostart for system services
+• View, add, and edit cron scheduled tasks
 
-<b>Disclaimer:</b> This is an independent, third-party application licensed under the GNU General Public License v3.0 (GPLv3) and is not officially affiliated with the OpenWrt project.
+SECURITY & SAFETY GUARDRAILS
+• Active self-device guard prevents accidental management lockout
+• Atomic UCI commits with automatic rollback on network error
+• Pre-upload archive header check (gzip/tar) for safe backup restores
+• 100% Cloud-Free: Direct local connection with zero ads or telemetry
+
+ORIGIN & ACKNOWLEDGEMENTS
+Yet Another LuCI App is free, open-source software licensed under the GNU General Public License v3.0 (GPLv3). It is a fork of the open-source luci-mobile project originally authored by cogwheel0, modernized with Material 3 design, new network modules, robust safety guardrails, and an automated test suite.
+
+DISCLAIMER
+Yet Another LuCI App is an independent open-source application and is not affiliated with or endorsed by the OpenWrt Project or GL.iNet. OpenWrt, LuCI, and brand names are trademarks of their respective owners.

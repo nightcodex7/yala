@@ -1,6 +1,8 @@
 #!/bin/bash
+# Copyright (C) 2026 @nightcodex7
+# SPDX-License-Identifier: GPL-3.0-or-later
 
-# LuCI Mobile Release Script (CI-driven)
+# YALA Release Script (CI-driven)
 # Usage: ./scripts/release.sh [major|minor|patch]
 
 set -e

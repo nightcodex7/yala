@@ -13,6 +13,8 @@
 migrate_working_dir/
 .github/copilot-instructions.md
 AGENTS.md
+.agents
+*.prompt
 
 # IntelliJ related
 *.iml
@@ -47,6 +49,7 @@ app.*.map.json
 /android/app/release
 
 # iOS related
+/ios
 **/ios/**/*.mode1v3
 **/ios/**/*.mode2v3
 **/ios/**/*.moved-aside
@@ -114,11 +117,13 @@ GoogleService-Info.plist
 # Keystore files
 *.keystore
 *.jks
+.private/
 
 # Gradle files
 .gradle/
 **/android/gradle-wrapper.jar
 **/android/.gradle
+**/android/.kotlin
 **/android/captures/
 **/android/gradlew
 **/android/gradlew.bat
@@ -132,7 +137,6 @@ GoogleService-Info.plist
 
 # NDK
 **/android/.cxx/
-**/android/local.properties
 
 # Generated files
 **/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 @nightcodex7
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 pluginManagement {
     val flutterSdkPath = run {
         val properties = java.util.Properties()

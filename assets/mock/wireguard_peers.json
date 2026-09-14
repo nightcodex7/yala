@@ -7,7 +7,7 @@
       "peer_public_key_laptop": {
         "public_key": "peer_public_key_laptop",
         "endpoint": "192.168.1.150:51821",
-        "last_handshake": 1700000000,
+        "last_handshake": 1755395000,
         "allowed_ips": ["10.0.0.2/32"],
         "persistent_keepalive": 25,
         "rx_bytes": 1234567,
@@ -16,7 +16,7 @@
       "peer_public_key_phone": {
         "public_key": "peer_public_key_phone",
         "endpoint": "192.168.1.151:51822",
-        "last_handshake": 1699999900,
+        "last_handshake": 1755394950,
         "allowed_ips": ["10.0.0.3/32"],
         "persistent_keepalive": 25,
         "rx_bytes": 2345678,
@@ -25,7 +25,7 @@
       "peer_public_key_tablet": {
         "public_key": "peer_public_key_tablet",
         "endpoint": "[::]:0",
-        "last_handshake": 1699999000,
+        "last_handshake": 1755394000,
         "allowed_ips": ["10.0.0.4/32"],
         "persistent_keepalive": 0,
         "rx_bytes": 345678,

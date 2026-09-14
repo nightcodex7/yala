@@ -1,23 +1,48 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:luci_mobile/services/interfaces/api_service_interface.dart';
-import 'package:luci_mobile/config/app_config.dart';
+import 'package:yet_another_luci_app/modules/parental_controls/models/parental_profile.dart';
+import 'package:yet_another_luci_app/modules/services_system/models/ddns_info.dart';
+import 'package:yet_another_luci_app/services/interfaces/api_service_interface.dart';
+import 'package:yet_another_luci_app/config/app_config.dart';
+import 'package:yet_another_luci_app/models/router_capabilities.dart';
 
 class MockApiService implements IApiService {
   static final Random _random = Random();
+  static PackageManagerEngine mockPackageEngine = PackageManagerEngine.opkg;
+  static NetworkModel mockNetworkModel = NetworkModel.dsa;
   static int _baseUptime = 86400; // Base uptime of 1 day
   static int _baseRxBytes = 1234567890;
   static int _baseTxBytes = 987654321;
   static int _baseRxPackets = 12345;
   static int _baseTxPackets = 9876;
-  // Scan cancellation token — incremented by cancelScan().
-  int _scanToken = 0;
   static int _baseLanRxBytes = 2345678901;
   static int _baseLanTxBytes = 1876543210;
   static int _baseLanRxPackets = 23456;
   static int _baseLanTxPackets = 18765;
+  static final Set<String> _mockRestrictedMacs = {'11:22:33:44:55:66'};
+  static final Set<String> _mockBannedMacs = {'99:88:77:66:55:44'};
+
+  @override
+  Future<AuthResult> authenticate(
+    String ipAddress,
+    String username,
+    String password,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return AuthResult.success(
+      'mock_sysauth_token_12345',
+      actualUseHttps: useHttps,
+    );
+  }
+
   @override
   Future<String> login(
     String ipAddress,
@@ -26,11 +51,14 @@ class MockApiService implements IApiService {
     bool useHttps, {
     BuildContext? context,
   }) async {
-    // Simulate a short delay for realism
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Always return a mock sysauth token
-    return 'mock_sysauth_token_12345';
+    final res = await authenticate(
+      ipAddress,
+      username,
+      password,
+      useHttps,
+      context: context,
+    );
+    return res.token ?? 'mock_sysauth_token_12345';
   }
 
   @override
@@ -43,12 +71,40 @@ class MockApiService implements IApiService {
     Map<String, dynamic>? params,
     BuildContext? context,
   }) async {
-    // Simulate a short delay for realism
-    await Future.delayed(const Duration(milliseconds: 200));
-
     final endpointKey = '$object.$method';
-
     try {
+      if (object == 'file' && method == 'read') {
+        return _handleFileRead(params);
+      }
+      if (object == 'file' && method == 'exec') {
+        final execRes = _handleFileExec(params);
+        if (execRes != null) return execRes;
+      }
+
+      if (object == 'uci' && method == 'get') {
+        final cfg = params?['config']?.toString();
+        String? targetFile;
+        if (cfg == 'network') {
+          targetFile = mockNetworkModel == NetworkModel.swconfig
+              ? 'uci_network_swconfig.json'
+              : 'uci_network_dsa.json';
+        } else if (cfg == 'wireless') {
+          targetFile = 'uci_wireless.json';
+        } else if (cfg == 'dhcp') {
+          targetFile = 'uci_dhcp.json';
+        } else if (cfg == 'firewall') {
+          targetFile = 'uci_firewall_fw4.json';
+        }
+        if (targetFile != null) {
+          try {
+            final jsonString = await rootBundle.loadString(
+              '${AppConfig.mockDataPath}$targetFile',
+            );
+            return [0, jsonDecode(jsonString)];
+          } catch (_) {}
+        }
+      }
+
       // Return appropriate mock data based on object and method
       final mockDataFile = _getMockDataFile(object, method);
 
@@ -58,7 +114,7 @@ class MockApiService implements IApiService {
             '${AppConfig.mockDataPath}$mockDataFile',
           );
           final jsonData = jsonDecode(jsonString);
-          return [0, _formatMockData(endpointKey, jsonData)];
+          return [0, jsonData]; // Wrap in standard RPC response format
         } catch (e) {
           // Log file loading error and fall back to default data
           debugPrint(
@@ -98,6 +154,108 @@ class MockApiService implements IApiService {
     final endpointKey = '$object.$method';
 
     try {
+      if (object == 'file' && method == 'read') {
+        return _handleFileRead(params);
+      }
+      if (object == 'file' && method == 'exec') {
+        final execRes = _handleFileExec(params);
+        if (execRes != null) return execRes;
+      }
+
+      if (object == 'file' && method == 'stat') {
+        final path = params['path']?.toString() ?? '';
+        if (path == '/etc/apk') {
+          if (mockPackageEngine == PackageManagerEngine.apk) {
+            return [
+              0,
+              {'type': 'directory', 'path': '/etc/apk'},
+            ];
+          } else {
+            return [
+              1,
+              {'error': 'No such file or directory'},
+            ];
+          }
+        }
+        if (path == '/etc/opkg') {
+          if (mockPackageEngine == PackageManagerEngine.opkg) {
+            return [
+              0,
+              {'type': 'directory', 'path': '/etc/opkg'},
+            ];
+          } else {
+            return [
+              1,
+              {'error': 'No such file or directory'},
+            ];
+          }
+        }
+      }
+
+      if (object == 'file' && method == 'exec') {
+        final cmd = params['command']?.toString() ?? '';
+        if (cmd == 'opkg') {
+          if (mockPackageEngine == PackageManagerEngine.opkg) {
+            return [
+              0,
+              {
+                'code': 0,
+                'stdout':
+                    'luci-base - git-23.330\nwireguard-tools - 1.0.20210914-1\n',
+                'stderr': '',
+              },
+            ];
+          } else {
+            return [
+              0,
+              {'code': 127, 'stdout': '', 'stderr': 'opkg: not found'},
+            ];
+          }
+        }
+        if (cmd == 'apk') {
+          if (mockPackageEngine == PackageManagerEngine.apk) {
+            return [
+              0,
+              {
+                'code': 0,
+                'stdout':
+                    'luci-base-git-23.330\nwireguard-tools-1.0.20210914-1\n',
+                'stderr': '',
+              },
+            ];
+          } else {
+            return [
+              0,
+              {'code': 127, 'stdout': '', 'stderr': 'apk: not found'},
+            ];
+          }
+        }
+      }
+
+      if (object == 'uci' && method == 'get') {
+        final cfg = params['config']?.toString();
+        String? targetFile;
+        if (cfg == 'network') {
+          targetFile = mockNetworkModel == NetworkModel.swconfig
+              ? 'uci_network_swconfig.json'
+              : 'uci_network_dsa.json';
+        } else if (cfg == 'wireless') {
+          targetFile = 'uci_wireless.json';
+        } else if (cfg == 'dhcp') {
+          targetFile = 'uci_dhcp.json';
+        } else if (cfg == 'firewall') {
+          targetFile = 'uci_firewall_fw4.json';
+        }
+        if (targetFile != null) {
+          try {
+            final jsonString = await rootBundle.loadString(
+              '${AppConfig.mockDataPath}$targetFile',
+            );
+            return [0, jsonDecode(jsonString)];
+          } catch (_) {}
+        }
+      }
+
       // Return appropriate mock data based on object and method
       final mockDataFile = _getMockDataFile(object, method);
 
@@ -107,7 +265,7 @@ class MockApiService implements IApiService {
             '${AppConfig.mockDataPath}$mockDataFile',
           );
           final jsonData = jsonDecode(jsonString);
-          return [0, _formatMockData(endpointKey, jsonData)];
+          return [0, jsonData]; // Wrap in standard RPC response format
         } catch (e) {
           // Log file loading error and fall back to default data
           debugPrint(
@@ -253,8 +411,7 @@ class MockApiService implements IApiService {
       'network.interface': 'interface_dump.json',
       'network.interface.dump': 'interface_dump.json',
       'wireless.devices': 'wireless_devices.json',
-      'file.exec': 'dhcp_leases.json', // For DHCP leases command
-      'uci.get': 'uci_wireless.json', // For wireless config
+      'file.exec': 'dhcp_leases.json',
       'luci.wireguard.getWgInstances': 'wireguard_peers.json',
       'iwinfo.assoclist': 'associated_stations.json',
       'luci-rpc.getNetworkDevices': 'network_devices.json',
@@ -265,28 +422,28 @@ class MockApiService implements IApiService {
     return mockFileMap[key];
   }
 
-  dynamic _formatMockData(String endpoint, dynamic data) {
-    if (endpoint != 'luci-rpc.getDHCPLeases' || data is! Map) return data;
-
-    final leases = <Map<String, dynamic>>[];
-    for (final line in (data['stdout'] as String? ?? '').split('\n')) {
-      final parts = line.trim().split(RegExp(r'\s+'));
-      if (parts.length < 4) continue;
-      leases.add({
-        'expires': int.tryParse(parts[0]) ?? 0,
-        'macaddr': parts[1],
-        'ipaddr': parts[2],
-        'hostname': parts[3],
-        'activetime': 0,
-        'leasetime': int.tryParse(parts[0]) ?? 0,
-      });
-    }
-    return {'dhcp_leases': leases};
-  }
-
   dynamic _getDefaultMockData(String object, String method) {
     // Return default mock data based on object and method
     switch ('$object.$method') {
+      case 'rpc.list':
+        final objs = <String, List<String>>{
+          'system': ['info', 'board', 'reboot'],
+          'luci-rpc': ['getInitList', 'getWirelessDevices', 'getDHCPLeases'],
+          'network.interface': ['dump'],
+          'wireless.devices': ['get'],
+          'file': ['read', 'stat', 'exec'],
+          'service': ['list'],
+          'rc': ['list'],
+          'uci': ['get', 'set', 'commit'],
+          'fw4': ['get'],
+        };
+        if (mockPackageEngine == PackageManagerEngine.opkg) {
+          objs['opkg'] = ['list', 'install', 'remove'];
+        } else if (mockPackageEngine == PackageManagerEngine.apk) {
+          objs['apk'] = ['list', 'add', 'del'];
+        }
+        return [0, objs];
+
       case 'system.board':
         return [
           0,
@@ -646,8 +803,45 @@ class MockApiService implements IApiService {
           },
         ];
 
+      case 'service.list':
+        return [
+          0,
+          {
+            'dnsmasq': {'running': true, 'enabled': true, 'pid': 1240},
+            'firewall': {'running': true, 'enabled': true, 'pid': 890},
+            'dropbear': {'running': true, 'enabled': true, 'pid': 1532},
+            'uhttpd': {'running': true, 'enabled': true, 'pid': 1620},
+            'odhcpd': {'running': true, 'enabled': true, 'pid': 1310},
+            'tailscale': {'running': true, 'enabled': true, 'pid': 2045},
+            'wireguard': {'running': true, 'enabled': true},
+            'nextdns': {'running': true, 'enabled': true, 'pid': 2110},
+            'cron': {'running': true, 'enabled': true, 'pid': 780},
+          },
+        ];
+
+      case 'rc.list':
+        return [
+          0,
+          {
+            'boot': {'enabled': true, 'running': false, 'index': 10},
+            'network': {'enabled': true, 'running': true, 'index': 20},
+            'firewall': {'enabled': true, 'running': true, 'index': 19},
+            'dropbear': {'enabled': true, 'running': true, 'index': 50},
+            'dnsmasq': {'enabled': true, 'running': true, 'index': 60},
+            'odhcpd': {'enabled': true, 'running': true, 'index': 65},
+            'uhttpd': {'enabled': true, 'running': true, 'index': 80},
+            'tailscale': {'enabled': true, 'running': true, 'index': 90},
+            'cron': {'enabled': true, 'running': true, 'index': 95},
+          },
+        ];
+
+      case 'file.read':
+        return [
+          0,
+          {'data': ''},
+        ];
+
       case 'uci.get':
-        // UCI configuration data (generic response for various configs)
         return [
           0,
           {
@@ -670,6 +864,42 @@ class MockApiService implements IApiService {
                 'encryption': 'psk2',
                 'key': 'mock_password',
               },
+            },
+            'custom_client': {
+              '.type': 'openvpn',
+              'enabled': '1',
+              'running': true,
+              'proto': 'udp',
+              'port': '1194',
+              'dev': 'tun0',
+            },
+            'settings': {
+              '.type': 'tailscale',
+              'enabled': '1',
+              'running': true,
+              'node_name': 'OpenWrt-Router',
+              'ip': '100.64.0.15',
+              'state': 'Running',
+              'tailnet': 'my-tailnet.ts.net',
+              'magic_dns': '1',
+              'peers_count': 5,
+              'is_exit_node': false,
+            },
+            'main': {
+              '.type': 'nextdns',
+              'enabled': '1',
+              'running': true,
+              'profile': 'abcdef',
+              'report_client_info': '1',
+            },
+            'config': {
+              '.type': 'cloudflared',
+              'enabled': '1',
+              'running': true,
+              'tunnel_id': '8f92a10b-4c3d-2e1f-0a9b-8c7d6e5f4a3b',
+              'tunnel_name': 'home-router-tunnel',
+              'token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+              'connections': 4,
             },
           },
         ];
@@ -808,18 +1038,29 @@ class MockApiService implements IApiService {
   static String _getVariedDhcpLeases() {
     final now = _getVariedTimestamp();
     final devices = [
-      'iPhone-John',
-      'MacBook-Pro',
-      'Smart-TV-Living-Room',
-      'Gaming-PC',
-      'Nest-Thermostat',
-      'iPad-Sarah',
-      'Amazon-Echo',
-      'Samsung-Galaxy-S23',
-      'Dell-Laptop-Work',
-      'Ring-Doorbell',
-      'Nintendo-Switch',
-      'Philips-Hue-Bridge',
+      'Pixel-9-Pro',
+      'MacBook-Pro-16-M3',
+      'Sony-Bravia-4K-TV',
+      'ASUS-ROG-Gaming-PC',
+      'Google-Nest-Thermostat',
+      'iPad-Air-M2',
+      'Amazon-Echo-Show-10',
+      'HP-Color-LaserJet-Pro',
+      'Samsung-Galaxy-S24-Ultra',
+      'Dell-XPS-15-Workstation',
+      'Ring-Video-Doorbell-Pro',
+      'PlayStation-5-Console',
+      'Philips-Hue-Bridge-V2',
+      'Nintendo-Switch-OLED',
+      'Sonos-Era-100-Speaker',
+      'Tesla-Model-3-EV',
+      'LG-C3-OLED-TV',
+      'Steam-Deck-OLED',
+      'Eufy-Security-Camera',
+      'Raspberry-Pi-5-HomeAssistant',
+      'Apple-Watch-Ultra-2',
+      'Chromecast-with-Google-TV',
+      'ThinkPad-X1-Carbon',
     ];
     final macAddresses = [
       'aa:bb:cc:11:22:33',
@@ -829,11 +1070,22 @@ class MockApiService implements IApiService {
       'aa:bb:cc:dd:ee:ff',
       'aa:bb:cc:12:34:56',
       'aa:bb:cc:65:43:21',
+      'aa:bb:cc:98:76:54',
       'bb:cc:dd:11:22:33',
       'bb:cc:dd:44:55:66',
       'bb:cc:dd:77:88:99',
       'bb:cc:dd:aa:bb:cc',
       'bb:cc:dd:dd:ee:ff',
+      'bb:cc:dd:12:34:56',
+      'bb:cc:dd:65:43:21',
+      'cc:dd:ee:11:22:33',
+      'cc:dd:ee:44:55:66',
+      'cc:dd:ee:77:88:99',
+      'cc:dd:ee:aa:bb:cc',
+      'cc:dd:ee:dd:ee:ff',
+      'cc:dd:ee:12:34:56',
+      'cc:dd:ee:65:43:21',
+      'cc:dd:ee:98:76:54',
     ];
     final ipAddresses = [
       '192.168.1.100',
@@ -843,17 +1095,28 @@ class MockApiService implements IApiService {
       '192.168.1.104',
       '192.168.1.105',
       '192.168.1.106',
+      '192.168.1.107',
       '192.168.1.108',
       '192.168.1.109',
       '192.168.1.110',
       '192.168.1.111',
       '192.168.1.112',
+      '192.168.1.113',
+      '192.168.1.114',
+      '192.168.1.116',
+      '192.168.1.117',
+      '192.168.1.118',
+      '192.168.1.119',
+      '192.168.1.120',
+      '192.168.1.121',
+      '192.168.1.122',
+      '192.168.1.123',
     ];
 
     String leases = '';
     for (int i = 0; i < devices.length; i++) {
       // Vary lease time slightly
-      final leaseTime = now + _random.nextInt(3600); // +0 to 1 hour variation
+      final leaseTime = now + 1800 + _random.nextInt(43200);
       leases +=
           '$leaseTime ${macAddresses[i]} ${ipAddresses[i]} ${devices[i]} 01:${macAddresses[i]}\n';
     }
@@ -903,17 +1166,47 @@ class MockApiService implements IApiService {
   }
 
   @override
+  Future<dynamic> uciRevert(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String config,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return [0, 'success'];
+  }
+
+  @override
+  Future<List<String>> fetchNetworkInterfaces({
+    required String ipAddress,
+    required String sysauth,
+    required bool useHttps,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return ['lan', 'wan', 'guest'];
+  }
+
+  @override
   Future<dynamic> systemExec(
     String ipAddress,
     String sysauth,
     bool useHttps, {
     required String command,
-    List<String> params = const [],
     BuildContext? context,
   }) async {
     await Future.delayed(const Duration(milliseconds: 500));
     // Return success response for mock system exec operation
     return [0, 'success'];
+  }
+
+  @override
+  bool execSucceeded(dynamic res) {
+    if (res == null) return false;
+    if (res is List && res.isNotEmpty) return res[0] == 0;
+    if (res is Map && res['code'] is int) return res['code'] == 0;
+    return res == 0 || res == true;
   }
 
   @override
@@ -928,181 +1221,805 @@ class MockApiService implements IApiService {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> scanWirelessNetworks({
+  Future<Map<String, Map<String, dynamic>>> fetchHostHintsWithContext({
     required String ipAddress,
     required String sysauth,
     required bool useHttps,
-    required String device,
     BuildContext? context,
   }) async {
-    final token = _scanToken;
-    await Future.delayed(const Duration(seconds: 2)); // Simulate scan time
-    // Return empty list if scan was cancelled before completion.
-    if (_scanToken != token) return [];
-    return [
-      {
-        'ssid': 'Neighbor-WiFi',
-        'bssid': 'AA:BB:CC:11:22:33',
-        'mode': 'Master',
-        'channel': 1,
-        'signal': -45,
-        'quality': 65,
-        'quality_max': 70,
-        'encryption': {
-          'enabled': true,
-          'description': 'WPA2 PSK (CCMP)',
-          'wep': false,
-          'wpa': 2,
-          'auth_suites': ['PSK'],
-          'pair_ciphers': ['CCMP'],
-          'group_ciphers': ['CCMP'],
-        },
+    try {
+      final jsonString = await rootBundle.loadString(
+        '${AppConfig.mockDataPath}host_hints.json',
+      );
+      final jsonData = jsonDecode(jsonString);
+      if (jsonData is Map<String, dynamic>) {
+        final result = <String, Map<String, dynamic>>{};
+        jsonData.forEach((mac, value) {
+          if (value is Map<String, dynamic>) {
+            result[mac] = value;
+          }
+        });
+        return result;
+      }
+    } catch (_) {}
+
+    return {
+      'AA:BB:CC:11:22:33': {
+        'name': 'Android-nightcodex7',
+        'staticLeaseName': 'Pixel-9-Pro',
+        'isStaticLease': true,
+        'vendor': 'Google LLC',
+        'ipaddrs': ['192.168.1.100'],
+        'ip6addrs': ['2409:4060:2e81:a102::100', 'fe80::aabb:ccff:fe11:2233'],
       },
-      {
-        'ssid': 'CoffeeShop-Free',
-        'bssid': 'DD:EE:FF:44:55:66',
-        'mode': 'Master',
-        'channel': 6,
-        'signal': -62,
-        'quality': 48,
-        'quality_max': 70,
-        'encryption': {
-          'enabled': false,
-          'description': 'None',
-          'wep': false,
-          'wpa': 0,
-          'auth_suites': <String>[],
-          'pair_ciphers': <String>[],
-          'group_ciphers': <String>[],
-        },
+      'AA:BB:CC:44:55:66': {
+        'name': 'MacBook-Pro-16',
+        'vendor': 'Apple Inc.',
+        'ipaddrs': ['192.168.1.101'],
+        'ip6addrs': ['2409:4060:2e81:a102::101', 'fe80::aabb:ccff:fe44:5566'],
       },
-      {
-        'ssid': 'Office-5G',
-        'bssid': '11:22:33:AA:BB:CC',
-        'mode': 'Master',
-        'channel': 36,
-        'signal': -55,
-        'quality': 55,
-        'quality_max': 70,
-        'encryption': {
-          'enabled': true,
-          'description': 'WPA2 PSK (CCMP)',
-          'wep': false,
-          'wpa': 2,
-          'auth_suites': ['PSK'],
-          'pair_ciphers': ['CCMP'],
-          'group_ciphers': ['CCMP'],
-        },
-      },
-      {
-        'ssid': 'SmartHome-IoT',
-        'bssid': '77:88:99:DD:EE:FF',
-        'mode': 'Master',
-        'channel': 11,
-        'signal': -71,
-        'quality': 35,
-        'quality_max': 70,
-        'encryption': {
-          'enabled': true,
-          'description': 'WPA3 SAE (CCMP)',
-          'wep': false,
-          'wpa': 3,
-          'auth_suites': ['SAE'],
-          'pair_ciphers': ['CCMP'],
-          'group_ciphers': ['CCMP'],
-        },
-      },
-      {
-        'ssid': 'NETGEAR-Guest',
-        'bssid': 'CC:DD:EE:11:22:33',
-        'mode': 'Master',
-        'channel': 44,
-        'signal': -78,
-        'quality': 22,
-        'quality_max': 70,
-        'encryption': {
-          'enabled': true,
-          'description': 'WPA2 PSK (CCMP)',
-          'wep': false,
-          'wpa': 2,
-          'auth_suites': ['PSK'],
-          'pair_ciphers': ['CCMP'],
-          'group_ciphers': ['CCMP'],
-        },
-      },
-      {
-        'ssid': '',
-        'bssid': 'FF:00:11:22:33:44',
-        'mode': 'Master',
-        'channel': 3,
-        'signal': -82,
-        'quality': 15,
-        'quality_max': 70,
-        'encryption': {
-          'enabled': true,
-          'description': 'WPA2 PSK (CCMP)',
-          'wep': false,
-          'wpa': 2,
-          'auth_suites': ['PSK'],
-          'pair_ciphers': ['CCMP'],
-          'group_ciphers': ['CCMP'],
-        },
-      },
-    ];
+    };
   }
 
   @override
-  Future<dynamic> uciAdd(
+  Future<bool> disconnectWirelessClient(
     String ipAddress,
     String sysauth,
     bool useHttps, {
-    required String config,
-    required String type,
-    required Map<String, dynamic> values,
-    String? name,
+    required String macAddress,
+    String? iface,
+    int banTimeSeconds = 300,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return true;
+  }
+
+  @override
+  Future<bool> setSsidEnabled(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String ifaceSection,
+    required bool enabled,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return true;
+  }
+
+  @override
+  Future<bool> setWifiAccessControl(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required Map<String, List<String>> maclistByIface,
+    required Map<String, String> macfilterByIface,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return true;
+  }
+
+  @override
+  Future<bool> confirmWifiAccessControl(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return true;
+  }
+
+  @override
+  Future<bool> revertWifiAccessControl(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required Map<String, List<String>> maclistByIface,
+    required Map<String, String> macfilterByIface,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return true;
+  }
+
+  @override
+  Future<bool> autoFixPermissions(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return true;
+  }
+
+  @override
+  Future<bool> ensureSilentPermissions(
+    String ipAddress,
+    String sysauth,
+    bool useHttps,
+  ) async {
+    return true;
+  }
+
+  @override
+  Future<bool> manageServiceAction(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String serviceName,
+    required String action,
     BuildContext? context,
   }) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    return [0, name ?? 'cfg_new_section'];
+    return true;
   }
 
   @override
-  Future<dynamic> uciDelete(
+  Future<bool> pauseClientInternet(
     String ipAddress,
     String sysauth,
     bool useHttps, {
-    required String config,
-    required String section,
-    String? option,
+    required String macAddress,
+    required bool pause,
     BuildContext? context,
   }) async {
     await Future.delayed(const Duration(milliseconds: 200));
-    return [0, 'success'];
+    return true;
   }
 
   @override
-  Future<dynamic> uciGetAll(
+  Future<bool> banWirelessClient(
     String ipAddress,
     String sysauth,
     bool useHttps, {
-    required String config,
+    required String macAddress,
+    String? iface,
+    int banTimeSeconds = 300,
     BuildContext? context,
   }) async {
     await Future.delayed(const Duration(milliseconds: 200));
-    // Just reuse the call method for uci.get
-    return await call(
-      ipAddress,
-      sysauth,
-      useHttps,
-      object: 'uci',
-      method: 'get',
-      params: {'config': config},
-      context: context?.mounted == true ? context : null,
+    return true;
+  }
+
+  @override
+  Future<bool> unbanWirelessClient(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String macAddress,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    final macUpper = macAddress.toUpperCase().replaceAll('-', ':');
+    _mockRestrictedMacs.remove(macUpper);
+    _mockBannedMacs.remove(macUpper);
+    return true;
+  }
+
+  @override
+  Future<Map<String, List<Map<String, dynamic>>>>
+  fetchRestrictedAndBannedClientsLive(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return {
+      'restricted': _mockRestrictedMacs
+          .map(
+            (m) => {
+              'mac': m,
+              'name': 'Restricted-Tablet',
+              'ip': '192.168.1.150',
+              'type': 'restricted',
+              'source': 'LuCI Firewall Rule "Pause_Internet_112233445566"',
+            },
+          )
+          .toList(),
+      'banned': _mockBannedMacs
+          .map(
+            (m) => {
+              'mac': m,
+              'name': 'Banned-Guest-Phone',
+              'ip': 'N/A',
+              'type': 'banned',
+              'source': 'Wi-Fi Access Control (macfilter=deny)',
+            },
+          )
+          .toList(),
+    };
+  }
+
+  @override
+  Future<bool> addStaticLease(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String macAddress,
+    required String targetIp,
+    required String hostname,
+    String? targetIp6,
+    String? duid,
+    String? leaseTime,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> deleteStaticLease(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String macAddress,
+    String? targetIp,
+    String? hostname,
+    String? duid,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> refreshClientConnection(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String macAddress,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<int> deleteUnusedDhcpLeases(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required List<String> macsToFlush,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return macsToFlush.length;
+  }
+
+  @override
+  Future<Map<String, String?>> fetchPublicIps(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return {'ipv4': '203.0.113.195', 'ipv6': '2001:db8:85a3::8a2e:0370:7334'};
+  }
+
+  @override
+  Future<bool> forceRefreshDhcpLeases(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> saveCronJobs(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required List<String> cronLines,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> saveDdnsInstance(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required DdnsInstance instance,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> deleteDdnsInstance(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String instanceName,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<DdnsValidationResult> testDdnsConfiguration(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required DdnsInstance instance,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (instance.lookupHost.contains('error') ||
+        instance.domain.contains('invalid')) {
+      return DdnsValidationResult.failure(
+        'Host lookup failed for ${instance.lookupHost}. Host unreachable or unregistered.',
+        testOutput: 'nslookup: cant resolve ${instance.lookupHost}',
+      );
+    }
+    return DdnsValidationResult.success(
+      testOutput:
+          'DNS Lookup Output:\nName: ${instance.lookupHost.isEmpty ? instance.domain : instance.lookupHost}\nAddress: 198.51.100.24 (Public Router IP)',
     );
   }
 
   @override
-  void cancelScan() {
-    _scanToken++; // invalidates any in-flight scan
+  Future<bool> toggleGlobalDdns(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required bool enable,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> updateWirelessInterfaceConfig(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String sectionName,
+    required Map<String, String> values,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> revertWirelessInterfaceConfig(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String sectionName,
+    required Map<String, String> priorValues,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> updateWirelessRadioConfig(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String sectionName,
+    required Map<String, String> values,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> revertWirelessRadioConfig(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String sectionName,
+    required Map<String, String> priorValues,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> addWirelessInterface(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String radioName,
+    required String ssid,
+    required String encryption,
+    required String key,
+    required String network,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> deleteWirelessInterface(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String sectionName,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<bool> provisionGuestNetwork(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String radioName,
+    required String ssid,
+    required String encryption,
+    required String key,
+    String guestIp = '192.168.2.1',
+    bool isolateClients = true,
+    String network = 'guest',
+    // Advanced radio settings
+    String? country,
+    String? channel,
+    String? htMode,
+    String? txPower,
+    // Fast roaming (802.11r/k/v)
+    bool ieee80211r = false,
+    bool ftOverDs = false,
+    bool ftPskGenerateLocal = false,
+    String? mobilityDomain,
+    // Wireless advanced settings
+    bool wmm = true,
+    bool hidden = false,
+    int? dtimPeriod,
+    int? gtkRekey,
+    int? inactivityLimit,
+    int? maxListenInterval,
+    bool disassocLowAck = true,
+    bool multicastToUnicast = false,
+    bool wds = false,
+    // MAC filtering
+    String? macfilter,
+    List<String>? maclist,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<Map<String, List<Map<String, String>>>>
+  fetchWirelessHardwareCapabilities({
+    required String sectionName,
+    String? radioName,
+    required String ipAddress,
+    required String sysauth,
+    required bool useHttps,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    // Return mock hardware capabilities matching the fallback data
+    return {
+      'encryptions': [
+        {'value': 'sae', 'label': 'WPA3-SAE (Personal / Strict)'},
+        {'value': 'sae-mixed', 'label': 'WPA2/WPA3 Mixed (Transitional)'},
+        {'value': 'psk2', 'label': 'WPA2-PSK (CCMP / AES)'},
+        {'value': 'psk', 'label': 'WPA-PSK (Legacy / WPA1)'},
+        {'value': 'owe', 'label': 'Enhanced Open (OWE)'},
+        {'value': 'none', 'label': 'Open / No Encryption'},
+      ],
+      'ciphers': [
+        {'value': 'auto', 'label': 'Auto (Hardware Default)'},
+        {'value': 'ccmp', 'label': 'CCMP (AES)'},
+        {'value': 'gcmp256', 'label': 'GCMP-256 (High Security)'},
+        {'value': 'gcmp128', 'label': 'GCMP-128'},
+        {'value': 'tkip', 'label': 'TKIP (Legacy)'},
+      ],
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchWirelessRadioCapabilities({
+    required String radioName,
+    required String ipAddress,
+    required String sysauth,
+    required bool useHttps,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return {
+      'countryCodes': [
+        {'code': '00', 'label': '00 — World / Global (Universal)'},
+        {'code': 'US', 'label': 'US — United States'},
+        {'code': 'DE', 'label': 'DE — Germany'},
+        {'code': 'GB', 'label': 'GB — United Kingdom'},
+        {'code': 'IN', 'label': 'IN — India'},
+        {'code': 'JP', 'label': 'JP — Japan'},
+        {'code': 'CA', 'label': 'CA — Canada'},
+        {'code': 'AU', 'label': 'AU — Australia'},
+      ],
+      'channels': [
+        'auto',
+        '1',
+        '6',
+        '11',
+        '36',
+        '40',
+        '44',
+        '48',
+        '149',
+        '153',
+        '157',
+        '161',
+      ],
+      'htModes': [
+        'HT20',
+        'HT40',
+        'VHT20',
+        'VHT40',
+        'VHT80',
+        'HE20',
+        'HE40',
+        'HE80',
+      ],
+      'txPowers': ['auto', '30', '23', '20', '17', '14', '10'],
+    };
+  }
+
+  @override
+  Future<int> migrateAnonymousWirelessSections(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    // No anonymous sections exist in mock data — always clean
+    return 0;
+  }
+
+  @override
+  Future<bool> applyParentalProfileDns(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String profileId,
+    required List<String> macAddresses,
+    required List<String>? dnsServers,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return true;
+  }
+
+  @override
+  Future<List<ParentalProfile>?> fetchParentalProfiles(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return [
+      const ParentalProfile(
+        id: 'profile_1',
+        name: 'Profile 1',
+        icon: '👦',
+        color: '#F97316',
+        macAddresses: ['AA:BB:CC:11:22:33'],
+        contentFilter: ContentFilterDns.openDnsFamilyShield,
+      ),
+    ];
+  }
+
+  @override
+  Future<bool> saveParentalProfile(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required ParentalProfile profile,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return true;
+  }
+
+  @override
+  Future<bool> deleteParentalProfile(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required String profileId,
+    BuildContext? context,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return true;
+  }
+
+  dynamic _handleFileRead(Map<String, dynamic>? params) {
+    final path = params?['path']?.toString() ?? '';
+    if (path.contains('sysinfo/model')) {
+      return [
+        0,
+        {'data': 'OpenWrt Wi-Fi 6 Gateway (GL-AXT1800)\n'},
+      ];
+    }
+    if (path.contains('sysinfo/board_name')) {
+      return [
+        0,
+        {'data': 'mediatek,mt7981-rf-v1\n'},
+      ];
+    }
+    if (path.contains('openwrt_release')) {
+      return [
+        0,
+        {
+          'data':
+              'DISTRIB_ID=\'OpenWrt\'\nDISTRIB_RELEASE=\'23.05.3\'\nDISTRIB_REVISION=\'r23809-234f0e6\'\nDISTRIB_TARGET=\'mediatek/mt7981\'\nDISTRIB_ARCH=\'aarch64_cortex-a53\'\nDISTRIB_DESCRIPTION=\'OpenWrt 23.05.3 r23809-234f0e6\'\n',
+        },
+      ];
+    }
+    if (path.contains('os-release')) {
+      return [
+        0,
+        {
+          'data':
+              'NAME="OpenWrt"\nVERSION="23.05.3"\nID="openwrt"\nPRETTY_NAME="OpenWrt 23.05.3"\n',
+        },
+      ];
+    }
+    if (path.contains('proc/mtd')) {
+      return [
+        0,
+        {
+          'data':
+              'dev:    size   erasesize  name\nmtd0: 00080000 00020000 "u-boot"\nmtd1: 00080000 00020000 "u-boot-env"\nmtd2: 00040000 00020000 "factory"\nmtd3: 02000000 00020000 "firmware"\nmtd4: 00180000 00020000 "kernel"\nmtd5: 01e80000 00020000 "rootfs"\n',
+        },
+      ];
+    }
+    if (path.contains('crontabs/root') ||
+        path.contains('crontab') ||
+        path == '/etc/crontab') {
+      return [
+        0,
+        {
+          'data':
+              '0 4 * * * /sbin/reboot\n*/15 * * * * /usr/bin/ping-check.sh\n',
+        },
+      ];
+    }
+    if (path.contains('sysupgrade.conf')) {
+      return [
+        0,
+        {'data': '#/etc/sysupgrade.conf\n/etc/config/\n/etc/dropbear/\n'},
+      ];
+    }
+    return [
+      0,
+      {'data': ''},
+    ];
+  }
+
+  dynamic _handleFileExec(Map<String, dynamic>? params) {
+    final cmd = params?['command']?.toString() ?? '';
+    final rawArgs = params?['params'] ?? params?['args'];
+    final argsList = (rawArgs is List)
+        ? rawArgs.map((e) => e.toString()).toList()
+        : <String>[];
+    final fullCmd = '$cmd ${argsList.join(" ")}';
+
+    if (fullCmd.contains('df -k /tmp') || fullCmd.contains('df ')) {
+      return [
+        0,
+        {
+          'code': 0,
+          'stdout':
+              'Filesystem           1K-blocks      Used Available Use% Mounted on\ntmpfs                   124856      1240    123616   1% /tmp\n',
+          'stderr': '',
+        },
+      ];
+    }
+    if (fullCmd.contains('sysupgrade -l') ||
+        fullCmd.contains('--list-backup')) {
+      return [
+        0,
+        {
+          'code': 0,
+          'stdout':
+              '/etc/config/dhcp\n/etc/config/dropbear\n/etc/config/firewall\n/etc/config/network\n/etc/config/system\n/etc/config/wireless\n/etc/dropbear/dropbear_rsa_host_key\n/etc/shadow\n',
+          'stderr': '',
+        },
+      ];
+    }
+    if (fullCmd.contains('cat /proc/mtd')) {
+      return [
+        0,
+        {
+          'code': 0,
+          'stdout':
+              'dev:    size   erasesize  name\nmtd0: 00080000 00020000 "u-boot"\nmtd1: 00080000 00020000 "u-boot-env"\nmtd2: 00040000 00020000 "factory"\nmtd3: 02000000 00020000 "firmware"\nmtd4: 00180000 00020000 "kernel"\nmtd5: 01e80000 00020000 "rootfs"\n',
+          'stderr': '',
+        },
+      ];
+    }
+    if (fullCmd.contains('/tmp/sysinfo/model')) {
+      return [
+        0,
+        {
+          'code': 0,
+          'stdout': 'OpenWrt Wi-Fi 6 Gateway (GL-AXT1800)\n',
+          'stderr': '',
+        },
+      ];
+    }
+    if (fullCmd.contains('/tmp/sysinfo/board_name')) {
+      return [
+        0,
+        {'code': 0, 'stdout': 'mediatek,mt7981-rf-v1\n', 'stderr': ''},
+      ];
+    }
+    if (fullCmd.contains('/etc/openwrt_release')) {
+      return [
+        0,
+        {
+          'code': 0,
+          'stdout':
+              'DISTRIB_ID=\'OpenWrt\'\nDISTRIB_RELEASE=\'23.05.3\'\nDISTRIB_REVISION=\'r23809-234f0e6\'\nDISTRIB_TARGET=\'mediatek/mt7981\'\nDISTRIB_ARCH=\'aarch64_cortex-a53\'\nDISTRIB_DESCRIPTION=\'OpenWrt 23.05.3 r23809-234f0e6\'\n',
+          'stderr': '',
+        },
+      ];
+    }
+    if (cmd == 'opkg') {
+      if (mockPackageEngine == PackageManagerEngine.opkg) {
+        return [
+          0,
+          {
+            'code': 0,
+            'stdout':
+                'luci-base - git-23.330\nwireguard-tools - 1.0.20210914-1\n',
+            'stderr': '',
+          },
+        ];
+      } else {
+        return [
+          0,
+          {'code': 127, 'stdout': '', 'stderr': 'opkg: not found'},
+        ];
+      }
+    }
+    if (cmd == 'apk') {
+      if (mockPackageEngine == PackageManagerEngine.apk) {
+        return [
+          0,
+          {
+            'code': 0,
+            'stdout': 'luci-base-git-23.330\nwireguard-tools-1.0.20210914-1\n',
+            'stderr': '',
+          },
+        ];
+      } else {
+        return [
+          0,
+          {'code': 127, 'stdout': '', 'stderr': 'apk: not found'},
+        ];
+      }
+    }
+    return null;
   }
 }

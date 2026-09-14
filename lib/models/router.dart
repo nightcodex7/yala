@@ -1,3 +1,7 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 class Router {
   final String id;
   final String ipAddress;
@@ -5,9 +9,7 @@ class Router {
   final String password;
   final bool useHttps;
   final String? lastKnownHostname;
-  final String? alternateAddress;
-  final bool? alternateUseHttps;
-  final int activeAddressIndex;
+  final String? name;
 
   Router({
     required this.id,
@@ -16,38 +18,8 @@ class Router {
     required this.password,
     required this.useHttps,
     this.lastKnownHostname,
-    this.alternateAddress,
-    this.alternateUseHttps,
-    this.activeAddressIndex = 0,
+    this.name,
   });
-
-  /// The address currently in use (based on last successful connection).
-  String get activeAddress =>
-      activeAddressIndex == 1 && hasFallback ? alternateAddress! : ipAddress;
-
-  /// The protocol for the currently active address.
-  bool get activeUseHttps =>
-      activeAddressIndex == 1 && hasFallback ? alternateUseHttps! : useHttps;
-
-  /// The other address (if any).
-  String? get inactiveAddress => !hasFallback
-      ? null
-      : activeAddressIndex == 0
-      ? alternateAddress
-      : ipAddress;
-
-  /// The protocol for the inactive address.
-  bool? get inactiveUseHttps => !hasFallback
-      ? null
-      : activeAddressIndex == 0
-      ? alternateUseHttps
-      : useHttps;
-
-  /// Whether this router has a fallback address configured.
-  bool get hasFallback =>
-      alternateAddress != null &&
-      alternateAddress!.isNotEmpty &&
-      alternateUseHttps != null;
 
   factory Router.fromJson(Map<String, dynamic> json) {
     return Router(
@@ -57,12 +29,7 @@ class Router {
       password: json['password'] as String,
       useHttps: json['useHttps'] == true || json['useHttps'] == 'true',
       lastKnownHostname: json['lastKnownHostname'] as String?,
-      alternateAddress: json['alternateAddress'] as String?,
-      alternateUseHttps: json['alternateUseHttps'] == null
-          ? null
-          : json['alternateUseHttps'] == true ||
-                json['alternateUseHttps'] == 'true',
-      activeAddressIndex: json['activeAddressIndex'] as int? ?? 0,
+      name: json['name'] as String?,
     );
   }
 
@@ -73,10 +40,16 @@ class Router {
     'password': password,
     'useHttps': useHttps,
     if (lastKnownHostname != null) 'lastKnownHostname': lastKnownHostname,
-    if (alternateAddress != null) 'alternateAddress': alternateAddress,
-    if (alternateUseHttps != null) 'alternateUseHttps': alternateUseHttps,
-    if (activeAddressIndex != 0) 'activeAddressIndex': activeAddressIndex,
+    if (name != null) 'name': name,
   };
+
+  String get displayName {
+    if (name != null && name!.trim().isNotEmpty) return name!.trim();
+    if (lastKnownHostname != null && lastKnownHostname!.trim().isNotEmpty) {
+      return lastKnownHostname!.trim();
+    }
+    return ipAddress;
+  }
 
   Router copyWith({
     String? id,
@@ -85,10 +58,8 @@ class Router {
     String? password,
     bool? useHttps,
     String? lastKnownHostname,
-    String? alternateAddress,
-    bool? alternateUseHttps,
-    int? activeAddressIndex,
-    bool clearAlternate = false,
+    String? name,
+    bool clearName = false,
   }) {
     return Router(
       id: id ?? this.id,
@@ -97,15 +68,7 @@ class Router {
       password: password ?? this.password,
       useHttps: useHttps ?? this.useHttps,
       lastKnownHostname: lastKnownHostname ?? this.lastKnownHostname,
-      alternateAddress: clearAlternate
-          ? null
-          : alternateAddress ?? this.alternateAddress,
-      alternateUseHttps: clearAlternate
-          ? null
-          : alternateUseHttps ?? this.alternateUseHttps,
-      activeAddressIndex: clearAlternate
-          ? 0
-          : activeAddressIndex ?? this.activeAddressIndex,
+      name: clearName ? null : (name ?? this.name),
     );
   }
 }

@@ -1,0 +1,6 @@
+• Upgraded Dashboard to progressive skeleton loading system with zero layout shifts and instant first paint.
+• Consolidated Real-Time Metrics Charts area with unified RX/TX throughput table.
+• Added Android 15+ (API 37) ACCESS_LOCAL_NETWORK permission support for direct local router management.
+• Refactored Wireless Management QR & passphrase copy actions for cleaner UX.
+• Updated privacy-first design: 100% cloud-free, zero ads, zero purchases, and zero telemetry.
+• Overall performance optimizations and stability fixes.

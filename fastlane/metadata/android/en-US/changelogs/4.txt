@@ -1,0 +1,7 @@
+What's new in v0.0.4:
+• Corrected wireless station throughput rate scaling (Gbps/Mbps/Kbps/Bytes) and link rate display.
+• Added expand/collapse toggle for devices with multiple IPv6 (ULA) addresses.
+• Fixed Storage & Overlay root (/) capacity calculation on Dashboard and Storage screens.
+• Tapping Dashboard network interface cards now opens the Interfaces tab with selected card expanded.
+• Public IP badge identification for connected WAN interfaces.
+• General UI fixes and performance optimizations.

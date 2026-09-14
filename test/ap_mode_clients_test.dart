@@ -1,5 +1,9 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:luci_mobile/models/client.dart';
+import 'package:yet_another_luci_app/models/client.dart';
 
 /// Tests for AP-mode client detection (GitHub issues #21, #52, #45, #32).
 ///
@@ -44,7 +48,7 @@ void main() {
       final dhcpLeases = <Map<String, dynamic>>[];
       final wirelessMacs = {'AA:BB:CC:11:22:33', 'AA:BB:CC:44:55:66'};
 
-      final clients = _buildMergedClientList(dhcpLeases, wirelessMacs);
+      final clients = Client.buildMergedClientList(dhcpLeases, wirelessMacs);
 
       expect(clients, hasLength(2));
       expect(
@@ -67,7 +71,7 @@ void main() {
       ];
       final wirelessMacs = {'AA:BB:CC:11:22:33'};
 
-      final clients = _buildMergedClientList(dhcpLeases, wirelessMacs);
+      final clients = Client.buildMergedClientList(dhcpLeases, wirelessMacs);
 
       expect(clients, hasLength(1));
       expect(clients.first.hostname, 'iPhone-John');
@@ -91,7 +95,7 @@ void main() {
       // One MAC overlaps with DHCP, one is wireless-only
       final wirelessMacs = {'AA:BB:CC:11:22:33', 'AA:BB:CC:99:88:77'};
 
-      final clients = _buildMergedClientList(dhcpLeases, wirelessMacs);
+      final clients = Client.buildMergedClientList(dhcpLeases, wirelessMacs);
 
       // 2 from DHCP + 1 wireless-only = 3
       expect(clients, hasLength(3));
@@ -109,61 +113,51 @@ void main() {
     });
 
     test('empty DHCP and empty wireless returns no clients', () {
-      final clients = _buildMergedClientList([], {});
+      final clients = Client.buildMergedClientList([], {});
       expect(clients, isEmpty);
     });
   });
-}
 
-/// Simulates the merged client list logic that will be in app_state.dart.
-/// This is the pattern we're implementing: DHCP leases + wireless fallback.
-List<Client> _buildMergedClientList(
-  List<Map<String, dynamic>> dhcpLeases,
-  Set<String> wirelessMacs,
-) {
-  final normalizedWireless = wirelessMacs
-      .map((m) => m.toUpperCase().replaceAll('-', ':'))
-      .toSet();
+  group('Dumb AP tagging in Client.buildMergedClientList', () {
+    test(
+      'tags fallback wireless clients as Dumb AP clients when isDumbAp is true',
+      () {
+        final dhcpLeases = <Map<String, dynamic>>[];
+        final wirelessMacs = {'AA:BB:CC:11:22:33'};
 
-  // Build clients from DHCP leases (existing behavior)
-  final clients = <String, Client>{};
-  for (final lease in dhcpLeases) {
-    final client = Client.fromLease(lease);
-    final macNorm = client.macAddress.toUpperCase().replaceAll('-', ':');
-    final isWireless = normalizedWireless.contains(macNorm);
-    clients[macNorm] = client.copyWith(
-      connectionType: isWireless
-          ? ConnectionType.wireless
-          : ConnectionType.wired,
+        final clients = Client.buildMergedClientList(
+          dhcpLeases,
+          wirelessMacs,
+          isDumbAp: true,
+          apName: 'Dumb AP Bedroom',
+        );
+
+        expect(clients, hasLength(1));
+        expect(clients.first.isDumbApClient, isTrue);
+        expect(clients.first.apName, 'Dumb AP Bedroom');
+      },
     );
-  }
 
-  // Add wireless-only clients not in DHCP (the fix for AP mode)
-  for (final mac in normalizedWireless) {
-    if (!clients.containsKey(mac)) {
-      clients[mac] = Client.fromWirelessStation(mac);
-    }
-  }
+    test('tags DHCP clients as Dumb AP clients when isDumbAp is true', () {
+      final dhcpLeases = <Map<String, dynamic>>[
+        {
+          'macaddr': 'aa:bb:cc:11:22:33',
+          'ipaddr': '192.168.1.50',
+          'hostname': 'LivingRoom-TV',
+        },
+      ];
+      final wirelessMacs = {'AA:BB:CC:11:22:33'};
 
-  // Sort: wireless > wired > unknown, then by hostname
-  final list = clients.values.toList();
-  list.sort((a, b) {
-    int typeOrder(ConnectionType t) {
-      switch (t) {
-        case ConnectionType.wireless:
-          return 0;
-        case ConnectionType.wired:
-          return 1;
-        default:
-          return 2;
-      }
-    }
+      final clients = Client.buildMergedClientList(
+        dhcpLeases,
+        wirelessMacs,
+        isDumbAp: true,
+        apName: 'Dumb AP Living Room',
+      );
 
-    final cmpType = typeOrder(
-      a.connectionType,
-    ).compareTo(typeOrder(b.connectionType));
-    if (cmpType != 0) return cmpType;
-    return a.hostname.toLowerCase().compareTo(b.hostname.toLowerCase());
+      expect(clients, hasLength(1));
+      expect(clients.first.isDumbApClient, isTrue);
+      expect(clients.first.apName, 'Dumb AP Living Room');
+    });
   });
-  return list;
 }

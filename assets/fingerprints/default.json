@@ -1,0 +1,70 @@
+{
+  "edition": "community-base",
+  "version": "1.0.0",
+  "description": "Public base fallback client fingerprints for Yet Another LuCI App",
+  "oui_rules": [
+    {
+      "prefix": "00:05:CD",
+      "vendor": "Denon",
+      "device_type": "audio_receiver",
+      "icon_hint": "speaker"
+    },
+    {
+      "prefix": "00:11:32",
+      "vendor": "Synology",
+      "device_type": "nas_storage",
+      "icon_hint": "storage"
+    },
+    {
+      "prefix": "00:17:88",
+      "vendor": "Philips Hue",
+      "device_type": "smart_hub",
+      "icon_hint": "lightbulb"
+    },
+    {
+      "prefix": "B8:27:EB",
+      "vendor": "Raspberry Pi Foundation",
+      "device_type": "single_board_computer",
+      "icon_hint": "developer_board"
+    },
+    {
+      "prefix": "DC:A6:32",
+      "vendor": "Raspberry Pi Trading",
+      "device_type": "single_board_computer",
+      "icon_hint": "developer_board"
+    },
+    {
+      "prefix": "E4:5F:01",
+      "vendor": "Raspberry Pi Trading",
+      "device_type": "single_board_computer",
+      "icon_hint": "developer_board"
+    }
+  ],
+  "hostname_rules": [
+    {
+      "pattern": "^espressif-",
+      "device_type": "iot_microcontroller",
+      "icon_hint": "memory"
+    },
+    {
+      "pattern": "^tasmota-",
+      "device_type": "smart_plug",
+      "icon_hint": "power"
+    },
+    {
+      "pattern": "^shelly",
+      "device_type": "smart_relay",
+      "icon_hint": "bolt"
+    },
+    {
+      "pattern": "^ring-",
+      "device_type": "smart_doorbell",
+      "icon_hint": "doorbell"
+    },
+    {
+      "pattern": "^wyze-",
+      "device_type": "security_camera",
+      "icon_hint": "videocam"
+    }
+  ]
+}

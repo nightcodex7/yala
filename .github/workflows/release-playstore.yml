@@ -1,0 +1,66 @@
+# Copyright (C) 2026 @nightcodex7
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Release Play Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.2)'
+        required: false
+
+concurrency:
+  group: release-playstore-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-playstore:
+    name: Build Play Store AppBundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set Up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle and caching
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Setup Keystore
+        run: |
+          echo "${{ secrets.PLAYSTORE_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.jks
+          echo "${{ secrets.PLAYSTORE_KEY_PROPERTIES_BASE64 }}" | base64 --decode > android/key.properties
+        env:
+          PLAYSTORE_KEYSTORE_BASE64: ${{ secrets.PLAYSTORE_KEYSTORE_BASE64 }}
+          PLAYSTORE_KEY_PROPERTIES_BASE64: ${{ secrets.PLAYSTORE_KEY_PROPERTIES_BASE64 }}
+
+      - name: Build Play Store AppBundle
+        run: flutter build appbundle --release --flavor playstore --dart-define=FLAVOR=playstore --dart-define=OFFICIAL_BUILD=true
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayStore-Release-AAB
+          path: build/app/outputs/bundle/playstoreRelease/app-playstore-release.aab

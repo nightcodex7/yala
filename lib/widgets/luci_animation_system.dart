@@ -1,3 +1,7 @@
+// Copyright (C) 2026 @nightcodex7
+// Copyright (C) 2025-2026 cogwheel0
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import 'package:flutter/material.dart';
 import '../design/luci_design_system.dart';
 
@@ -21,12 +25,12 @@ class LuciAdvancedAnimations {
     milliseconds: 750,
   ); // Multi-step animations
 
-  // Advanced curves for specific interactions
-  static const Curve bounceIn = Curves.elasticOut;
+  // Advanced curves for specific interactions (smooth, non-jittery)
+  static const Curve bounceIn = Curves.easeOutCubic;
   static const Curve smoothEase = Curves.easeInOutCubic;
-  static const Curve quickSnap = Curves.easeOutBack;
+  static const Curve quickSnap = Curves.easeOutCubic;
   static const Curve gentleFloat = Curves.easeInOutSine;
-  static const Curve sharpPop = Curves.easeOutExpo;
+  static const Curve sharpPop = Curves.easeOutQuad;
 
   // Spring physics for natural feeling animations
   static const SpringDescription gentleSpring = SpringDescription(
@@ -174,7 +178,7 @@ class _LuciSlideTransitionState extends State<LuciSlideTransition>
         .animate(
           CurvedAnimation(
             parent: _controller,
-            curve: widget.bounce ? Curves.elasticOut : widget.curve,
+            curve: widget.bounce ? Curves.easeOutCubic : widget.curve,
           ),
         );
 
@@ -244,20 +248,10 @@ class _LuciScaleTransitionState extends State<LuciScaleTransition>
     super.initState();
     _controller = AnimationController(duration: widget.duration, vsync: this);
 
-    if (widget.useSpringPhysics) {
-      _scaleAnimation = Tween<double>(
-        begin: widget.initialScale,
-        end: widget.finalScale,
-      ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
-    } else {
-      _scaleAnimation =
-          Tween<double>(
-            begin: widget.initialScale,
-            end: widget.finalScale,
-          ).animate(
-            CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-          );
-    }
+    _scaleAnimation = Tween<double>(
+      begin: widget.initialScale,
+      end: widget.finalScale,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
     if (widget.delay > Duration.zero) {
       Future.delayed(widget.delay, () {
@@ -484,19 +478,23 @@ class LuciPageTransition extends PageRouteBuilder {
   LuciPageTransition({
     required this.child,
     this.transitionType = LuciTransitionType.slideRight,
-    this.duration = const Duration(milliseconds: 400),
-    this.curve = Curves.easeInOutCubic,
+    this.duration = const Duration(milliseconds: 300),
+    this.curve = Curves.fastOutSlowIn,
   }) : super(
          pageBuilder: (context, animation, secondaryAnimation) => child,
          transitionDuration: duration,
          reverseTransitionDuration: duration,
          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-           return _buildTransition(
-             child: child,
-             animation: animation,
-             secondaryAnimation: secondaryAnimation,
-             transitionType: transitionType,
-             curve: curve,
+           final disableAnimations = MediaQuery.of(context).disableAnimations;
+           if (disableAnimations) return child;
+           return RepaintBoundary(
+             child: _buildTransition(
+               child: child,
+               animation: animation,
+               secondaryAnimation: secondaryAnimation,
+               transitionType: transitionType,
+               curve: curve,
+             ),
            );
          },
        );

@@ -1,0 +1,41 @@
+{
+  "values": {
+    "loopback": {
+      ".type": "interface",
+      "device": "lo",
+      "proto": "static",
+      "ipaddr": "127.0.0.1",
+      "netmask": "255.0.0.0"
+    },
+    "lan": {
+      ".type": "interface",
+      "device": "eth0.1",
+      "proto": "static",
+      "ipaddr": "192.168.1.1",
+      "netmask": "255.255.255.0"
+    },
+    "wan": {
+      ".type": "interface",
+      "device": "eth0.2",
+      "proto": "dslite"
+    },
+    "switch0": {
+      ".type": "switch",
+      "name": "switch0",
+      "reset": "1",
+      "enable_vlan": "1"
+    },
+    "vlan1": {
+      ".type": "switch_vlan",
+      "device": "switch0",
+      "vlan": "1",
+      "ports": "1 2 3 5t"
+    },
+    "vlan2": {
+      ".type": "switch_vlan",
+      "device": "switch0",
+      "vlan": "2",
+      "ports": "0 5t"
+    }
+  }
+}

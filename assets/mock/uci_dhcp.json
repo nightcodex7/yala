@@ -1,0 +1,63 @@
+{
+  "values": {
+    "dnsmasq": {
+      ".type": "dnsmasq",
+      "domain": "lan",
+      "local": "/lan/",
+      "domainneeded": "1",
+      "authoritative": "1",
+      "rebind_protection": "1",
+      "expandhosts": "1",
+      "readethers": "1",
+      "leasefile": "/tmp/dhcp.leases",
+      "server": ["8.8.8.8", "1.1.1.1"]
+    },
+    "lan_dhcp": {
+      ".type": "dhcp",
+      "interface": "lan",
+      "start": 100,
+      "limit": 150,
+      "leasetime": "12h"
+    },
+    "host_pixel": {
+      ".type": "host",
+      "name": "Pixel-9-Pro-Static",
+      "dns": "1",
+      "mac": "AA:BB:CC:11:22:33",
+      "ip": "192.168.1.100",
+      "leasetime": "12h"
+    },
+    "host_tv": {
+      ".type": "host",
+      "name": "Media-Room-TV",
+      "dns": "1",
+      "mac": "AA:BB:CC:77:88:99",
+      "ip": "192.168.1.102",
+      "leasetime": "infinite"
+    },
+    "host_pc": {
+      ".type": "host",
+      "name": "Gaming-Rig-Ethernet",
+      "dns": "1",
+      "mac": "AA:BB:CC:AA:BB:CC",
+      "ip": "192.168.1.103",
+      "leasetime": "24h"
+    },
+    "host_printer": {
+      ".type": "host",
+      "name": "Office-Printer-LAN",
+      "dns": "1",
+      "mac": "AA:BB:CC:98:76:54",
+      "ip": "192.168.1.107",
+      "leasetime": "infinite"
+    },
+    "host_nas": {
+      ".type": "host",
+      "name": "Home-Vault-NAS",
+      "dns": "1",
+      "mac": "CC:DD:EE:DD:EE:FF",
+      "ip": "192.168.1.120",
+      "leasetime": "infinite"
+    }
+  }
+}

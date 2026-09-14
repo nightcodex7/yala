@@ -1,0 +1,8 @@
+YALA 2.0.0 Major Release:
+• Architecture & UI overhaul with Material 3 dynamic styling
+• Parental Controls: profile scheduling, time limits & 1-tap pause
+• Multi-Router & Dumb AP: detect clients across secondary access points
+• Package Manager: support for OpenWrt 24.10+ apk & legacy opkg
+• Isolated Guest Wi-Fi setup & instant QR code connection sharing
+• Full GPLv3 compliance, dual attribution & enhanced R8/ProGuard rules
+• Zero telemetry, no ads, 100% cloud-free local control
