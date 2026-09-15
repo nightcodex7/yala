@@ -100,19 +100,30 @@ jobs:
       - name: Build appBundle
         run: flutter build appbundle --release --flavor community --dart-define=FLAVOR=community --dart-define=OFFICIAL_BUILD=true
 
+      - name: Rename APKs to standard names
+        run: |
+          cd build/app/outputs/flutter-apk
+          for f in app-*-community-release.apk; do
+            newname="${f/-community-release.apk/-release.apk}"
+            cp "$f" "$newname"
+          done
+          cp app-community-release.apk app-universal-release.apk || true
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Android-Release
           path: |
-            build/app/outputs/flutter-apk/app-*-community-release.apk
-            build/app/outputs/flutter-apk/app-community-release.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+            build/app/outputs/flutter-apk/app-universal-release.apk
             build/app/outputs/bundle/communityRelease/app-community-release.aab
 
       - name: Update Release with Artifacts
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
-          artifacts: "build/app/outputs/flutter-apk/app-arm64-v8a-community-release.apk,build/app/outputs/flutter-apk/app-armeabi-v7a-community-release.apk,build/app/outputs/flutter-apk/app-x86_64-community-release.apk,build/app/outputs/flutter-apk/app-community-release.apk,build/app/outputs/bundle/communityRelease/app-community-release.aab"
+          artifacts: "build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk,build/app/outputs/flutter-apk/app-arm64-v8a-release.apk,build/app/outputs/flutter-apk/app-x86_64-release.apk,build/app/outputs/flutter-apk/app-universal-release.apk,build/app/outputs/bundle/communityRelease/app-community-release.aab"
           tag: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
@@ -120,3 +131,4 @@ jobs:
           omitBody: true
           omitBodyDuringUpdate: true
           omitNameDuringUpdate: true
+
