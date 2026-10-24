@@ -23,7 +23,7 @@
   </a>
 
   <p>
-    <a href="https://github.com/nightcodex7/yala/releases/tag/v2.5.1-beta-ipa">
+    <a href="https://github.com/nightcodex7/yala/releases/tag/v2.6.0-beta-ipa">
       <b>iOS Beta IPA Available on GitHub Releases</b>
     </a>
   </p>
@@ -68,6 +68,8 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 | Feature | Highlights |
 |---|---|
 | **Dashboard & Real-Time Vitals** | Live CPU/RAM/Swap gauges, Rx/Tx throughput graph, interface status cards |
+| **Firmware Upgrade Center** | Official OpenWrt update checks, preservation impact review, safe sysupgrade flashing |
+| **Router Speed Test** | Router WAN speed test engine with multi-stage sampling directly on the router |
 | **Multi-Router Management** | Multiple router profiles, hardware-backed credential vault, resilient auth fallback |
 | **Connected Clients** | Unified DHCP + ARP + wireless view, OUI vendor lookup, static lease management, IPv6 |
 | **Wireless & Guest Wi-Fi** | 2.4/5/6 GHz multi-band, station metrics, MAC ACL, guest isolation, QR code sharing |
@@ -79,9 +81,9 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 | **Bandwidth Monitor** | Per-client real-time Rx/Tx traffic rates |
 | **Parental Controls** | Device profiles, timed access windows, domain filtering |
 | **Services & Cron** | procd service control, crontab editor, DDNS management, SSH |
-| **Storage & Backup** | Flash/USB storage, config backup/restore, MTD dumper, sysupgrade |
+| **Storage & Backup** | Flash/USB storage, JSON config export with redaction, backup/restore, sysupgrade |
 | **Network Diagnostics** | Router-side ping, traceroute, DNS lookup, ARP, conntrack, routes |
-| **Design & Localization** | Material 3 / Material You, tablet & foldable layouts, 9 languages |
+| **Design & Localization** | Material 3 / Material You, responsive UI revamps, tablet & foldable layouts, 9 languages |
 
 <details>
 <summary><b>Show Full Feature Details</b></summary>
@@ -167,9 +169,16 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 - **Dynamic DNS:** Monitor DDNS sync status, trigger forced IP updates, and view service status.
 - **Optional SSH Service:** Connect via SSH for advanced router maintenance and SoC thermal sensor monitoring.
 
+### Firmware Upgrade Center
+
+- **Official OpenWrt Upgrade Checks:** Directly query official OpenWrt release APIs to check for available stable and snapshot updates matching your router's board target and architecture.
+- **Preservation & Impact Review:** Inspect retained configuration files, review disk space impact, and examine package changes prior to flashing.
+- **Safe Sysupgrade Flashing:** Download, verify SHA256 checksums, and flash official sysupgrade firmware directly from the mobile app with safety validations.
+
 ### Storage, Partitions & Backup/Restore
 
 - **Storage Breakdown:** Inspect disk space usage across root `/`, `/overlay`, `/tmp`, and mounted external USB drives.
+- **JSON Config Export:** Export clean JSON snapshots of router configuration (firewall, DHCP, Wi-Fi, DDNS) with intelligent privacy redactions to protect credentials and private keys.
 - **Pre-Restore Validation:** Validates gzip headers (`0x1F 0x8B`) and `tar` archive structures before uploading to prevent corrupt backup restores.
 - **Preserved File Viewer:** Inspect files marked for retention during sysupgrade operations (`sysupgrade -l`).
 - **MTD Partition Dumper:** Save binary `mtdblock` partition images directly from `/proc/mtd`.
@@ -177,6 +186,7 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 
 ### Network Diagnostics Suite
 
+- **Router WAN Speed Test:** Native router-side speed test engine with multi-stage sampling to benchmark accurate WAN throughput directly from the gateway, bypassing mobile Wi-Fi limitations.
 - **Router-Side Ping:** Send ICMP ECHO_REQUEST packets directly from the router to any target IP or hostname with packet count selection, IPv6 toggle, and live min/avg/max latency calculation.
 - **Visual Traceroute:** Trace network hops from the router with customizable hop limits and IPv6 support.
 - **DNS Lookup / NSLookup:** Test domain name resolution against default upstream resolvers or custom DNS servers.
@@ -192,7 +202,8 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 
 - **Material 3 & Material You:** Dynamic wallpaper-extracted color palettes on supported Android devices, along with the signature YALA Amber theme.
 - **Theme Modes:** Full Light and Dark mode support.
-- **Localization:** Available in English, German, Spanish, French, Indonesian, Portuguese, Brazilian Portuguese, Russian, and Chinese.
+- **Responsive UI Revamps:** Redesigned wizards, cleaner dialog layouts, improved responsiveness across various screen sizes, and performance optimizations.
+- **Localization:** Available in English, German, Spanish, French, Indonesian, Portuguese, Brazilian Portuguese, Russian, and Chinese with extended coverage.
 - **Tablet & Foldable Optimization:** Responsive two-column and three-column layouts designed for tablets, foldables, and Chromebooks.
 
 </details>
