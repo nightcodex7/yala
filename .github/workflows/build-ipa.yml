@@ -42,14 +42,15 @@ jobs:
           echo "Available Xcode installations on runner:"
           ls -d /Applications/Xcode* || true
           if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app
+            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
           elif [ -d "/Applications/Xcode_16.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.1.app
+            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
           elif [ -d "/Applications/Xcode_15.4.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_15.4.app
+            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
           elif [ -d "/Applications/Xcode.app" ]; then
-            sudo xcode-select -s /Applications/Xcode.app
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           fi
+          sudo xcodebuild -runFirstLaunch
           xcodebuild -version
 
       - name: Set Up Flutter
@@ -59,6 +60,11 @@ jobs:
           flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
+
+      - name: Configure Flutter & Verify Toolchain
+        run: |
+          flutter config --no-enable-swift-package-manager
+          flutter doctor -v
 
       - name: Install Flutter Dependencies
         run: |
