@@ -664,8 +664,12 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
           }
         } else {
           unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
+          final l10n = AppLocalizations.of(parentContext);
           parentContext.showToastError(
             'Failed to ${isEditMode ? "update" : "create"} static lease for $hostname.',
+            subtitle:
+                l10n?.toastErrorCheckPermissionsOrDhcp ??
+                'Check router permissions or UCI DHCP configuration.',
             actionKey: actionKey,
           );
         }
@@ -675,7 +679,7 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
         unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
         parentContext.showToastError(
           'Failed to ${isEditMode ? "update" : "create"} static lease for $hostname.',
-          subtitle: 'Please check your router connection and try again.',
+          subtitle: LuciToastManager.parseErrorReason(e, parentContext),
           actionKey: actionKey,
         );
       }
@@ -691,60 +695,59 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
     final l10n = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.redAccent,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                l10n?.dialogRemoveStaticLeaseTitle ?? 'Remove Static Lease',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+      builder: (ctx) {
+        final dialogTheme = Theme.of(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: dialogTheme.colorScheme.error.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.delete_outline,
+                  color: dialogTheme.colorScheme.error,
+                  size: 24,
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n?.dialogRemoveStaticLeaseTitle ?? 'Remove Static Lease',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              l10n?.dialogRemoveStaticLeaseMessage(hostname, targetMac) ??
+                  'Are you sure you want to remove the static IP reservation for "$hostname" ($targetMac)?',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: dialogTheme.colorScheme.error,
+                foregroundColor: dialogTheme.colorScheme.onError,
+              ),
+              child: Text(l10n?.btnRemoveReservation ?? 'Remove Reservation'),
             ),
           ],
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            l10n?.dialogRemoveStaticLeaseMessage(hostname, targetMac) ??
-                'Are you sure you want to remove the static IP reservation for "$hostname" ($targetMac)?',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(l10n?.btnRemoveReservation ?? 'Remove Reservation'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (confirm != true || !mounted) return;
@@ -785,17 +788,22 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
           onSavedCallback?.call();
         } else {
           unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
+          final l10n = AppLocalizations.of(parentContext);
           parentContext.showToastError(
             'Failed to remove static lease for $hostname.',
+            subtitle:
+                l10n?.toastErrorCheckPermissionsOrDhcp ??
+                'Check router permissions or UCI DHCP configuration.',
             actionKey: actionKey,
           );
         }
       }
-    } catch (_) {
+    } catch (e) {
       if (parentContext.mounted) {
         unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
         parentContext.showToastError(
           'Failed to remove static lease for $hostname.',
+          subtitle: LuciToastManager.parseErrorReason(e, parentContext),
           actionKey: actionKey,
         );
       }
@@ -816,7 +824,6 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
       builder: (ctx) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         icon: Icon(
           Icons.sync_problem_rounded,
           color: theme.colorScheme.primary,
@@ -1150,23 +1157,20 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
         }
       },
       child: AlertDialog(
-        backgroundColor: colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.teal.withValues(alpha: 0.15),
+                color: colorScheme.primaryContainer,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 _isEditing ? Icons.edit_note : Icons.push_pin,
-                color: Colors.teal,
+                color: colorScheme.onPrimaryContainer,
                 size: 24,
               ),
             ),
@@ -1222,7 +1226,7 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        SelectableText(
+                        Text(
                           _effectiveMac,
                           style: GoogleFonts.geistMono(
                             fontWeight: FontWeight.bold,
@@ -1282,7 +1286,7 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
                                       fontWeight: FontWeight.bold,
                                       color: theme.colorScheme.secondary,
                                     ),
-                                    maxLines: 1,
+                                    maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -1419,7 +1423,7 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
                                     fontWeight: FontWeight.bold,
                                     color: theme.colorScheme.primary,
                                   ),
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -1672,6 +1676,11 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: _selectedLeasePreset,
                   isExpanded: true,
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.timer_outlined, size: 20),
                     filled: true,
@@ -1701,7 +1710,10 @@ class _AddStaticLeaseDialogState extends State<AddStaticLeaseDialog> {
                       value: val,
                       child: Text(
                         localizedLabel,
-                        style: const TextStyle(fontSize: 13),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurface,
+                        ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),

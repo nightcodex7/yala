@@ -42,10 +42,7 @@ class DeviceNetworkAccessCard extends ConsumerStatefulWidget {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: theme.colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      useSafeArea: true,
       builder: (ctx) {
         return SafeArea(
           child: Padding(
@@ -57,19 +54,6 @@ class DeviceNetworkAccessCard extends ConsumerStatefulWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 12, bottom: 4),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.outlineVariant.withValues(
-                          alpha: 0.7,
-                        ),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
                     child: Row(
@@ -83,7 +67,7 @@ class DeviceNetworkAccessCard extends ConsumerStatefulWidget {
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
@@ -192,10 +176,21 @@ class _DeviceNetworkAccessCardState
           actionKey: actionKey,
         );
       } else {
+        final l10n = AppLocalizations.of(context);
         LuciToastManager.safeShowError(
           context,
           'Failed to update network access policy',
-          subtitle: 'Target: ${widget.client.displayName}',
+          subtitle:
+              '${l10n?.toastErrorCheckPermissionsOrFirewall ?? "Check router firewall permissions or UCI configuration"} (${widget.client.displayName}).',
+          actionKey: actionKey,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        LuciToastManager.safeShowError(
+          context,
+          'Failed to update network access policy',
+          subtitle: LuciToastManager.parseErrorReason(e, context),
           actionKey: actionKey,
         );
       }
@@ -300,16 +295,16 @@ class _DeviceNetworkAccessCardState
     final Color statusColor;
     if (policy.isIpv4OnlyBlocked) {
       statusLabel = 'IPv4 BLOCKED';
-      statusColor = LuciStatusColors.warning;
+      statusColor = LuciStatusColors.warningColor(context);
     } else if (policy.isIpv6OnlyBlocked) {
       statusLabel = 'IPv6 BLOCKED';
-      statusColor = LuciStatusColors.warning;
+      statusColor = LuciStatusColors.warningColor(context);
     } else if (policy.isEffectivelyBlocked) {
       statusLabel = 'BLOCKED';
       statusColor = colorScheme.error;
     } else {
       statusLabel = 'ALLOWED';
-      statusColor = LuciStatusColors.connected;
+      statusColor = LuciStatusColors.connectedColor(context);
     }
 
     return Container(
@@ -439,7 +434,7 @@ class _DeviceNetworkAccessCardState
                       policy.effectiveInternetAccess ? 'Allowed' : 'Blocked',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: policy.effectiveInternetAccess
-                            ? LuciStatusColors.connected
+                            ? LuciStatusColors.connectedColor(context)
                             : colorScheme.error,
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -450,7 +445,6 @@ class _DeviceNetworkAccessCardState
               ),
               Switch.adaptive(
                 value: policy.effectiveInternetAccess,
-                activeThumbColor: colorScheme.primary,
                 onChanged: _isApplying
                     ? null
                     : (val) async {
@@ -516,7 +510,6 @@ class _DeviceNetworkAccessCardState
                     ),
                     Switch.adaptive(
                       value: policy.effectiveIpv4Access,
-                      activeThumbColor: colorScheme.primary,
                       onChanged:
                           (!_isApplying && policy.effectiveInternetAccess)
                           ? (val) async {
@@ -582,7 +575,6 @@ class _DeviceNetworkAccessCardState
                     ),
                     Switch.adaptive(
                       value: supportsIpv6 ? policy.effectiveIpv6Access : false,
-                      activeThumbColor: colorScheme.primary,
                       onChanged:
                           (!_isApplying &&
                               policy.effectiveInternetAccess &&
@@ -680,7 +672,7 @@ class _DeviceNetworkAccessCardState
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: policy.scheduleExpiry != null
-                        ? LuciStatusColors.warning
+                        ? LuciStatusColors.warningColor(context)
                         : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -770,7 +762,9 @@ class _DeviceNetworkAccessCardState
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       style: FilledButton.styleFrom(
-                        backgroundColor: LuciStatusColors.connected,
+                        backgroundColor: LuciStatusColors.connectedColor(
+                          context,
+                        ),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(

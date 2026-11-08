@@ -4,9 +4,44 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
+import '../../../models/router_capabilities.dart';
 import '../../../services/api_service.dart';
 import '../../../services/interfaces/api_service_interface.dart';
 import '../models/speed_test_models.dart';
+
+/// Strategy selected for router WAN upload speed measurement.
+enum UploadStrategy {
+  /// File-backed upload via tmpfs buffer using curl or uclient-fetch.
+  fileBased,
+
+  /// Zero-tmpfs streaming via curl using chunked transfer encoding (`-X POST -T -`).
+  chunkedStream,
+
+  /// Upload measurement safely omitted due to low memory and missing streaming tools.
+  unavailable,
+}
+
+/// Snapshot of probed router hardware resources.
+class RouterResources {
+  final int tmpfsFreeKb;
+  final int memAvailKb;
+  final int memTotalKb;
+  final String arch;
+  final bool hasCurl;
+  final int cpuCores;
+
+  const RouterResources({
+    required this.tmpfsFreeKb,
+    required this.memAvailKb,
+    required this.memTotalKb,
+    required this.arch,
+    required this.hasCurl,
+    required this.cpuCores,
+  });
+
+  bool get isMips => arch.startsWith('mips');
+}
 
 /// Abstract contract for Internet Speed Test execution.
 abstract class ISpeedTestService {
@@ -29,6 +64,7 @@ abstract class ISpeedTestService {
     bool useHttps = false,
     String? wanInterface,
     Duration timeout = const Duration(seconds: 30),
+    RouterCapabilities? capabilities,
   });
 
   /// Immediately cancels any ongoing speed test and aborts open network connections.
@@ -49,6 +85,7 @@ class SpeedTestService implements ISpeedTestService {
 
   HttpClient? _activeClient;
   bool _isCancelled = false;
+  bool _isAclPermissionDenied = false;
 
   SpeedTestService({
     this.serverUrl = 'https://speed.cloudflare.com',
@@ -456,8 +493,18 @@ class SpeedTestService implements ISpeedTestService {
     bool useHttps = false,
     String? wanInterface,
     Duration timeout = const Duration(seconds: 40),
+    RouterCapabilities? capabilities,
   }) async {
     _isCancelled = false;
+    _isAclPermissionDenied = false;
+
+    // Check if capabilities explicitly indicate restricted rpcd execution permissions
+    if (capabilities != null &&
+        capabilities.filePermissions.isNotEmpty &&
+        !capabilities.canExecCommand('/bin/sh') &&
+        !capabilities.canExecCommand('/usr/bin/curl')) {
+      _isAclPermissionDenied = true;
+    }
 
     double? medianLatencyMs;
     double? jitterMs;
@@ -516,6 +563,23 @@ class SpeedTestService implements ISpeedTestService {
           errorMessage: 'Test cancelled by user',
         );
       }
+
+      // Probe router hardware resources for dynamic buffer sizing
+      final routerResources = await _probeRouterResources(
+        api,
+        routerIp,
+        sysauth,
+        useHttps,
+      );
+      final safeLimitBytes = computeSafeLimitBytes(
+        tmpfsFreeKb: routerResources.tmpfsFreeKb,
+        memAvailKb: routerResources.memAvailKb,
+        memTotalKb: routerResources.memTotalKb,
+      );
+      final uploadStrategy = determineUploadStrategy(
+        safeLimitBytes: safeLimitBytes,
+        hasCurl: routerResources.hasCurl,
+      );
 
       // -----------------------------------------------------------------
       // 2. Download Throughput (Multi-stage: Warmup -> Progressive Sustained)
@@ -718,7 +782,12 @@ class SpeedTestService implements ISpeedTestService {
         if (fallbackSample != null && fallbackSample.speedMbps > 0) {
           downloadSamples.add(fallbackSample);
         } else {
-          errorMessage = 'Router download measurement failed';
+          if (_isAclPermissionDenied) {
+            errorMessage =
+                'Router WAN speed test requires RPC execution permissions. Run RPC Setup in Settings';
+          } else {
+            errorMessage = 'Router download measurement failed';
+          }
         }
       }
 
@@ -765,86 +834,53 @@ class SpeedTestService implements ISpeedTestService {
       } catch (_) {}
 
       // -----------------------------------------------------------------
-      // 3. Upload Throughput (Multi-stage: Warmup -> Progressive Sustained)
+      // 3. Upload Throughput (Dynamic Adaptive Sizing & Multi-stage)
       // -----------------------------------------------------------------
-      _emitProgress(
-        SpeedTestProgress(
-          stage: SpeedTestStage.measuringUpload,
-          progressPercent: 0.68,
-          currentSpeedMbps: downloadSpeedMbps,
-          currentLatencyMs: medianLatencyMs,
-          currentJitterMs: jitterMs,
-          statusMessage: 'Warming up upload stream (10 MB)...',
-        ),
-      );
-
       final uploadSamples = <_TransferSample>[];
 
-      // Upload Pass 1: Warmup (10 MB = 10,485,760 bytes)
-      final uploadWarmup = await _executeRouterUpload(
-        api,
-        routerIp,
-        sysauth,
-        useHttps,
-        10485760,
-      );
-
-      if (_isCancelled) {
-        return SpeedTestResult(
-          downloadSpeedMbps: downloadSpeedMbps,
-          idleLatencyMs: medianLatencyMs,
-          jitterMs: jitterMs,
-          loadedLatencyMs: loadedLatencyMs,
-          vantagePoint: 'Router Internet Speed Test (WAN)',
-          connectionType: 'Router WAN (${wanInterface ?? 'wan'})',
-          serverName: serverName,
-          timestamp: DateTime.now(),
-          stage: SpeedTestStage.cancelled,
-          errorMessage: 'Test cancelled by user',
+      if (uploadStrategy == UploadStrategy.unavailable) {
+        if (_isAclPermissionDenied) {
+          errorMessage ??=
+              'Router WAN speed test requires RPC execution permissions. Run RPC Setup in Settings';
+        } else {
+          errorMessage ??=
+              'Router upload measurement unavailable: insufficient router memory';
+        }
+      } else {
+        final warmupTargetBytes = computeUploadTargetBytes(
+          strategy: uploadStrategy,
+          safeLimitBytes: safeLimitBytes,
+          detectedSpeedMbps: downloadSpeedMbps != null
+              ? downloadSpeedMbps * 0.3
+              : null,
         );
-      }
-
-      if (uploadWarmup != null && uploadWarmup.speedMbps > 0) {
-        uploadSamples.add(uploadWarmup);
+        final warmupMb = (warmupTargetBytes / (1024 * 1024)).toStringAsFixed(1);
 
         _emitProgress(
           SpeedTestProgress(
             stage: SpeedTestStage.measuringUpload,
-            progressPercent: 0.78,
-            currentSpeedMbps: uploadWarmup.speedMbps,
-            transferredBytes: uploadWarmup.bytes,
-            totalExpectedBytes: 60000000,
+            progressPercent: 0.68,
+            currentSpeedMbps: downloadSpeedMbps,
             currentLatencyMs: medianLatencyMs,
             currentJitterMs: jitterMs,
-            statusMessage:
-                'Upload stream primed (${uploadWarmup.speedMbps.toStringAsFixed(1)} Mbps). Testing sustained upload (Stage 1/2)...',
+            statusMessage: 'Warming up upload stream ($warmupMb MB)...',
           ),
         );
 
-        // Adaptive upload chunk size
-        int upload2Bytes = 20971520; // 20 MB
-        int upload3Bytes = 31457280; // 30 MB
-        if (uploadWarmup.speedMbps < 25.0) {
-          upload2Bytes = 5242880; // 5 MB
-          upload3Bytes = 10485760; // 10 MB
-        } else if (uploadWarmup.speedMbps < 60.0) {
-          upload2Bytes = 15728640; // 15 MB
-          upload3Bytes = 20971520; // 20 MB
-        }
-
-        // Upload Pass 2: Steady-state sample 1
-        final uploadChunk1 = await _executeRouterUpload(
-          api,
-          routerIp,
-          sysauth,
-          useHttps,
-          upload2Bytes,
+        // Upload Pass 1: Warmup
+        final uploadWarmup = await _executeRouterUpload(
+          api: api,
+          routerIp: routerIp,
+          sysauth: sysauth,
+          useHttps: useHttps,
+          targetBytes: warmupTargetBytes,
+          strategy: uploadStrategy,
+          hasCurl: routerResources.hasCurl,
         );
 
         if (_isCancelled) {
           return SpeedTestResult(
             downloadSpeedMbps: downloadSpeedMbps,
-            uploadSpeedMbps: uploadWarmup.speedMbps,
             idleLatencyMs: medianLatencyMs,
             jitterMs: jitterMs,
             loadedLatencyMs: loadedLatencyMs,
@@ -857,40 +893,141 @@ class SpeedTestService implements ISpeedTestService {
           );
         }
 
-        if (uploadChunk1 != null && uploadChunk1.speedMbps > 0) {
-          uploadSamples.add(uploadChunk1);
-          final currentUpBest = [
-            uploadWarmup.speedMbps,
-            uploadChunk1.speedMbps,
-          ].reduce((a, b) => a > b ? a : b);
+        if (uploadWarmup != null && uploadWarmup.speedMbps > 0) {
+          uploadSamples.add(uploadWarmup);
 
           _emitProgress(
             SpeedTestProgress(
               stage: SpeedTestStage.measuringUpload,
-              progressPercent: 0.88,
-              currentSpeedMbps: currentUpBest,
-              transferredBytes: uploadWarmup.bytes + uploadChunk1.bytes,
-              totalExpectedBytes:
-                  uploadWarmup.bytes + upload2Bytes + upload3Bytes,
+              progressPercent: 0.78,
+              currentSpeedMbps: uploadWarmup.speedMbps,
+              transferredBytes: uploadWarmup.bytes,
+              totalExpectedBytes: warmupTargetBytes * 3,
               currentLatencyMs: medianLatencyMs,
               currentJitterMs: jitterMs,
               statusMessage:
-                  'Measuring peak sustained upload: ${currentUpBest.toStringAsFixed(1)} Mbps (Stage 2/2)...',
+                  'Upload stream primed (${uploadWarmup.speedMbps.toStringAsFixed(1)} Mbps). Testing sustained upload (Stage 1/2)...',
             ),
           );
 
-          if (uploadChunk1.durationSec < 6.0) {
-            final uploadChunk2 = await _executeRouterUpload(
-              api,
-              routerIp,
-              sysauth,
-              useHttps,
-              upload3Bytes,
+          // Compute steady-state chunk 1 size
+          final upload2Bytes = computeUploadTargetBytes(
+            strategy: uploadStrategy,
+            safeLimitBytes: safeLimitBytes,
+            detectedSpeedMbps: uploadWarmup.speedMbps,
+          );
+
+          // Upload Pass 2: Steady-state sample 1
+          final uploadChunk1 = await _executeRouterUpload(
+            api: api,
+            routerIp: routerIp,
+            sysauth: sysauth,
+            useHttps: useHttps,
+            targetBytes: upload2Bytes,
+            strategy: uploadStrategy,
+            hasCurl: routerResources.hasCurl,
+          );
+
+          if (_isCancelled) {
+            return SpeedTestResult(
+              downloadSpeedMbps: downloadSpeedMbps,
+              uploadSpeedMbps: uploadWarmup.speedMbps,
+              idleLatencyMs: medianLatencyMs,
+              jitterMs: jitterMs,
+              loadedLatencyMs: loadedLatencyMs,
+              vantagePoint: 'Router Internet Speed Test (WAN)',
+              connectionType: 'Router WAN (${wanInterface ?? 'wan'})',
+              serverName: serverName,
+              timestamp: DateTime.now(),
+              stage: SpeedTestStage.cancelled,
+              errorMessage: 'Test cancelled by user',
             );
-            if (uploadChunk2 != null && uploadChunk2.speedMbps > 0) {
-              uploadSamples.add(uploadChunk2);
+          }
+
+          if (uploadChunk1 != null && uploadChunk1.speedMbps > 0) {
+            uploadSamples.add(uploadChunk1);
+            final currentUpBest = [
+              uploadWarmup.speedMbps,
+              uploadChunk1.speedMbps,
+            ].reduce((a, b) => a > b ? a : b);
+
+            _emitProgress(
+              SpeedTestProgress(
+                stage: SpeedTestStage.measuringUpload,
+                progressPercent: 0.88,
+                currentSpeedMbps: currentUpBest,
+                transferredBytes: uploadWarmup.bytes + uploadChunk1.bytes,
+                totalExpectedBytes: uploadWarmup.bytes + upload2Bytes * 2,
+                currentLatencyMs: medianLatencyMs,
+                currentJitterMs: jitterMs,
+                statusMessage:
+                    'Measuring peak sustained upload: ${currentUpBest.toStringAsFixed(1)} Mbps (Stage 2/2)...',
+              ),
+            );
+
+            // Adaptive sizing for chunk 2 based on chunk 1 actual duration:
+            int upload3Bytes = upload2Bytes;
+            if (uploadChunk1.durationSec < 1.0) {
+              upload3Bytes = computeUploadTargetBytes(
+                strategy: uploadStrategy,
+                safeLimitBytes: safeLimitBytes,
+                detectedSpeedMbps: currentUpBest * 1.5,
+              );
+            } else if (uploadChunk1.durationSec > 8.0) {
+              final half = upload2Bytes ~/ 2;
+              upload3Bytes = max(1048576, half);
+              if (upload3Bytes > upload2Bytes) {
+                upload3Bytes = upload2Bytes;
+              }
+            }
+
+            if (uploadChunk1.durationSec < 6.0) {
+              final uploadChunk2 = await _executeRouterUpload(
+                api: api,
+                routerIp: routerIp,
+                sysauth: sysauth,
+                useHttps: useHttps,
+                targetBytes: upload3Bytes,
+                strategy: uploadStrategy,
+                hasCurl: routerResources.hasCurl,
+              );
+              if (uploadChunk2 != null && uploadChunk2.speedMbps > 0) {
+                uploadSamples.add(uploadChunk2);
+              }
             }
           }
+        } else {
+          // Warmup failed, fallback single probe with baseline target
+          final fallbackBytes = computeUploadTargetBytes(
+            strategy: uploadStrategy,
+            safeLimitBytes: safeLimitBytes,
+            detectedSpeedMbps: null,
+          );
+          final fallbackUp = await _executeRouterUpload(
+            api: api,
+            routerIp: routerIp,
+            sysauth: sysauth,
+            useHttps: useHttps,
+            targetBytes: fallbackBytes,
+            strategy: uploadStrategy,
+            hasCurl: routerResources.hasCurl,
+          );
+          if (fallbackUp != null && fallbackUp.speedMbps > 0) {
+            uploadSamples.add(fallbackUp);
+          }
+        }
+      }
+
+      if (uploadSamples.isEmpty) {
+        if (_isAclPermissionDenied) {
+          errorMessage ??=
+              'Router WAN speed test requires RPC execution permissions. Run RPC Setup in Settings';
+        } else if (uploadStrategy == UploadStrategy.unavailable) {
+          errorMessage ??=
+              'Router upload measurement unavailable: insufficient router memory';
+        } else {
+          errorMessage ??=
+              'Router upload measurement failed or not supported by router binaries';
         }
       }
 
@@ -930,6 +1067,7 @@ class SpeedTestService implements ISpeedTestService {
             ? SpeedTestStage.completed
             : SpeedTestStage.failed,
         errorMessage: errorMessage,
+        isPermissionDenied: _isAclPermissionDenied,
       );
 
       _emitProgress(
@@ -940,7 +1078,11 @@ class SpeedTestService implements ISpeedTestService {
           currentLatencyMs: medianLatencyMs,
           currentJitterMs: jitterMs,
           statusMessage: finalResult.stage == SpeedTestStage.completed
-              ? 'Router speed test completed successfully'
+              ? (uploadSpeedMbps == null
+                    ? (uploadStrategy == UploadStrategy.unavailable
+                          ? 'Router download completed (upload unavailable: low memory)'
+                          : 'Router download completed (upload measurement unavailable)')
+                    : 'Router speed test completed successfully')
               : (errorMessage ?? 'Router speed test failed'),
         ),
       );
@@ -951,7 +1093,7 @@ class SpeedTestService implements ISpeedTestService {
       try {
         await _callFileExec(api, routerIp, sysauth, useHttps, '/bin/sh', [
           '-c',
-          'rm -f /tmp/speed_up.bin',
+          'rm -f /tmp/speed_up*.bin',
         ]);
       } catch (_) {}
     }
@@ -1027,7 +1169,10 @@ class SpeedTestService implements ISpeedTestService {
           sysauth,
           useHttps,
           '/bin/sh',
-          ['-c', 'wget --no-check-certificate -q -O /dev/null "$url"'],
+          [
+            '-c',
+            'uclient-fetch --no-check-certificate -q -O /dev/null "$url" || wget --no-check-certificate -q -O /dev/null "$url"',
+          ],
         );
         sw.stop();
 
@@ -1048,13 +1193,17 @@ class SpeedTestService implements ISpeedTestService {
     return null;
   }
 
-  Future<_TransferSample?> _executeRouterUpload(
-    IApiService api,
-    String routerIp,
-    String sysauth,
-    bool useHttps,
-    int targetBytes,
-  ) async {
+  Future<_TransferSample?> _executeRouterUpload({
+    required IApiService api,
+    required String routerIp,
+    required String sysauth,
+    required bool useHttps,
+    required int targetBytes,
+    required UploadStrategy strategy,
+    required bool hasCurl,
+  }) async {
+    if (strategy == UploadStrategy.unavailable) return null;
+
     final httpUpUrl = serverUrl.startsWith('https://')
         ? 'http://${serverUrl.substring(8)}/__up'
         : '$serverUrl/__up';
@@ -1062,12 +1211,118 @@ class SpeedTestService implements ISpeedTestService {
         ? 'https://${serverUrl.substring(7)}/__up'
         : '$serverUrl/__up';
 
-    int sizeMb = (targetBytes / (1024 * 1024)).round();
-    if (sizeMb < 1) sizeMb = 1;
+    if (strategy == UploadStrategy.chunkedStream) {
+      final chunkCount = max(1, (targetBytes / (64 * 1024)).round());
+      for (final url in [httpUpUrl, httpsUpUrl]) {
+        try {
+          final uploadExec = await _callFileExec(
+            api,
+            routerIp,
+            sysauth,
+            useHttps,
+            '/bin/sh',
+            [
+              '-c',
+              'dd if=/dev/zero bs=64k count=$chunkCount 2>/dev/null | '
+                  'curl --insecure -s -w "%{time_total} %{time_starttransfer} %{size_upload} %{speed_upload} %{http_code}" -X POST -T - -o /dev/null "$url"',
+            ],
+          );
 
-    // 1. Try RAM tmpfs buffer upload with curl (fastest, zero pipe context-switching, known Content-Length)
+          if (uploadExec != null && uploadExec['code'] == 0) {
+            final stdout = (uploadExec['stdout'] as String? ?? '').trim();
+            final parts = stdout.split(RegExp(r'\s+'));
+            if (parts.length >= 4) {
+              final timeTotalSec = double.tryParse(parts[0]) ?? 0.0;
+              final timeStartTransferSec = double.tryParse(parts[1]) ?? 0.0;
+              final sizeUpload = int.tryParse(parts[2]) ?? 0;
+              final speedBytesSec = double.tryParse(parts[3]) ?? 0.0;
+              final httpCode = parts.length >= 5
+                  ? int.tryParse(parts[4]) ?? 200
+                  : 200;
+
+              if (httpCode == 200 && timeTotalSec > 0.05 && sizeUpload > 0) {
+                final wireDuration = timeTotalSec - timeStartTransferSec;
+                final durationSec = wireDuration > 0.02
+                    ? wireDuration
+                    : timeTotalSec;
+                final mbps = durationSec > 0.02
+                    ? (sizeUpload * 8.0) / (durationSec * 1000000.0)
+                    : (speedBytesSec * 8.0) / 1000000.0;
+
+                return _TransferSample(
+                  bytes: sizeUpload,
+                  durationSec: durationSec,
+                  speedMbps: mbps,
+                );
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    // strategy == UploadStrategy.fileBased
+    final sizeMb = max(1, targetBytes ~/ (1024 * 1024));
+    final actualTargetBytes = sizeMb * 1024 * 1024;
+
+    // 1. Try RAM tmpfs buffer upload with curl if curl is available
+    if (hasCurl) {
+      for (final url in [httpUpUrl, httpsUpUrl]) {
+        try {
+          final uploadExec = await _callFileExec(
+            api,
+            routerIp,
+            sysauth,
+            useHttps,
+            '/bin/sh',
+            [
+              '-c',
+              'binFile="/tmp/speed_up_\$\$.bin" ; '
+                  'trap "rm -f \$binFile" EXIT INT TERM ; '
+                  'dd if=/dev/zero of=\$binFile bs=1M count=$sizeMb 2>/dev/null && '
+                  'curl --insecure -s -w "%{time_total} %{time_starttransfer} %{size_upload} %{speed_upload} %{http_code}" -X POST -H "Content-Type: application/octet-stream" --data-binary @\$binFile -o /dev/null "$url" ; '
+                  'ec=\$? ; rm -f \$binFile ; exit \$ec',
+            ],
+          );
+
+          if (uploadExec != null && uploadExec['code'] == 0) {
+            final stdout = (uploadExec['stdout'] as String? ?? '').trim();
+            final parts = stdout.split(RegExp(r'\s+'));
+            if (parts.length >= 4) {
+              final timeTotalSec = double.tryParse(parts[0]) ?? 0.0;
+              final timeStartTransferSec = double.tryParse(parts[1]) ?? 0.0;
+              final sizeUpload = int.tryParse(parts[2]) ?? actualTargetBytes;
+              final speedBytesSec = double.tryParse(parts[3]) ?? 0.0;
+              final httpCode = parts.length >= 5
+                  ? int.tryParse(parts[4]) ?? 200
+                  : 200;
+
+              if (httpCode == 200 && timeTotalSec > 0.05 && sizeUpload > 0) {
+                final wireDuration = timeTotalSec - timeStartTransferSec;
+                final durationSec = wireDuration > 0.02
+                    ? wireDuration
+                    : timeTotalSec;
+                final mbps = durationSec > 0.02
+                    ? (sizeUpload * 8.0) / (durationSec * 1000000.0)
+                    : (speedBytesSec * 8.0) / 1000000.0;
+
+                return _TransferSample(
+                  bytes: sizeUpload,
+                  durationSec: durationSec,
+                  speedMbps: mbps,
+                );
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 2. Fallback to uclient-fetch / wget --post-file (built-in OpenWrt tools)
     for (final url in [httpUpUrl, httpsUpUrl]) {
       try {
+        final sw = Stopwatch()..start();
         final uploadExec = await _callFileExec(
           api,
           routerIp,
@@ -1076,87 +1331,174 @@ class SpeedTestService implements ISpeedTestService {
           '/bin/sh',
           [
             '-c',
-            'dd if=/dev/zero of=/tmp/speed_up.bin bs=1M count=$sizeMb 2>/dev/null && curl --insecure -s -w "%{time_total} %{time_starttransfer} %{size_upload} %{speed_upload} %{http_code}" -X POST -H "Content-Type: application/octet-stream" --data-binary @/tmp/speed_up.bin -o /dev/null "$url" && rm -f /tmp/speed_up.bin',
+            'binFile="/tmp/speed_up_\$\$.bin" ; '
+                'trap "rm -f \$binFile" EXIT INT TERM ; '
+                'dd if=/dev/zero of=\$binFile bs=1M count=$sizeMb 2>/dev/null && '
+                '(/usr/bin/time -p uclient-fetch --no-check-certificate -q -T 15 -O /dev/null --post-file=\$binFile "$url" 2>&1 || '
+                '/usr/bin/time -p wget --no-check-certificate -q -T 15 -O /dev/null --post-file=\$binFile "$url" 2>&1 || '
+                'uclient-fetch --no-check-certificate -q -T 15 -O /dev/null --post-file=\$binFile "$url" || '
+                'wget --no-check-certificate -q -T 15 -O /dev/null --post-file=\$binFile "$url") ; '
+                'ec=\$? ; rm -f \$binFile ; exit \$ec',
           ],
         );
+        sw.stop();
 
         if (uploadExec != null && uploadExec['code'] == 0) {
           final stdout = (uploadExec['stdout'] as String? ?? '').trim();
-          final parts = stdout.split(RegExp(r'\s+'));
-          if (parts.length >= 4) {
-            final timeTotalSec = double.tryParse(parts[0]) ?? 0.0;
-            final timeStartTransferSec = double.tryParse(parts[1]) ?? 0.0;
-            final sizeUpload = int.tryParse(parts[2]) ?? (sizeMb * 1024 * 1024);
-            final speedBytesSec = double.tryParse(parts[3]) ?? 0.0;
-            final httpCode = parts.length >= 5
-                ? int.tryParse(parts[4]) ?? 200
-                : 200;
+          final stderr = (uploadExec['stderr'] as String? ?? '').trim();
+          final combined = '$stdout\n$stderr';
 
-            if (httpCode == 200 &&
-                timeTotalSec > 0.05 &&
-                (sizeUpload > 0 || speedBytesSec > 0)) {
-              final wireDuration = timeTotalSec - timeStartTransferSec;
-              final mbps = wireDuration > 0.02 && sizeUpload > 0
-                  ? (sizeUpload * 8.0) / (wireDuration * 1000000.0)
-                  : (speedBytesSec * 8.0) / 1000000.0;
+          double sec = 0.0;
+          final match = RegExp(r'real\s+([0-9.]+)').firstMatch(combined);
+          if (match != null) {
+            sec = double.tryParse(match.group(1) ?? '') ?? 0.0;
+          }
+          if (sec <= 0.02) {
+            sec = sw.elapsedMicroseconds / 1000000.0;
+          }
 
-              return _TransferSample(
-                bytes: sizeUpload,
-                durationSec: wireDuration > 0.02 ? wireDuration : timeTotalSec,
-                speedMbps: mbps,
-              );
-            }
+          if (sec > 0.05 && actualTargetBytes > 0) {
+            final mbps = calculateThroughputMbps(actualTargetBytes, sec);
+            return _TransferSample(
+              bytes: actualTargetBytes,
+              durationSec: sec,
+              speedMbps: mbps,
+            );
           }
         }
       } catch (_) {}
     }
 
-    // 2. Fallback to piped streaming if RAM buffer creation failed
-    final count64k = (targetBytes / (64 * 1024)).round().clamp(16, 512);
+    return null;
+  }
+
+  Future<RouterResources> _probeRouterResources(
+    IApiService api,
+    String routerIp,
+    String sysauth,
+    bool useHttps,
+  ) async {
+    const probeScript = '''
+df -k /tmp | awk 'NR==2 {print \$4}'
+awk '/MemTotal:/ {t=\$2} /MemAvailable:/ {a=\$2} END {print t, (a?a:0)}' /proc/meminfo
+uname -m
+command -v curl >/dev/null && echo 1 || echo 0
+grep -c ^processor /proc/cpuinfo
+''';
+
     try {
-      final uploadExec = await _callFileExec(
+      final execRes = await _callFileExec(
         api,
         routerIp,
         sysauth,
         useHttps,
         '/bin/sh',
-        [
-          '-c',
-          'dd if=/dev/zero bs=64k count=$count64k 2>/dev/null | curl --insecure -s -w "%{time_total} %{time_starttransfer} %{size_upload} %{speed_upload} %{http_code}" --data-binary @- -o /dev/null "$httpUpUrl"',
-        ],
+        ['-c', probeScript],
       );
 
-      if (uploadExec != null && uploadExec['code'] == 0) {
-        final stdout = (uploadExec['stdout'] as String? ?? '').trim();
-        final parts = stdout.split(RegExp(r'\s+'));
-        if (parts.length >= 4) {
-          final timeTotalSec = double.tryParse(parts[0]) ?? 0.0;
-          final timeStartTransferSec = double.tryParse(parts[1]) ?? 0.0;
-          final sizeUpload = int.tryParse(parts[2]) ?? (count64k * 64 * 1024);
-          final speedBytesSec = double.tryParse(parts[3]) ?? 0.0;
-          final httpCode = parts.length >= 5
-              ? int.tryParse(parts[4]) ?? 200
-              : 200;
+      if (execRes != null && execRes['code'] == 0) {
+        final stdout = (execRes['stdout'] as String? ?? '').trim();
+        final lines = stdout
+            .split(RegExp(r'\r?\n'))
+            .map((l) => l.trim())
+            .toList();
+        if (lines.length >= 5) {
+          final tmpfsFreeKb = int.tryParse(lines[0]) ?? 0;
+          final memParts = lines[1].split(RegExp(r'\s+'));
+          final memTotalKb = memParts.isNotEmpty
+              ? (int.tryParse(memParts[0]) ?? 65536)
+              : 65536;
+          final memAvailKb = memParts.length > 1
+              ? (int.tryParse(memParts[1]) ?? 0)
+              : 0;
+          final arch = lines[2].toLowerCase();
+          final hasCurl = lines[3] == '1';
+          final cpuCores = int.tryParse(lines[4]) ?? 1;
 
-          if (httpCode == 200 &&
-              timeTotalSec > 0.05 &&
-              (sizeUpload > 0 || speedBytesSec > 0)) {
-            final wireDuration = timeTotalSec - timeStartTransferSec;
-            final mbps = wireDuration > 0.02 && sizeUpload > 0
-                ? (sizeUpload * 8.0) / (wireDuration * 1000000.0)
-                : (speedBytesSec * 8.0) / 1000000.0;
-
-            return _TransferSample(
-              bytes: sizeUpload,
-              durationSec: wireDuration > 0.02 ? wireDuration : timeTotalSec,
-              speedMbps: mbps,
-            );
-          }
+          return RouterResources(
+            tmpfsFreeKb: tmpfsFreeKb,
+            memAvailKb: memAvailKb,
+            memTotalKb: memTotalKb,
+            arch: arch,
+            hasCurl: hasCurl,
+            cpuCores: cpuCores,
+          );
         }
       }
     } catch (_) {}
 
-    return null;
+    return const RouterResources(
+      tmpfsFreeKb: 0,
+      memAvailKb: 0,
+      memTotalKb: 65536,
+      arch: 'unknown',
+      hasCurl: false,
+      cpuCores: 1,
+    );
+  }
+
+  /// Computes the maximum safe tmpfs file allocation in bytes based on router RAM and tmpfs free space.
+  /// Returns 0 if tmpfs free is less than 4096 KiB or safe budget is less than 1024 KiB.
+  static int computeSafeLimitBytes({
+    required int tmpfsFreeKb,
+    required int memAvailKb,
+    required int memTotalKb,
+  }) {
+    if (tmpfsFreeKb < 4096) return 0;
+    final tKb = (0.50 * max(0, tmpfsFreeKb - 3072)).floor();
+    final rKb = memAvailKb > 0
+        ? (0.30 * max(0, memAvailKb - 10240)).floor()
+        : (0.08 * memTotalKb).floor();
+    final safeLimitKb = min(min(tKb, rKb), 65536);
+    if (safeLimitKb < 1024) return 0;
+    return safeLimitKb * 1024;
+  }
+
+  /// Determines the upload execution strategy based on safe file limit and curl availability.
+  static UploadStrategy determineUploadStrategy({
+    required int safeLimitBytes,
+    required bool hasCurl,
+  }) {
+    if (safeLimitBytes >= 1048576) {
+      return UploadStrategy.fileBased;
+    }
+    if (hasCurl) {
+      return UploadStrategy.chunkedStream;
+    }
+    return UploadStrategy.unavailable;
+  }
+
+  /// Computes target upload bytes based on strategy, safe limit, and detected line speed.
+  static int computeUploadTargetBytes({
+    required UploadStrategy strategy,
+    required int safeLimitBytes,
+    required double? detectedSpeedMbps,
+  }) {
+    if (strategy == UploadStrategy.unavailable) return 0;
+
+    const targetDurationSec = 4.0;
+
+    if (detectedSpeedMbps != null && detectedSpeedMbps > 0) {
+      final speedBytesSec = (detectedSpeedMbps * 1000000.0) / 8.0;
+      final desired = (speedBytesSec * targetDurationSec).round();
+
+      if (strategy == UploadStrategy.fileBased) {
+        if (desired < 1048576) return 1048576;
+        if (desired > safeLimitBytes) return safeLimitBytes;
+        return desired;
+      } else {
+        // Chunked stream: bounded between 2 MiB and 64 MiB
+        return desired.clamp(2097152, 67108864);
+      }
+    }
+
+    // Unknown speed / warmup baseline
+    if (strategy == UploadStrategy.fileBased) {
+      if (safeLimitBytes < 1048576) return safeLimitBytes;
+      return min(2097152, safeLimitBytes).clamp(1048576, safeLimitBytes);
+    } else {
+      return 4194304; // 4 MiB streaming baseline
+    }
   }
 
   Future<Map<String, dynamic>?> _callFileExec(
@@ -1176,10 +1518,21 @@ class SpeedTestService implements ISpeedTestService {
         method: 'exec',
         params: RealApiService.fileExecParams(command, args),
       );
+      if (res is List && res.isNotEmpty && res[0] == 6) {
+        _isAclPermissionDenied = true;
+        return null;
+      }
       if (res is List && res.length > 1 && res[0] == 0 && res[1] is Map) {
         return Map<String, dynamic>.from(res[1] as Map);
       }
-    } catch (_) {}
+    } catch (e) {
+      final errLower = e.toString().toLowerCase();
+      if (errLower.contains('6') ||
+          errLower.contains('denied') ||
+          errLower.contains('permission')) {
+        _isAclPermissionDenied = true;
+      }
+    }
 
     try {
       final res = await api.call(
@@ -1190,10 +1543,21 @@ class SpeedTestService implements ISpeedTestService {
         method: 'exec',
         params: RealApiService.fileExecArgs(command, args),
       );
+      if (res is List && res.isNotEmpty && res[0] == 6) {
+        _isAclPermissionDenied = true;
+        return null;
+      }
       if (res is List && res.length > 1 && res[0] == 0 && res[1] is Map) {
         return Map<String, dynamic>.from(res[1] as Map);
       }
-    } catch (_) {}
+    } catch (e) {
+      final errLower = e.toString().toLowerCase();
+      if (errLower.contains('6') ||
+          errLower.contains('denied') ||
+          errLower.contains('permission')) {
+        _isAclPermissionDenied = true;
+      }
+    }
 
     return null;
   }

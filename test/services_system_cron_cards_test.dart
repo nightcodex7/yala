@@ -230,7 +230,7 @@ class _CronCardsWidget extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        child: SelectableText(
+                        child: Text(
                           cron.command,
                           style: GoogleFonts.geistMono(
                             fontSize: 12,

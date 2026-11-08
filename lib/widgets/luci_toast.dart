@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:yet_another_luci_app/design/luci_design_system.dart';
+import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import 'package:yet_another_luci_app/state/app_state.dart';
 import 'package:yet_another_luci_app/utils/os_platform_integration.dart';
 import 'package:yet_another_luci_app/widgets/luci_smooth_spinner.dart';
@@ -222,11 +223,139 @@ class LuciToastManager {
     }
   }
 
+  /// Converts any caught exception or error object into a clean, safe, user-facing subtitle string.
+  ///
+  /// This is the **single canonical way** to turn a raw `catch (e)` value into a toast subtitle.
+  /// The returned string is already guardrail-safe (no debug keywords, no stack traces) and can be
+  /// passed directly to `showToastError(..., subtitle: LuciToastManager.parseErrorReason(e))`.
+  ///
+  /// Classification priority (highest to lowest):
+  /// 1. Permission denied (ubus code 6 / HTTP 401/403 / "access denied")
+  /// 2. Network unreachable (SocketException / "failed to reach" / "connection refused")
+  /// 3. Session / auth expired (HTTP 401)
+  /// 4. RPC endpoint missing (HTTP 404)
+  /// 5. Timeout (ubus code 7 / "timed out")
+  /// 6. Binary not found on router (exit code 127 / "command not found")
+  /// 7. Storage full ("no space left")
+  /// 8. OOM / killed process
+  /// 9. Generic fallback
+  static String parseErrorReason(dynamic e, [BuildContext? context]) {
+    final ctx = (context != null && context.mounted)
+        ? context
+        : navigatorKey.currentContext;
+    final l10n = (ctx != null && ctx.mounted) ? AppLocalizations.of(ctx) : null;
+    final raw = e?.toString() ?? '';
+    final t = raw.toLowerCase();
+
+    // --- Permission denied ---
+    if (t.contains('permission denied') ||
+        t.contains('access denied') ||
+        t.contains('ubus error 6') ||
+        t.contains('code 6') ||
+        t.contains('code: 6') ||
+        t.contains('-32002') ||
+        t.contains('exit code: 6') ||
+        t.contains('http 401') ||
+        t.contains('http 403') ||
+        t.contains('status 401') ||
+        t.contains('status 403') ||
+        t.contains('statuscode: 401') ||
+        t.contains('statuscode: 403') ||
+        t.contains('forbidden') ||
+        t.contains('unauthorized')) {
+      if (t.contains('http 401') ||
+          t.contains('status 401') ||
+          t.contains('statuscode: 401') ||
+          t.contains('unauthorized')) {
+        return l10n?.toastErrorSessionExpired ??
+            'Session expired or unauthorized. Please re-login.';
+      }
+      return l10n?.toastErrorPermissionDenied ??
+          'Permission denied. Check router ACL/rpcd configuration.';
+    }
+
+    // --- Network unreachable ---
+    if (t.contains('socketexception') ||
+        t.contains('clientexception') ||
+        t.contains('failed to reach') ||
+        t.contains('connection refused') ||
+        t.contains('network is unreachable') ||
+        t.contains('no route to host') ||
+        t.contains('host lookup failed') ||
+        t.contains('os error:')) {
+      return l10n?.toastErrorRouterUnreachable ??
+          'Router unreachable. Check your network connection.';
+    }
+
+    // --- HTTP endpoint missing ---
+    if (t.contains('http 404') ||
+        t.contains('status 404') ||
+        t.contains('statuscode: 404')) {
+      return l10n?.toastErrorRpcNotFound ??
+          'RPC endpoint not found. Router may need rpcd-mod-luci.';
+    }
+
+    // --- Server / gateway error ---
+    if (t.contains('http 500') ||
+        t.contains('http 502') ||
+        t.contains('http 503') ||
+        t.contains('status 500') ||
+        t.contains('status 502') ||
+        t.contains('status 503')) {
+      return l10n?.toastErrorServerError ??
+          'Router returned a server error. Please try again.';
+    }
+
+    // --- Timeout ---
+    if (t.contains('timed out') ||
+        t.contains('timeout') ||
+        t.contains('ubus error 7') ||
+        t.contains('code 7')) {
+      return l10n?.toastErrorRequestTimeout ??
+          'Request timed out. Router may be busy.';
+    }
+
+    // --- Binary / command not found on router ---
+    if (t.contains('command not found') ||
+        t.contains('exit code 127') ||
+        t.contains('code: 127') ||
+        t.contains('not found') && t.contains('binary')) {
+      return l10n?.toastErrorBinaryNotFound ??
+          'Required binary not found on router.';
+    }
+
+    // --- Storage full ---
+    if (t.contains('no space left') ||
+        t.contains('disk full') ||
+        t.contains('insufficient space')) {
+      return l10n?.toastErrorStorageFull ??
+          'Router storage is full (no space left on device).';
+    }
+
+    // --- OOM / process killed ---
+    if (t.contains('out of memory') ||
+        t.contains('oom') ||
+        t.contains('cannot allocate memory') ||
+        (t.trim() == 'killed')) {
+      return l10n?.toastErrorMemoryExhausted ??
+          'Router ran out of memory during operation.';
+    }
+
+    // --- Fallback: generic ---
+    return l10n?.toastErrorUnexpected ??
+        'An unexpected error occurred. Please try again.';
+  }
+
   /// Guardrail to ensure technical, internal debug errors or raw exceptions are NEVER presented to users in toasts.
   static ({String title, String? subtitle}) _sanitizeToastText(
     String rawTitle,
-    String? rawSubtitle,
-  ) {
+    String? rawSubtitle, [
+    BuildContext? context,
+  ]) {
+    final ctx = (context != null && context.mounted)
+        ? context
+        : navigatorKey.currentContext;
+    final l10n = (ctx != null && ctx.mounted) ? AppLocalizations.of(ctx) : null;
     bool isDebugString(String? text) {
       if (text == null || text.trim().isEmpty) return false;
       final t = text.toLowerCase();
@@ -263,13 +392,75 @@ class LuciToastManager {
           (t.contains('operation not permitted') || t.contains('errno = 1'))) {
         subtitle =
             'Local network permission required. Please allow access in iOS Settings > Yet Another LuCI App.';
+      } else if (t.contains('permission denied') ||
+          t.contains('access denied') ||
+          t.contains('ubus error 6') ||
+          t.contains('code 6') ||
+          t.contains('http 401') ||
+          t.contains('status 401') ||
+          t.contains('statuscode: 401') ||
+          t.contains('unauthorized') ||
+          t.contains('http 403') ||
+          t.contains('status 403') ||
+          t.contains('forbidden')) {
+        if (t.contains('http 401') ||
+            t.contains('status 401') ||
+            t.contains('statuscode: 401') ||
+            t.contains('unauthorized')) {
+          subtitle =
+              l10n?.toastErrorSessionExpired ??
+              'Session expired or unauthorized. Please re-login.';
+        } else {
+          subtitle =
+              l10n?.toastErrorPermissionDenied ??
+              'Permission denied. Check router ACL/rpcd configuration.';
+        }
+      } else if (t.contains('http 404') ||
+          t.contains('status 404') ||
+          t.contains('statuscode: 404')) {
+        subtitle =
+            l10n?.toastErrorRpcNotFound ??
+            'RPC endpoint not found. Router may need rpcd-mod-luci.';
+      } else if (t.contains('http 500') ||
+          t.contains('http 502') ||
+          t.contains('http 503') ||
+          t.contains('status 500') ||
+          t.contains('status 502') ||
+          t.contains('status 503')) {
+        subtitle =
+            l10n?.toastErrorServerError ??
+            'Router returned a server error. Please try again.';
+      } else if (t.contains('ubus error 7') ||
+          t.contains('code 7') ||
+          t.contains('timed out') ||
+          t.contains('timeout')) {
+        subtitle =
+            l10n?.toastErrorRequestTimeout ??
+            'Request timed out. Router may be busy.';
+      } else if (t.contains('command not found') ||
+          t.contains('exit code 127') ||
+          t.contains('code: 127')) {
+        subtitle =
+            l10n?.toastErrorBinaryNotFound ??
+            'Required binary not found on router.';
+      } else if (t.contains('no space left') ||
+          t.contains('disk full') ||
+          t.contains('insufficient space')) {
+        subtitle =
+            l10n?.toastErrorStorageFull ??
+            'Router storage is full (no space left on device).';
+      } else if (t.contains('out of memory') ||
+          t.contains('cannot allocate memory') ||
+          t.contains('oom')) {
+        subtitle =
+            l10n?.toastErrorMemoryExhausted ??
+            'Router ran out of memory during operation.';
       } else if (t.contains('socketexception') ||
           t.contains('handshakeexception') ||
           t.contains('clientexception') ||
           t.contains('httpexception') ||
           t.contains('connection refused') ||
           t.contains('network') ||
-          t.contains('timed out') ||
           t.contains('host lookup')) {
         subtitle =
             'Unable to complete request. Please verify network connection and try again.';
@@ -282,7 +473,9 @@ class LuciToastManager {
         subtitle =
             'Unable to process selected file. Please verify file format and storage permissions.';
       } else {
-        subtitle = 'An unexpected error occurred. Please try again.';
+        subtitle =
+            l10n?.toastErrorUnexpected ??
+            'An unexpected error occurred. Please try again.';
       }
     }
 
@@ -322,7 +515,7 @@ class LuciToastManager {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
 
-    final sanitized = _sanitizeToastText(title, subtitle);
+    final sanitized = _sanitizeToastText(title, subtitle, context);
     final cleanTitle = sanitized.title;
     final cleanSubtitle = sanitized.subtitle;
 
@@ -456,7 +649,7 @@ class LuciToastManager {
     Color? customAccentColor,
     Alignment alignment = Alignment.topCenter,
   }) {
-    final sanitized = _sanitizeToastText(title, subtitle);
+    final sanitized = _sanitizeToastText(title, subtitle, context);
     title = sanitized.title;
     subtitle = sanitized.subtitle;
     final normalizedActionKey = actionKey?.toLowerCase();
@@ -605,10 +798,12 @@ class LuciToastManager {
               ? effectiveContext
               : navigatorKey.currentContext;
           if (timeoutContext != null && timeoutContext.mounted) {
+            final l10n = AppLocalizations.of(timeoutContext);
             showError(
               timeoutContext,
-              'Operation Timed Out',
+              l10n?.toastOperationTimedOut ?? 'Operation Timed Out',
               subtitle:
+                  l10n?.toastOperationTimedOutSub ??
                   'The request took too long to complete. Please check network connection.',
             );
           }

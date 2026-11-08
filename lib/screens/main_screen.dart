@@ -2,8 +2,10 @@
 // Copyright (C) 2025-2026 cogwheel0
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:yet_another_luci_app/screens/dashboard_screen.dart';
 import 'package:yet_another_luci_app/screens/clients_screen.dart';
 import 'package:yet_another_luci_app/screens/interfaces_screen.dart';
@@ -161,6 +163,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
     FocusScope.of(context).unfocus();
     final safeIndex = index.clamp(0, 4);
     if (_selectedIndex == safeIndex) return;
+    unawaited(HapticFeedback.selectionClick());
     setState(() {
       _selectedIndex = safeIndex;
       _activatedTabs.add(safeIndex);
@@ -184,37 +187,24 @@ class _MainScreenState extends ConsumerState<MainScreen>
       builder: (ctx) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.exit_to_app_rounded,
-                color: colorScheme.primary,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                l10n?.exitDialogTitle ?? 'Exit Yala?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
+        icon: Icon(
+          Icons.exit_to_app_rounded,
+          color: colorScheme.primary,
+          size: 28,
+        ),
+        title: Text(
+          l10n?.exitDialogTitle ?? 'Exit Yala?',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: SingleChildScrollView(
           child: Text(
             l10n?.exitDialogMessage ??
                 'Are you sure you want to exit the application?',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         actions: [
@@ -224,11 +214,6 @@ class _MainScreenState extends ConsumerState<MainScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
             child: Text(l10n?.actionExit ?? 'Exit'),
           ),
         ],
@@ -549,177 +534,76 @@ class _MainScreenState extends ConsumerState<MainScreen>
                       final barHeight = isMultiLine
                           ? (68.0 * textScale).clamp(66.0, 88.0)
                           : (54.0 * textScale).clamp(52.0, 64.0);
-                      const centerOffset = 8.0;
-                      final stackHeight = barHeight + centerOffset;
-                      final centerCircleSize = isMultiLine ? 44.0 : 46.0;
-                      const centerIconSize = 22.0;
+                      final centerCircleSize = isMultiLine ? 34.0 : 32.0;
+                      const centerIconSize = 20.0;
                       const sideIconSize = 22.0;
 
                       return AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeInOut,
-                        height: stackHeight,
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          alignment: Alignment.bottomCenter,
+                        height: barHeight,
+                        color: colorScheme.surfaceContainer,
+                        child: Row(
                           children: [
-                            // Flat Matt Bottom Bar Container
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              curve: Curves.easeInOut,
-                              height: barHeight,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainer,
-                                border: Border(
-                                  top: BorderSide(
-                                    color: colorScheme.outlineVariant
-                                        .withValues(alpha: 0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  // Left Wing (Interfaces & Clients)
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: _buildNavItem(
-                                            index: 1,
-                                            label: labels[0],
-                                            icon: Icons.lan_outlined,
-                                            selectedIcon: Icons.lan,
-                                            isRebooting: isRebooting,
-                                            isMultiLine: isMultiLine,
-                                            iconSize: sideIconSize,
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: _buildNavItem(
-                                            index: 2,
-                                            label: labels[1],
-                                            icon: Icons.people_outline,
-                                            selectedIcon: Icons.people,
-                                            isRebooting: isRebooting,
-                                            isMultiLine: isMultiLine,
-                                            iconSize: sideIconSize,
-                                            badgeCount: appState.clients
-                                                .where((c) => c.isConnected)
-                                                .length,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Center Clearance Spacer for Elevated Dashboard Badge
-                                  SizedBox(width: slotWidth),
-                                  // Right Wing (Wireless & More)
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: _buildNavItem(
-                                            index: 3,
-                                            label: labels[3],
-                                            icon: Icons.wifi_outlined,
-                                            selectedIcon: Icons.wifi,
-                                            isRebooting: isRebooting,
-                                            isMultiLine: isMultiLine,
-                                            iconSize: sideIconSize,
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: _buildNavItem(
-                                            index: 4,
-                                            label: labels[4],
-                                            icon: Icons.more_horiz_outlined,
-                                            selectedIcon: Icons.more_horiz,
-                                            isRebooting: false,
-                                            isMultiLine: isMultiLine,
-                                            iconSize: sideIconSize,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                            // 1. Interfaces
+                            Expanded(
+                              child: _buildNavItem(
+                                index: 1,
+                                label: labels[0],
+                                icon: Icons.lan_outlined,
+                                selectedIcon: Icons.lan,
+                                isRebooting: isRebooting,
+                                isMultiLine: isMultiLine,
+                                iconSize: sideIconSize,
                               ),
                             ),
-
-                            // Solid Flat Matt Circular Center Dashboard Badge Button (Index 0)
-                            Align(
-                              alignment: Alignment.topCenter,
-                              child: Transform.translate(
-                                offset: const Offset(0, -centerOffset),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    if (isRebooting) return;
-                                    _onItemTapped(0);
-                                  },
-                                  behavior: HitTestBehavior.opaque,
-                                  child: SizedBox(
-                                    width: slotWidth,
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        AnimatedContainer(
-                                          duration: const Duration(
-                                            milliseconds: 200,
-                                          ),
-                                          curve: Curves.easeInOut,
-                                          width: centerCircleSize,
-                                          height: centerCircleSize,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: _selectedIndex == 0
-                                                ? colorScheme.primary
-                                                : colorScheme
-                                                      .surfaceContainerHigh,
-                                            border: Border.all(
-                                              color: colorScheme.surface,
-                                              width: 2.5,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            _selectedIndex == 0
-                                                ? Icons.dashboard_rounded
-                                                : Icons.dashboard_outlined,
-                                            color: _selectedIndex == 0
-                                                ? colorScheme.onPrimary
-                                                : colorScheme.onSurfaceVariant,
-                                            size: centerIconSize,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 2.0,
-                                          ),
-                                          child: Text(
-                                            labels[2],
-                                            maxLines: isMultiLine ? 2 : 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: _selectedIndex == 0
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                              color: _selectedIndex == 0
-                                                  ? colorScheme.primary
-                                                  : colorScheme
-                                                        .onSurfaceVariant,
-                                              height: 1.15,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                            // 2. Clients
+                            Expanded(
+                              child: _buildNavItem(
+                                index: 2,
+                                label: labels[1],
+                                icon: Icons.people_outline,
+                                selectedIcon: Icons.people,
+                                isRebooting: isRebooting,
+                                isMultiLine: isMultiLine,
+                                iconSize: sideIconSize,
+                                badgeCount: appState.clients
+                                    .where((c) => c.isConnected)
+                                    .length,
+                              ),
+                            ),
+                            // 3. Centered Distinct Dashboard Button (Index 0)
+                            Expanded(
+                              child: _buildDashboardNavItem(
+                                label: labels[2],
+                                isRebooting: isRebooting,
+                                isMultiLine: isMultiLine,
+                                circleSize: centerCircleSize,
+                                iconSize: centerIconSize,
+                              ),
+                            ),
+                            // 4. Wireless
+                            Expanded(
+                              child: _buildNavItem(
+                                index: 3,
+                                label: labels[3],
+                                icon: Icons.wifi_outlined,
+                                selectedIcon: Icons.wifi,
+                                isRebooting: isRebooting,
+                                isMultiLine: isMultiLine,
+                                iconSize: sideIconSize,
+                              ),
+                            ),
+                            // 5. More
+                            Expanded(
+                              child: _buildNavItem(
+                                index: 4,
+                                label: labels[4],
+                                icon: Icons.more_horiz_outlined,
+                                selectedIcon: Icons.more_horiz,
+                                isRebooting: false,
+                                isMultiLine: isMultiLine,
+                                iconSize: sideIconSize,
                               ),
                             ),
                           ],
@@ -730,6 +614,83 @@ class _MainScreenState extends ConsumerState<MainScreen>
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildDashboardNavItem({
+    required String label,
+    required bool isRebooting,
+    required bool isMultiLine,
+    required double circleSize,
+    required double iconSize,
+  }) {
+    final isSelected = _selectedIndex == 0;
+    final colorScheme = Theme.of(context).colorScheme;
+    final semanticText =
+        '$label, tab 3 of 5. ${isSelected ? "Currently active tab." : "Double tap to switch to $label."}';
+
+    final iconColor = isRebooting
+        ? colorScheme.onSurface.withValues(alpha: 0.38)
+        : (isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant);
+    final labelColor = isRebooting
+        ? colorScheme.onSurface.withValues(alpha: 0.38)
+        : (isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant);
+
+    return Semantics(
+      selected: isSelected,
+      button: true,
+      label: semanticText,
+      child: InkWell(
+        onTap: isRebooting ? null : () => _onItemTapped(0),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: 2.0,
+            vertical: isMultiLine ? 4.0 : 2.0,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                width: circleSize,
+                height: circleSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected
+                      ? colorScheme.primary
+                      : colorScheme.surfaceContainerHigh,
+                ),
+                child: Center(
+                  child: Icon(
+                    isSelected
+                        ? Icons.dashboard_rounded
+                        : Icons.dashboard_outlined,
+                    color: iconColor,
+                    size: iconSize,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: isMultiLine ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: labelColor,
+                  height: 1.15,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -777,12 +738,22 @@ class _MainScreenState extends ConsumerState<MainScreen>
   }) {
     final isSelected = _selectedIndex == index;
     final colorScheme = Theme.of(context).colorScheme;
-    final color = isRebooting
+    final iconColor = isRebooting
         ? colorScheme.onSurface.withValues(alpha: 0.38)
-        : (isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant);
+        : (isSelected
+              ? colorScheme.onSecondaryContainer
+              : colorScheme.onSurfaceVariant);
+    final labelColor = isRebooting
+        ? colorScheme.onSurface.withValues(alpha: 0.38)
+        : (isSelected ? colorScheme.onSurface : colorScheme.onSurfaceVariant);
 
     final semanticText =
         '$label, tab ${index + 1} of 5. ${isSelected ? "Currently active tab." : "Double tap to switch to $label."}';
+
+    final hasBadge = badgeCount != null && badgeCount > 0;
+    final badgeLabel = hasBadge
+        ? (badgeCount > 99 ? '99+' : '$badgeCount')
+        : '';
 
     return Semantics(
       selected: isSelected,
@@ -790,7 +761,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
       label: semanticText,
       child: InkWell(
         onTap: isRebooting ? null : () => _onItemTapped(index),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: 2.0,
@@ -801,50 +772,37 @@ class _MainScreenState extends ConsumerState<MainScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: iconSize + 4,
-                    height: iconSize + 4,
+              // M3 Active Indicator Pill container
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                width: isSelected ? 48 : 32,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colorScheme.secondaryContainer
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Badge(
+                    isLabelVisible: hasBadge,
+                    label: Text(
+                      badgeLabel,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onError,
+                      ),
+                    ),
+                    backgroundColor: colorScheme.error,
                     child: Icon(
                       isSelected ? selectedIcon : icon,
-                      color: color,
+                      color: iconColor,
                       size: iconSize,
                     ),
                   ),
-                  if (badgeCount != null && badgeCount > 0)
-                    Positioned(
-                      right: -4,
-                      top: -4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? colorScheme.primary
-                              : colorScheme.secondary,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 14,
-                          minHeight: 14,
-                        ),
-                        child: Text(
-                          badgeCount > 99 ? '99+' : '$badgeCount',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onPrimary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
               const SizedBox(height: 2),
               Text(
@@ -854,8 +812,8 @@ class _MainScreenState extends ConsumerState<MainScreen>
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 10.5,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: color,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: labelColor,
                   height: 1.15,
                 ),
               ),
@@ -888,9 +846,6 @@ class _MainScreenState extends ConsumerState<MainScreen>
       builder: (context) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
         title: Row(
           children: [
             Container(

@@ -374,22 +374,30 @@ class _EditRadioDialogState extends ConsumerState<EditRadioDialog> {
       'disabled': _isDisabled ? '1' : '0',
       'channel': _selectedChannel,
       'htmode': _selectedHtMode,
-      'txpower': _selectedTxPower,
       'country': _selectedCountry,
     };
+    final deleteOptions = <String>[];
+    if (_selectedTxPower == 'auto' || _selectedTxPower.trim().isEmpty) {
+      deleteOptions.add('txpower');
+    } else {
+      newValues['txpower'] = _selectedTxPower.trim();
+    }
 
     final priorSnapshot = <String, String>{
       'disabled': radio.isDisabled ? '1' : '0',
       'channel': radio.channel,
       'htmode': radio.htMode ?? 'HT20',
-      'txpower': radio.txPowerDbm?.toString() ?? 'auto',
       'country': radio.country,
     };
+    if (radio.txPowerDbm != null) {
+      priorSnapshot['txpower'] = radio.txPowerDbm.toString();
+    }
 
     try {
       final success = await appState.applyWirelessRadioConfig(
         sectionName: radio.name,
         newValues: newValues,
+        deleteOptions: deleteOptions,
         priorValuesSnapshot: priorSnapshot,
         targetRadio: radio,
         context: mounted ? context : null,
@@ -421,7 +429,7 @@ class _EditRadioDialogState extends ConsumerState<EditRadioDialog> {
       if (mounted) {
         context.showToastError(
           l10n?.toastRadioSettingsFailed ?? 'Failed to apply radio settings',
-          subtitle: e.toString().replaceAll('Exception: ', ''),
+          subtitle: LuciToastManager.parseErrorReason(e),
         );
       }
     } finally {
@@ -448,7 +456,6 @@ class _EditRadioDialogState extends ConsumerState<EditRadioDialog> {
     return PopScope(
       canPop: !_isSubmitting,
       child: AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Icon(Icons.router_rounded, color: theme.colorScheme.primary),
@@ -570,11 +577,18 @@ class _EditRadioDialogState extends ConsumerState<EditRadioDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: _selectedChannel,
                   isExpanded: true,
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
                   decoration: InputDecoration(
                     labelText:
                         l10n?.operatingChannelLabel ?? 'Operating Channel',
                     prefixIcon: const Icon(Icons.cell_tower_rounded, size: 20),
-                    border: const OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   items: channels.map((ch) {
                     return DropdownMenuItem(
@@ -598,6 +612,11 @@ class _EditRadioDialogState extends ConsumerState<EditRadioDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: _selectedHtMode,
                   isExpanded: true,
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
                   decoration: InputDecoration(
                     labelText:
                         l10n?.channelWidthHtModeLabel ??
@@ -607,7 +626,9 @@ class _EditRadioDialogState extends ConsumerState<EditRadioDialog> {
                               'Modes reported by physical driver')
                         : null,
                     prefixIcon: const Icon(Icons.swap_calls_rounded, size: 20),
-                    border: const OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   items: htModes.map((mode) {
                     return DropdownMenuItem(
@@ -629,11 +650,18 @@ class _EditRadioDialogState extends ConsumerState<EditRadioDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: _selectedTxPower,
                   isExpanded: true,
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
                   decoration: InputDecoration(
                     labelText:
                         l10n?.transmitPowerLabel ?? 'Transmit Power (Tx Power)',
                     prefixIcon: const Icon(Icons.bolt_rounded, size: 20),
-                    border: const OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   items: txPowers.map((tx) {
                     String label = tx == 'auto'
@@ -664,12 +692,19 @@ class _EditRadioDialogState extends ConsumerState<EditRadioDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: _selectedCountry,
                   isExpanded: true,
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
                   decoration: InputDecoration(
                     labelText:
                         l10n?.countryCodeRegulatoryLabel ??
                         'Country Code (Regulatory Domain)',
                     prefixIcon: const Icon(Icons.public_rounded, size: 20),
-                    border: const OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     helperText:
                         _getChannelValidationMessage(l10n) ??
                         (l10n?.regulatoryDomainOptionsReported ??

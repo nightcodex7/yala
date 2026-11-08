@@ -354,6 +354,7 @@ class _WifiAccessControlScreenState
       child: Scaffold(
         appBar: LuciAppBar(
           title: l10n?.wifiAccessControlTitle ?? 'Wi-Fi Access Control',
+          showBack: true,
         ),
         body: Column(
           children: [
@@ -361,48 +362,63 @@ class _WifiAccessControlScreenState
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeaderCard(context),
-                    const SizedBox(height: 16),
-                    _buildDeviceSelectionCard(context),
-                    const SizedBox(height: 16),
-                    if (_isValidMac(_selectedMac)) ...[
-                      _buildStaticLeaseOptionCard(context, appState),
-                      _buildAccessControlMatrix(context, overview, appState),
-                      const SizedBox(height: 24),
-                      _buildApplyButton(context, overview, appState),
-                    ] else ...[
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Center(
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.touch_app_rounded,
-                                  size: 48,
-                                  color: theme.colorScheme.primary.withValues(
-                                    alpha: 0.4,
-                                  ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 840),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildHeaderCard(context),
+                        const SizedBox(height: 16),
+                        _buildDeviceSelectionCard(context),
+                        const SizedBox(height: 16),
+                        if (_isValidMac(_selectedMac)) ...[
+                          _buildStaticLeaseOptionCard(context, appState),
+                          _buildAccessControlMatrix(
+                            context,
+                            overview,
+                            appState,
+                          ),
+                          const SizedBox(height: 24),
+                          _buildApplyButton(context, overview, appState),
+                        ] else ...[
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.touch_app_rounded,
+                                      size: 48,
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: 0.4),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      l10n?.selectDevicePrompt ??
+                                          'Select a device from the dropdown above or enter a valid MAC address to configure Wi-Fi access rules.',
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  l10n?.selectDevicePrompt ??
-                                      'Select a device from the dropdown above or enter a valid MAC address to configure Wi-Fi access rules.',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    ],
-                  ],
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -490,14 +506,125 @@ class _WifiAccessControlScreenState
                     borderRadius: BorderRadius.circular(12),
                   ),
                   prefixIcon: const Icon(Icons.devices_rounded),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
                 isExpanded: true,
+                menuMaxHeight: 380,
+                borderRadius: BorderRadius.circular(16),
+                dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                elevation: 4,
+                icon: const Icon(Icons.arrow_drop_down_rounded),
+                selectedItemBuilder: (context) {
+                  return _availableClients.map((c) {
+                    final isWifi = c.connectionType == ConnectionType.wireless;
+                    return Align(
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isWifi ? Icons.wifi_rounded : Icons.lan_outlined,
+                            size: 18,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              '${c.displayName} (${c.macAddress})',
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList();
+                },
                 items: _availableClients.map((c) {
+                  final isWifi = c.connectionType == ConnectionType.wireless;
                   return DropdownMenuItem<Client>(
                     value: c,
-                    child: Text(
-                      '${c.displayName} (${c.macAddress})',
-                      overflow: TextOverflow.ellipsis,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isWifi
+                                  ? theme.colorScheme.primaryContainer
+                                        .withValues(alpha: 0.6)
+                                  : theme.colorScheme.secondaryContainer
+                                        .withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              isWifi ? Icons.wifi_rounded : Icons.lan_outlined,
+                              size: 18,
+                              color: isWifi
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.secondary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${c.displayName} (${c.macAddress})',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (c.ipAddress.isNotEmpty &&
+                                    c.ipAddress != 'N/A') ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    c.ipAddress,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontFamily: 'monospace',
+                                      fontSize: 11,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (c.isDumbApClient) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.tertiaryContainer,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                c.apName ?? 'AP',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.onTertiaryContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   );
                 }).toList(),
@@ -570,25 +697,20 @@ class _WifiAccessControlScreenState
     }
 
     if (existingMapping != null) {
+      final connectedColor = LuciStatusColors.connectedColor(context);
       return Card(
-        color: LuciStatusColors.connected.withValues(alpha: 0.1),
+        color: connectedColor.withValues(alpha: 0.1),
         margin: const EdgeInsets.only(bottom: 16),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(
-            color: LuciStatusColors.connected.withValues(alpha: 0.3),
-          ),
+          side: BorderSide(color: connectedColor.withValues(alpha: 0.3)),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              const Icon(
-                Icons.push_pin,
-                color: LuciStatusColors.connected,
-                size: 20,
-              ),
+              Icon(Icons.push_pin, color: connectedColor, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -596,12 +718,12 @@ class _WifiAccessControlScreenState
                   children: [
                     Row(
                       children: [
-                        const Text(
+                        Text(
                           'Static Lease Active',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
-                            color: LuciStatusColors.connected,
+                            color: connectedColor,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -611,9 +733,7 @@ class _WifiAccessControlScreenState
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: LuciStatusColors.connected.withValues(
-                              alpha: 0.2,
-                            ),
+                            color: connectedColor.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -651,8 +771,8 @@ class _WifiAccessControlScreenState
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                 ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: LuciStatusColors.connected,
-                  side: const BorderSide(color: LuciStatusColors.connected),
+                  foregroundColor: connectedColor,
+                  side: BorderSide(color: connectedColor),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 6,
@@ -855,15 +975,15 @@ class _WifiAccessControlScreenState
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: LuciStatusColors.connected.withValues(
-                            alpha: 0.15,
-                          ),
+                          color: LuciStatusColors.connectedColor(
+                            context,
+                          ).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Current: Allowed',
                           style: TextStyle(
-                            color: LuciStatusColors.connected,
+                            color: LuciStatusColors.connectedColor(context),
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
                           ),
@@ -1182,9 +1302,9 @@ class _WifiAccessControlScreenState
       final addPhone = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          icon: const Icon(
+          icon: Icon(
             Icons.warning_amber_rounded,
-            color: Colors.red,
+            color: Theme.of(ctx).colorScheme.error,
             size: 40,
           ),
           title: Text(l10n?.wifiAclLockoutWarning ?? 'Device Lockout Warning'),
@@ -1225,9 +1345,9 @@ class _WifiAccessControlScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(
+        icon: Icon(
           Icons.verified_user_rounded,
-          color: Colors.blue,
+          color: Theme.of(ctx).colorScheme.primary,
           size: 36,
         ),
         title: Text(

@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../main.dart';
+import '../../../state/app_state.dart';
 import '../models/speed_test_models.dart';
 import '../services/speed_test_service.dart';
 
@@ -45,19 +46,56 @@ final speedTestServiceProvider = Provider<ISpeedTestService>((ref) {
 final speedTestControllerProvider =
     StateNotifierProvider<SpeedTestController, SpeedTestState>((ref) {
       final service = ref.watch(speedTestServiceProvider);
-      return SpeedTestController(service, ref);
+      final routerKey = ref.watch(
+        appStateProvider.select(
+          (s) => s.reviewerModeEnabled
+              ? 'reviewer-mock-router'
+              : (s.selectedRouter?.id.isNotEmpty == true
+                    ? s.selectedRouter!.id
+                    : s.selectedRouter?.ipAddress),
+        ),
+      );
+      return SpeedTestController(service, ref, routerKey);
     });
 
 class SpeedTestController extends StateNotifier<SpeedTestState> {
+  static final Map<String, SpeedTestResult> _routerResultsCache = {};
+
   final ISpeedTestService _service;
   final Ref? _ref;
+  final String? _routerKey;
   StreamSubscription<SpeedTestProgress>? _progressSub;
 
-  SpeedTestController(this._service, [this._ref])
-    : super(const SpeedTestState()) {
+  SpeedTestController(this._service, [this._ref, this._routerKey])
+    : super(
+        SpeedTestState(
+          result: _routerKey != null ? _routerResultsCache[_routerKey] : null,
+        ),
+      ) {
     _progressSub = _service.progressStream.listen((prog) {
       state = state.copyWith(progress: prog);
     });
+  }
+
+  /// Clears cached speed test results across all router profiles (e.g. on logout or app reset).
+  static void clearCache() {
+    _routerResultsCache.clear();
+  }
+
+  /// Returns cached result for a given router key, if any.
+  static SpeedTestResult? getCachedResult(String routerKey) {
+    return _routerResultsCache[routerKey];
+  }
+
+  static String? _resolveRouterKey(AppState? appState) {
+    if (appState == null) return null;
+    if (appState.reviewerModeEnabled) return 'reviewer-mock-router';
+    final router = appState.selectedRouter;
+    if (router != null) {
+      if (router.id.isNotEmpty) return router.id;
+      if (router.ipAddress.isNotEmpty) return router.ipAddress;
+    }
+    return null;
   }
 
   @override
@@ -105,6 +143,7 @@ class SpeedTestController extends StateNotifier<SpeedTestState> {
           sysauth: sysauth,
           useHttps: useHttps,
           wanInterface: wanInterface,
+          capabilities: appState?.capabilities,
         );
       } else if (isReviewer || _ref == null) {
         // In reviewer mode or mock unit tests without active router, simulate router test
@@ -134,6 +173,12 @@ class SpeedTestController extends StateNotifier<SpeedTestState> {
             ? res.errorMessage
             : null,
       );
+
+      final currentKey =
+          _routerKey ?? _resolveRouterKey(_ref?.read(appStateProvider));
+      if (currentKey != null && res.stage != SpeedTestStage.cancelled) {
+        _routerResultsCache[currentKey] = res;
+      }
     } catch (e) {
       state = state.copyWith(isRunning: false, errorMessage: e.toString());
     }
@@ -147,6 +192,11 @@ class SpeedTestController extends StateNotifier<SpeedTestState> {
 
   void reset() {
     _service.cancel();
+    final currentKey =
+        _routerKey ?? _resolveRouterKey(_ref?.read(appStateProvider));
+    if (currentKey != null) {
+      _routerResultsCache.remove(currentKey);
+    }
     state = const SpeedTestState();
   }
 }

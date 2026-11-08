@@ -5,23 +5,72 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/main.dart';
+import 'package:yet_another_luci_app/state/app_state.dart';
 import '../../system_monitoring/models/system_metrics.dart';
 import '../services/metrics_chart_engine.dart';
 import '../widgets/realtime_line_chart.dart';
 import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 
-class ChartingScreen extends ConsumerWidget {
+class ChartingScreen extends ConsumerStatefulWidget {
   const ChartingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChartingScreen> createState() => _ChartingScreenState();
+}
+
+class _ChartingScreenState extends ConsumerState<ChartingScreen> {
+  AppState? _appState;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appState ??= ref.read(appStateProvider);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final AppState appState = _appState ?? ref.read(appStateProvider);
+      _appState = appState;
+      appState.acquireRealtimeTelemetry();
+
+      final engine = ref.read(metricsChartEngineProvider.notifier);
+      engine.updatePollingInterval(appState.throughputIntervalSeconds);
+
+      // Seed initial history if buffer is empty
+      final metricsData = ref.read(metricsChartEngineProvider);
+      if (metricsData.cpuBuffer.isEmpty) {
+        final sysInfo =
+            appState.dashboardData?['sysInfo'] as Map<String, dynamic>?;
+        final boardInfo =
+            appState.dashboardData?['boardInfo'] as Map<String, dynamic>?;
+        final systemMetrics = SystemMetrics.fromSysInfo(
+          sysInfo,
+          boardInfo: boardInfo,
+        );
+        engine.seedHistory(
+          rxHistory: appState.rxHistory,
+          txHistory: appState.txHistory,
+          cpuUsage: systemMetrics.cpuUsagePercent,
+          ramUsage: systemMetrics.memoryUsagePercent,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _appState?.releaseRealtimeTelemetry();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final metricsData = ref.watch(metricsChartEngineProvider);
     final engine = ref.read(metricsChartEngineProvider.notifier);
-
-    final throughputInterval = ref.watch(
-      appStateProvider.select((s) => s.throughputIntervalSeconds),
-    );
 
     // Listen for periodic app state telemetry ticks to push samples safely without build-loop recursion
     ref.listen(appStateProvider, (previous, next) {
@@ -40,34 +89,15 @@ class ChartingScreen extends ConsumerWidget {
       );
     });
 
-    if (metricsData.pollingIntervalSeconds != throughputInterval) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        engine.updatePollingInterval(throughputInterval);
-      });
-    }
-
-    // Seed initial sample if buffer is empty
-    if (metricsData.cpuHistory.isEmpty) {
-      final appState = ref.read(appStateProvider);
-      final sysInfo =
-          appState.dashboardData?['sysInfo'] as Map<String, dynamic>?;
-      final boardInfo =
-          appState.dashboardData?['boardInfo'] as Map<String, dynamic>?;
-      final systemMetrics = SystemMetrics.fromSysInfo(
-        sysInfo,
-        boardInfo: boardInfo,
-      );
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (metricsData.cpuHistory.isEmpty) {
-          engine.addSample(
-            cpuUsage: systemMetrics.cpuUsagePercent,
-            ramUsage: systemMetrics.memoryUsagePercent,
-            rxRate: appState.currentRxRate,
-            txRate: appState.currentTxRate,
-          );
+    // Synchronize engine polling interval if changed externally in AppState
+    ref.listen<int>(
+      appStateProvider.select((s) => s.throughputIntervalSeconds),
+      (prev, next) {
+        if (metricsData.pollingIntervalSeconds != next) {
+          engine.updatePollingInterval(next);
         }
-      });
-    }
+      },
+    );
 
     final l10n = AppLocalizations.of(context);
     final networkDevices = ref.watch(

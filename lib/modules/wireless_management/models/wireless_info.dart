@@ -220,29 +220,37 @@ class WirelessStation {
   });
 
   factory WirelessStation.fromJson(String mac, Map<String, dynamic> json) {
+    num? parseNum(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val;
+      return num.tryParse(val.toString().trim());
+    }
+
+    int? parseInt(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toInt();
+      return int.tryParse(val.toString().trim());
+    }
+
     final rx =
-        json['rx_rate'] as num? ??
-        json['rx_bitrate'] as num? ??
+        parseNum(json['rx_rate']) ??
+        parseNum(json['rx_bitrate']) ??
         (json['rx'] is Map
-            ? (json['rx']['rate'] as num? ?? json['rx']['bitrate'] as num?)
+            ? (parseNum(json['rx']['rate']) ?? parseNum(json['rx']['bitrate']))
             : null);
     final tx =
-        json['tx_rate'] as num? ??
-        json['tx_bitrate'] as num? ??
+        parseNum(json['tx_rate']) ??
+        parseNum(json['tx_bitrate']) ??
         (json['tx'] is Map
-            ? (json['tx']['rate'] as num? ?? json['tx']['bitrate'] as num?)
+            ? (parseNum(json['tx']['rate']) ?? parseNum(json['tx']['bitrate']))
             : null);
     return WirelessStation(
       macAddress: mac,
-      signalDbm:
-          (json['signal'] as num?)?.toInt() ??
-          (json['signal_dbm'] as num?)?.toInt(),
-      noiseDbm:
-          (json['noise'] as num?)?.toInt() ??
-          (json['noise_dbm'] as num?)?.toInt(),
+      signalDbm: parseInt(json['signal']) ?? parseInt(json['signal_dbm']),
+      noiseDbm: parseInt(json['noise']) ?? parseInt(json['noise_dbm']),
       rxRate: rx,
       txRate: tx,
-      inactiveSeconds: (json['inactive'] as num?)?.toInt(),
+      inactiveSeconds: parseInt(json['inactive']),
     );
   }
 
@@ -875,6 +883,7 @@ class WirelessRadio {
   final List<String> supportedHtModes;
   final String? hardwareName;
   final bool isDisabled;
+  final bool retrySetupFailed;
   final Map<String, dynamic>? rawConfig;
   final List<WirelessInterface> interfaces;
 
@@ -889,6 +898,7 @@ class WirelessRadio {
     this.supportedHtModes = const [],
     this.hardwareName,
     this.isDisabled = false,
+    this.retrySetupFailed = false,
     this.rawConfig,
     required this.interfaces,
   });
@@ -911,20 +921,30 @@ class WirelessRadio {
         rawUp == 1 ||
         rawUp == '1' ||
         rawUp == 'true';
+    final retryFailed =
+        json['retry_setup_failed'] == true ||
+        json['retry_setup_failed'] == 1 ||
+        json['retry_setup_failed'] == '1';
+    int? parseInt(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toInt();
+      return int.tryParse(val.toString().trim());
+    }
+
     final ch =
         (json['channel'] ?? config['channel'] ?? iwinfo['channel'] ?? 'Auto')
             .toString();
-    int? freq = (json['frequency'] as num?)?.toInt();
-    if (freq == null && config.isNotEmpty) {
-      freq = (config['frequency'] as num?)?.toInt();
+    int? freq = parseInt(json['frequency']);
+    if ((freq == null || freq == 0) && config.isNotEmpty) {
+      freq = parseInt(config['frequency']);
     }
-    if (freq == null && iwinfo.isNotEmpty) {
-      freq = (iwinfo['frequency'] as num?)?.toInt();
+    if ((freq == null || freq == 0) && iwinfo.isNotEmpty) {
+      freq = parseInt(iwinfo['frequency']);
     }
     final txp =
-        (json['txpower'] as num?)?.toInt() ??
-        (config['txpower'] as num?)?.toInt() ??
-        (iwinfo['txpower'] as num?)?.toInt();
+        parseInt(json['txpower']) ??
+        parseInt(config['txpower']) ??
+        parseInt(iwinfo['txpower']);
     final ctry =
         json['country']?.toString() ??
         config['country']?.toString() ??
@@ -960,7 +980,7 @@ class WirelessRadio {
           final itemMap = Map<String, dynamic>.from(item);
           ifaceList.add(WirelessInterface.fromJson(itemMap, assocData));
           if ((freq == null || freq == 0) && itemMap['iwinfo'] is Map) {
-            final iwFreq = (itemMap['iwinfo']['frequency'] as num?)?.toInt();
+            final iwFreq = parseInt(itemMap['iwinfo']['frequency']);
             if (iwFreq != null && iwFreq > 0) freq = iwFreq;
           }
         }
@@ -971,7 +991,7 @@ class WirelessRadio {
           final itemMap = Map<String, dynamic>.from(item);
           ifaceList.add(WirelessInterface.fromJson(itemMap, assocData));
           if ((freq == null || freq == 0) && itemMap['iwinfo'] is Map) {
-            final iwFreq = (itemMap['iwinfo']['frequency'] as num?)?.toInt();
+            final iwFreq = parseInt(itemMap['iwinfo']['frequency']);
             if (iwFreq != null && iwFreq > 0) freq = iwFreq;
           }
         }
@@ -989,6 +1009,7 @@ class WirelessRadio {
       supportedHtModes: htModesList,
       hardwareName: hwName,
       isDisabled: disabled,
+      retrySetupFailed: retryFailed,
       rawConfig: Map<String, dynamic>.from(config),
       interfaces: ifaceList,
     );
@@ -1245,6 +1266,7 @@ class WirelessOverview {
               supportedHtModes: currentRadio.supportedHtModes,
               hardwareName: currentRadio.hardwareName,
               isDisabled: currentRadio.isDisabled,
+              retrySetupFailed: currentRadio.retrySetupFailed,
               rawConfig: currentRadio.rawConfig,
               interfaces: updatedIfaces,
             );
@@ -1391,6 +1413,12 @@ class WirelessOverview {
         frequency: r.frequency,
         txPowerDbm: r.txPowerDbm,
         country: r.country,
+        htMode: r.htMode,
+        supportedHtModes: r.supportedHtModes,
+        hardwareName: r.hardwareName,
+        isDisabled: r.isDisabled,
+        retrySetupFailed: r.retrySetupFailed,
+        rawConfig: r.rawConfig,
         interfaces: sortedInterfaces,
       );
     }

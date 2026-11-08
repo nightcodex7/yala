@@ -139,17 +139,14 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
         builder: (ctx) => AlertDialog(
           actionsOverflowButtonSpacing: 8,
           actionsOverflowDirection: VerticalDirection.down,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Row(
+          title: Row(
             children: [
               Icon(
                 Icons.warning_amber_rounded,
-                color: LuciStatusColors.warning,
+                color: LuciStatusColors.warningColor(ctx),
               ),
-              SizedBox(width: 8),
-              Expanded(
+              const SizedBox(width: 8),
+              const Expanded(
                 child: Text(
                   'Zero Bandwidth Configured',
                   style: TextStyle(fontSize: 16),
@@ -231,6 +228,9 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
         context.showToastError(
           l10n?.modSqmQueueSaveFailedToast ??
               'Failed to save SQM configuration.',
+          subtitle:
+              l10n?.toastErrorCheckPermissionsOrUci ??
+              'Check router permissions or UCI configuration.',
           actionKey: actionKey,
         );
       }
@@ -301,6 +301,9 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
       } else {
         context.showToastError(
           l10n?.modSqmQueueDeleteFailedToast ?? 'Failed to delete SQM queue.',
+          subtitle:
+              l10n?.toastErrorCheckPermissionsOrUci ??
+              'Check router permissions or UCI configuration.',
           actionKey: actionKey,
         );
       }
@@ -369,15 +372,15 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: _enabled
-                        ? LuciColors.primary.withValues(alpha: 0.12)
+                        ? theme.colorScheme.primary.withValues(alpha: 0.12)
                         : theme.colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     Icons.tune_rounded,
                     color: _enabled
-                        ? LuciColors.primary
-                        : LuciStatusColors.inactive,
+                        ? theme.colorScheme.primary
+                        : LuciStatusColors.inactiveColor(context),
                     size: 22,
                   ),
                 ),
@@ -638,9 +641,15 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
                   : (sortedInterfaces.isNotEmpty
                         ? sortedInterfaces.first
                         : null),
+              isExpanded: true,
+              borderRadius: BorderRadius.circular(16),
+              dropdownColor: theme.colorScheme.surfaceContainerHigh,
+              elevation: 4,
+              menuMaxHeight: 360,
+              icon: const Icon(Icons.arrow_drop_down_rounded),
               decoration: InputDecoration(
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -825,9 +834,15 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
                             widget.availableQdiscs.contains(_selectedQdisc)
                             ? _selectedQdisc
                             : 'cake',
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -881,9 +896,15 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
                             : (widget.availableScripts.isNotEmpty
                                   ? widget.availableScripts.first
                                   : 'piece_of_cake.qos'),
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -932,10 +953,16 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
                         ['none', 'ethernet', 'atm'].contains(_selectedLinklayer)
                         ? _selectedLinklayer
                         : 'none',
+                    isExpanded: true,
+                    borderRadius: BorderRadius.circular(16),
+                    dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                    elevation: 4,
+                    menuMaxHeight: 360,
+                    icon: const Icon(Icons.arrow_drop_down_rounded),
                     decoration: InputDecoration(
                       labelText: l10n?.modSqmFramingLabel ?? 'Framing',
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -1101,10 +1128,16 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _ingressEcn,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           labelText: l10n?.modSqmIngressEcn ?? 'Ingress ECN',
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           contentPadding: const EdgeInsets.all(8),
                           isDense: true,
@@ -1125,10 +1158,16 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _egressEcn,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           labelText: l10n?.modSqmEgressEcn ?? 'Egress ECN',
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           contentPadding: const EdgeInsets.all(8),
                           isDense: true,
@@ -1161,10 +1200,16 @@ class _SqmQueueCardState extends ConsumerState<SqmQueueCard> {
                   initialValue: (_verbosity >= 0 && _verbosity <= 10)
                       ? _verbosity
                       : 5,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
                   decoration: InputDecoration(
                     labelText: 'Verbosity Level (0-10)',
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 10,

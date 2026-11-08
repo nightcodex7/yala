@@ -40,7 +40,7 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        resourceConfigurations += listOf("en", "ru", "es", "b+pt+BR", "pt-rBR", "pt", "de", "id", "fr", "zh")
+        resourceConfigurations += listOf("en", "ru", "es", "b+pt+BR", "pt-rBR", "pt", "de", "id", "fr", "zh", "it", "ja", "uk")
     }
 
     signingConfigs {
@@ -150,5 +150,27 @@ android.applicationVariants.configureEach {
             (output as ApkVariantOutputImpl).versionCodeOverride = variant.versionCode * 10 + abiVersionCode
         }
     }
+}
+
+// When building debug without specifying a flavor (e.g. default Android Studio run or `flutter run`),
+// Flutter invokes `assembleDebug` and expects `app-debug.apk` in `build/app/outputs/flutter-apk/app-debug.apk`.
+// With productFlavors ("community", "playstore"), Gradle produces `app-community-debug.apk` instead.
+// Ensure a copy exists as `app-debug.apk` so Flutter CLI finds it seamlessly.
+tasks.register("copyDebugApkForFlutter") {
+    doLast {
+        val flutterApkDir = file("${project.layout.buildDirectory.get()}/outputs/flutter-apk")
+        val communityApk = File(flutterApkDir, "app-community-debug.apk")
+        val apkOutDir = file("${project.layout.buildDirectory.get()}/outputs/apk/community/debug/app-community-debug.apk")
+        val sourceApk = if (communityApk.exists()) communityApk else if (apkOutDir.exists()) apkOutDir else null
+        if (sourceApk != null && sourceApk.exists()) {
+            val targetApk = File(flutterApkDir, "app-debug.apk")
+            flutterApkDir.mkdirs()
+            sourceApk.copyTo(targetApk, overwrite = true)
+        }
+    }
+}
+
+afterEvaluate {
+    tasks.findByName("assembleDebug")?.finalizedBy("copyDebugApkForFlutter")
 }
 

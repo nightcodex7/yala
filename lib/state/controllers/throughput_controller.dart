@@ -22,7 +22,7 @@ class ThroughputController {
   final ThroughputService _throughputService;
 
   Timer? _throughputTimer;
-  int _throughputIntervalSeconds = 4;
+  int _throughputIntervalSeconds = 2;
 
   int get throughputIntervalSeconds => _throughputIntervalSeconds;
 
@@ -48,17 +48,22 @@ class ThroughputController {
   // ── Timer lifecycle ────────────────────────────────────────────
 
   /// Updates the polling interval (clamped 1–10s) and restarts the timer.
-  /// Returns true if the interval actually changed.
+  /// Returns true if the interval actually changed or if the timer was restarted.
   bool setInterval(
     int seconds, {
     required bool isRebooting,
     required VoidCallback onTick,
+    bool immediateTick = true,
   }) {
     final clamped = seconds.clamp(1, 10);
-    if (_throughputIntervalSeconds == clamped) return false;
+    final changed = _throughputIntervalSeconds != clamped;
+    final wasRunning = isTimerRunning;
     _throughputIntervalSeconds = clamped;
     startTimer(isRebooting: isRebooting, onTick: onTick);
-    return true;
+    if (immediateTick && !isRebooting) {
+      Future.microtask(onTick);
+    }
+    return changed || !wasRunning;
   }
 
   bool _isPaused = false;
@@ -98,7 +103,7 @@ class ThroughputController {
     }
   }
 
-  /// Resumes the timer only if it was previously running and paused.
+  /// Resumes the timer if paused or restarts if not currently running.
   void resumeTimer({
     required bool isRebooting,
     required VoidCallback onTick,

@@ -4,6 +4,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yet_another_luci_app/modules/vpn_connectivity/models/vpn_info.dart';
+import 'package:yet_another_luci_app/modules/dhcp_dns/utils/dns_provider_resolver.dart';
 import 'package:yet_another_luci_app/state/controllers/dashboard_controller.dart';
 
 void main() {
@@ -340,6 +341,39 @@ config defaults # trailing comment
         expect(overview.tailscale.nodeName, equals('ncxRouter'));
         expect(overview.tailscale.tailscaleIp, equals('100.90.160.1'));
         expect(overview.tailscale.peersCount, equals(2));
+      },
+    );
+
+    test(
+      'parseUciChunkForTesting correctly parses https-dns-proxy chunk and resolves Quad9 DoH',
+      () {
+        const hdpChunk = '''
+config https-dns-proxy
+\toption listen_addr '127.0.0.1'
+\toption listen_port '5053'
+\toption resolver_url 'https://dns10.quad9.net/dns-query'
+\toption bootstrap_dns '9.9.9.10,149.112.112.10'
+''';
+
+        final parsed = DashboardController.parseUciChunkForTesting(hdpChunk);
+        expect(parsed, isNotNull);
+        expect(parsed!.containsKey('values'), isTrue);
+
+        final values = parsed['values'] as Map<String, dynamic>;
+        final sec = values.values.first as Map<String, dynamic>;
+        expect(sec['listen_port'], equals('5053'));
+        expect(
+          sec['resolver_url'],
+          equals('https://dns10.quad9.net/dns-query'),
+        );
+
+        final res = DnsProviderResolver.resolve(
+          upstreamServers: ['127.0.0.1#5053'],
+          httpsDnsProxyData: parsed,
+        );
+        expect(res, isNotNull);
+        expect(res!.providerName, equals('Quad9'));
+        expect(res.displayLabel, equals('Quad9 (DoH)'));
       },
     );
   });

@@ -385,10 +385,18 @@ class _BlockIncomingTrafficDialogState
                         flex: 2,
                         child: DropdownButtonFormField<String>(
                           initialValue: _portProto,
+                          isExpanded: true,
+                          borderRadius: BorderRadius.circular(16),
+                          dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                          elevation: 4,
+                          menuMaxHeight: 360,
+                          icon: const Icon(Icons.arrow_drop_down_rounded),
                           decoration: InputDecoration(
                             labelText:
                                 loc?.firewallWizardProtocol ?? 'Protocol',
-                            border: const OutlineInputBorder(),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 10,
                               vertical: 14,
@@ -415,10 +423,22 @@ class _BlockIncomingTrafficDialogState
                 ] else if (_targetType == BlockTargetType.commonApp) ...[
                   DropdownButtonFormField<CommonThreatPreset>(
                     initialValue: _selectedCommonThreat,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                    ),
                     isExpanded: true,
+                    borderRadius: BorderRadius.circular(16),
+                    dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                    elevation: 4,
+                    menuMaxHeight: 360,
+                    icon: const Icon(Icons.arrow_drop_down_rounded),
+                    decoration: InputDecoration(
+                      labelText: 'Threat / Common Application',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
                     items: commonThreatPresets.map((preset) {
                       return DropdownMenuItem(
                         value: preset,

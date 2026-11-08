@@ -19,11 +19,16 @@ import 'package:yet_another_luci_app/modules/diagnostics/models/dns_lookup_resul
 import 'package:yet_another_luci_app/modules/diagnostics/models/routing_neighbor_info.dart';
 import 'package:yet_another_luci_app/modules/diagnostics/models/diagnostic_report.dart';
 import 'package:yet_another_luci_app/modules/diagnostics/models/flush_dns_result.dart';
+import 'package:yet_another_luci_app/modules/dhcp_dns/models/dnsmasq_service_result.dart';
+import 'package:yet_another_luci_app/modules/log_viewer/models/log_entry.dart';
+import 'package:yet_another_luci_app/modules/log_viewer/models/log_fetch_result.dart';
 import 'package:yet_another_luci_app/modules/bandwidth_monitor/models/bandwidth_data.dart';
 import 'package:yet_another_luci_app/models/network_access_policy.dart';
 import 'package:yet_another_luci_app/models/router_capabilities.dart';
 import 'package:yet_another_luci_app/modules/firewall_security/models/firewall_info.dart';
 import 'package:yet_another_luci_app/modules/firewall_security/services/firewall_policy_translator.dart';
+import 'package:yet_another_luci_app/models/client_speed_limit.dart';
+import 'package:yet_another_luci_app/services/client_speed_limit_translator.dart';
 import 'package:yet_another_luci_app/services/operation_queue.dart';
 import 'package:yet_another_luci_app/utils/self_device_guard.dart';
 import 'package:yet_another_luci_app/modules/domain_blocking/models/domain_block_rule.dart';
@@ -1587,15 +1592,40 @@ class RealApiService implements IApiService {
     required String command,
     BuildContext? context,
   }) async {
-    return await callWithContext(
-      ipAddress,
-      sysauth,
-      useHttps,
-      object: 'file',
-      method: 'exec',
-      params: fileExecParams('/bin/sh', ['-c', command]),
-      context: context,
-    );
+    try {
+      final res = await callWithContext(
+        ipAddress,
+        sysauth,
+        useHttps,
+        object: 'file',
+        method: 'exec',
+        params: fileExecParams('/bin/sh', ['-c', command]),
+        context: context,
+      );
+      if (_execSucceeded(res)) {
+        return res;
+      }
+      // Fallback for older rpcd that expects 'args' instead of 'params'
+      return await callWithContext(
+        ipAddress,
+        sysauth,
+        useHttps,
+        object: 'file',
+        method: 'exec',
+        params: fileExecArgs('/bin/sh', ['-c', command]),
+        context: context,
+      );
+    } catch (_) {
+      return await callWithContext(
+        ipAddress,
+        sysauth,
+        useHttps,
+        object: 'file',
+        method: 'exec',
+        params: fileExecArgs('/bin/sh', ['-c', command]),
+        context: context,
+      );
+    }
   }
 
   @override
@@ -1907,6 +1937,7 @@ class RealApiService implements IApiService {
     bool useHttps, {
     required String sectionName,
     required Map<String, String> values,
+    List<String>? deleteOptions,
     BuildContext? context,
   }) async {
     final mCtx = mountedContext(context);
@@ -2059,6 +2090,7 @@ class RealApiService implements IApiService {
     bool useHttps, {
     required String sectionName,
     required Map<String, String> values,
+    List<String>? deleteOptions,
     BuildContext? context,
   }) async {
     final mCtx = mountedContext(context);
@@ -2385,10 +2417,68 @@ class RealApiService implements IApiService {
       final safeId = profileId.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
       final tag = 'p_tag_$safeId';
       final dnsStr = dnsServers?.join(',') ?? '';
+      final primaryIpv4 = (dnsServers ?? []).firstWhere(
+        (ip) => ip.contains('.') && !ip.contains(':'),
+        orElse: () => (dnsServers != null && dnsServers.isNotEmpty)
+            ? dnsServers.first
+            : '',
+      );
+      final primaryIpv6 = (dnsServers ?? []).firstWhere(
+        (ip) => ip.contains(':'),
+        orElse: () => '',
+      );
+      final macsStr = macAddresses.map((m) => m.toLowerCase()).join(' ');
+
+      final ipv6Script = primaryIpv6.isNotEmpty
+          ? '''
+  uci set firewall.parental_dns_redir6_\$SEC=redirect
+  uci set firewall.parental_dns_redir6_\$SEC.name="parental_dns_redir6_\$SEC"
+  uci set firewall.parental_dns_redir6_\$SEC.src='lan'
+  uci set firewall.parental_dns_redir6_\$SEC.dest='wan'
+  uci set firewall.parental_dns_redir6_\$SEC.proto='tcp udp'
+  uci set firewall.parental_dns_redir6_\$SEC.family='ipv6'
+  uci set firewall.parental_dns_redir6_\$SEC.src_dport='53'
+  uci delete firewall.parental_dns_redir6_\$SEC.src_mac 2>/dev/null || true
+  for m in $macsStr; do uci add_list firewall.parental_dns_redir6_\$SEC.src_mac="\$m"; done
+  uci set firewall.parental_dns_redir6_\$SEC.dest_ip='$primaryIpv6'
+  uci set firewall.parental_dns_redir6_\$SEC.dest_port='53'
+  uci set firewall.parental_dns_redir6_\$SEC.target='DNAT'
+  uci reorder firewall.parental_dns_redir6_\$SEC=0 2>/dev/null || true
+  uci delete firewall.parental_dns_block6_\$SEC 2>/dev/null || true
+  uci delete firewall.parental_dns_in6_\$SEC 2>/dev/null || true
+'''
+          : '''
+  uci delete firewall.parental_dns_redir6_\$SEC 2>/dev/null || true
+  uci set firewall.parental_dns_block6_\$SEC=rule
+  uci set firewall.parental_dns_block6_\$SEC.name="parental_dns_block6_\$SEC"
+  uci set firewall.parental_dns_block6_\$SEC.src='lan'
+  uci set firewall.parental_dns_block6_\$SEC.dest='*'
+  uci set firewall.parental_dns_block6_\$SEC.proto='tcp udp'
+  uci set firewall.parental_dns_block6_\$SEC.family='ipv6'
+  uci set firewall.parental_dns_block6_\$SEC.dest_port='53'
+  uci delete firewall.parental_dns_block6_\$SEC.src_mac 2>/dev/null || true
+  for m in $macsStr; do uci add_list firewall.parental_dns_block6_\$SEC.src_mac="\$m"; done
+  uci set firewall.parental_dns_block6_\$SEC.target='REJECT'
+  uci set firewall.parental_dns_block6_\$SEC.enabled='1'
+  uci reorder firewall.parental_dns_block6_\$SEC=0 2>/dev/null || true
+
+  uci set firewall.parental_dns_in6_\$SEC=rule
+  uci set firewall.parental_dns_in6_\$SEC.name="parental_dns_in6_\$SEC"
+  uci set firewall.parental_dns_in6_\$SEC.src='lan'
+  uci set firewall.parental_dns_in6_\$SEC.proto='tcp udp'
+  uci set firewall.parental_dns_in6_\$SEC.family='ipv6'
+  uci set firewall.parental_dns_in6_\$SEC.dest_port='53'
+  uci delete firewall.parental_dns_in6_\$SEC.src_mac 2>/dev/null || true
+  for m in $macsStr; do uci add_list firewall.parental_dns_in6_\$SEC.src_mac="\$m"; done
+  uci set firewall.parental_dns_in6_\$SEC.target='REJECT'
+  uci set firewall.parental_dns_in6_\$SEC.enabled='1'
+  uci reorder firewall.parental_dns_in6_\$SEC=0 2>/dev/null || true
+''';
 
       final script =
           '''
 T="$tag"
+SEC="$safeId"
 DNS="$dnsStr"
 if [ "\$DNS" = "" ]; then
   uci delete dhcp.\$T 2>/dev/null
@@ -2398,33 +2488,75 @@ if [ "\$DNS" = "" ]; then
       uci delete dhcp.\$sec.tag
     fi
   done
+  uci delete firewall.parental_dns_redir_\$SEC 2>/dev/null || true
+  uci delete firewall.parental_dns_redir6_\$SEC 2>/dev/null || true
+  uci delete firewall.parental_dot_block_\$SEC 2>/dev/null || true
+  uci delete firewall.parental_dns_block6_\$SEC 2>/dev/null || true
+  uci delete firewall.parental_dns_in6_\$SEC 2>/dev/null || true
 else
   uci set dhcp.\$T=tag
-  uci set dhcp.\$T.dhcp_option="6,\$DNS"
-  MACS="${macAddresses.map((m) => m.toLowerCase()).join(' ')}"
-  for m in \$MACS; do
+  uci delete dhcp.\$T.dhcp_option 2>/dev/null || true
+  uci add_list dhcp.\$T.dhcp_option="6,\$DNS"
+  for m in $macsStr; do
     sec=\$(uci show dhcp 2>/dev/null | grep -i "@host.*\\.mac=.*\$m" | cut -d. -f2 | head -n1)
     if [ -z "\$sec" ]; then
-      sec=\$(uci add dhcp host)
+      sec="p_host_\$(echo "\$m" | tr ':' '_')"
+      uci set dhcp.\$sec=host
       uci set dhcp.\$sec.mac="\$m"
-      name=\$(echo "\$m" | tr ':' '-')
-      uci set dhcp.\$sec.name="p_\$name"
+      uci set dhcp.\$sec.name="p_\$(echo "\$m" | tr ':' '-')"
     fi
     uci set dhcp.\$sec.tag="\$T"
   done
+
+  uci set firewall.parental_dns_redir_\$SEC=redirect
+  uci set firewall.parental_dns_redir_\$SEC.name="parental_dns_redir_\$SEC"
+  uci set firewall.parental_dns_redir_\$SEC.src='lan'
+  uci set firewall.parental_dns_redir_\$SEC.dest='wan'
+  uci set firewall.parental_dns_redir_\$SEC.proto='tcp udp'
+  uci set firewall.parental_dns_redir_\$SEC.src_dport='53'
+  uci delete firewall.parental_dns_redir_\$SEC.src_mac 2>/dev/null || true
+  for m in $macsStr; do uci add_list firewall.parental_dns_redir_\$SEC.src_mac="\$m"; done
+  ${primaryIpv4.isNotEmpty ? "uci set firewall.parental_dns_redir_\$SEC.dest_ip='$primaryIpv4'" : ""}
+  uci set firewall.parental_dns_redir_\$SEC.dest_port='53'
+  uci set firewall.parental_dns_redir_\$SEC.target='DNAT'
+  uci reorder firewall.parental_dns_redir_\$SEC=0 2>/dev/null || true
+
+  uci set firewall.parental_dot_block_\$SEC=rule
+  uci set firewall.parental_dot_block_\$SEC.name="parental_dot_block_\$SEC"
+  uci set firewall.parental_dot_block_\$SEC.src='lan'
+  uci set firewall.parental_dot_block_\$SEC.dest='wan'
+  uci set firewall.parental_dot_block_\$SEC.proto='tcp'
+  uci set firewall.parental_dot_block_\$SEC.dest_port='853'
+  uci delete firewall.parental_dot_block_\$SEC.src_mac 2>/dev/null || true
+  for m in $macsStr; do uci add_list firewall.parental_dot_block_\$SEC.src_mac="\$m"; done
+  uci set firewall.parental_dot_block_\$SEC.target='REJECT'
+  uci set firewall.parental_dot_block_\$SEC.enabled='1'
+  uci reorder firewall.parental_dot_block_\$SEC=0 2>/dev/null || true
+
+$ipv6Script
 fi
 uci commit dhcp
 /etc/init.d/dnsmasq restart 2>/dev/null || true
+uci commit firewall
+/etc/init.d/firewall reload 2>/dev/null || true
+for m in $macsStr; do
+  for ip in \$(ip neigh show 2>/dev/null | grep -i "\$m" | awk '{print \$1}'); do
+    conntrack -D -s "\$ip" -p udp --dport 53 >/dev/null 2>&1 || true
+    conntrack -D -s "\$ip" -p tcp --dport 53 >/dev/null 2>&1 || true
+    conntrack -D -d "\$ip" -p udp --sport 53 >/dev/null 2>&1 || true
+    conntrack -D -d "\$ip" -p tcp --sport 53 >/dev/null 2>&1 || true
+  done
+done
 ''';
 
-      return await systemExec(
-            ipAddress,
-            sysauth,
-            useHttps,
-            command: script,
-            context: context,
-          ) !=
-          null;
+      final res = await systemExec(
+        ipAddress,
+        sysauth,
+        useHttps,
+        command: script,
+        context: context,
+      );
+      return _execSucceeded(res);
     } catch (e, stack) {
       Logger.exception('applyParentalProfileDns failed', e, stack);
       return false;
@@ -2494,6 +2626,297 @@ uci commit dhcp
           .map((m) => m.toLowerCase())
           .join(' ');
       final dnsStr = profile.customDnsServers.join(' ');
+      final daysStr = (profile.schedule?.activeDays ?? {})
+          .map((d) => d.uciWeekday)
+          .join(' ');
+
+      final dnsServers = profile.contentFilter == ContentFilterDns.custom
+          ? profile.customDnsServers
+          : profile.contentFilter.primaryServers;
+      final dnsJoined = dnsServers.join(',');
+      final primaryIpv4 = dnsServers.firstWhere(
+        (ip) => ip.contains('.') && !ip.contains(':'),
+        orElse: () => dnsServers.isNotEmpty ? dnsServers.first : '',
+      );
+      final primaryIpv6 = dnsServers.firstWhere(
+        (ip) => ip.contains(':'),
+        orElse: () => '',
+      );
+
+      String scheduleRulesScript = '';
+      if (profile.isEnabled &&
+          profile.hasSchedule &&
+          profile.macAddresses.isNotEmpty) {
+        final sched = profile.schedule!;
+        final bMin = sched.blockHour * 60 + sched.blockMinute;
+        final rMin = sched.resumeHour * 60 + sched.resumeMinute;
+        final bFormatted =
+            '${sched.blockHour.toString().padLeft(2, '0')}:${sched.blockMinute.toString().padLeft(2, '0')}:00';
+        final rFormatted =
+            '${sched.resumeHour.toString().padLeft(2, '0')}:${sched.resumeMinute.toString().padLeft(2, '0')}:00';
+        final weekdaysStr = sched.activeDays.map((d) => d.uciWeekday).join(' ');
+        final nextMorningWeekdaysStr = sched.activeDays
+            .map((d) => d.nextDay.uciWeekday)
+            .join(' ');
+
+        if (bMin < rMin) {
+          // Daytime schedule (e.g. 14:00 to 18:00)
+          scheduleRulesScript =
+              '''
+uci set firewall.parental_sched_\${SEC}_1=rule
+uci set firewall.parental_sched_\${SEC}_1.name="parental_sched_\${SEC}_1"
+uci set firewall.parental_sched_\${SEC}_1.src='lan'
+uci set firewall.parental_sched_\${SEC}_1.dest='wan'
+uci delete firewall.parental_sched_\${SEC}_1.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_sched_\${SEC}_1.src_mac="\$m"; done
+uci set firewall.parental_sched_\${SEC}_1.start_time='$bFormatted'
+uci set firewall.parental_sched_\${SEC}_1.stop_time='$rFormatted'
+uci set firewall.parental_sched_\${SEC}_1.weekdays='$weekdaysStr'
+uci set firewall.parental_sched_\${SEC}_1.target='REJECT'
+uci set firewall.parental_sched_\${SEC}_1.enabled='1'
+uci reorder firewall.parental_sched_\${SEC}_1=0 2>/dev/null || true
+uci delete firewall.parental_sched_\${SEC}_2 2>/dev/null || true
+''';
+        } else {
+          // Overnight schedule (spans midnight, e.g. 22:00 to 07:00)
+          scheduleRulesScript =
+              '''
+uci set firewall.parental_sched_\${SEC}_1=rule
+uci set firewall.parental_sched_\${SEC}_1.name="parental_sched_\${SEC}_1"
+uci set firewall.parental_sched_\${SEC}_1.src='lan'
+uci set firewall.parental_sched_\${SEC}_1.dest='wan'
+uci delete firewall.parental_sched_\${SEC}_1.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_sched_\${SEC}_1.src_mac="\$m"; done
+uci set firewall.parental_sched_\${SEC}_1.start_time='$bFormatted'
+uci set firewall.parental_sched_\${SEC}_1.stop_time='23:59:59'
+uci set firewall.parental_sched_\${SEC}_1.weekdays='$weekdaysStr'
+uci set firewall.parental_sched_\${SEC}_1.target='REJECT'
+uci set firewall.parental_sched_\${SEC}_1.enabled='1'
+uci reorder firewall.parental_sched_\${SEC}_1=0 2>/dev/null || true
+
+uci set firewall.parental_sched_\${SEC}_2=rule
+uci set firewall.parental_sched_\${SEC}_2.name="parental_sched_\${SEC}_2"
+uci set firewall.parental_sched_\${SEC}_2.src='lan'
+uci set firewall.parental_sched_\${SEC}_2.dest='wan'
+uci delete firewall.parental_sched_\${SEC}_2.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_sched_\${SEC}_2.src_mac="\$m"; done
+uci set firewall.parental_sched_\${SEC}_2.start_time='00:00:00'
+uci set firewall.parental_sched_\${SEC}_2.stop_time='$rFormatted'
+uci set firewall.parental_sched_\${SEC}_2.weekdays='$nextMorningWeekdaysStr'
+uci set firewall.parental_sched_\${SEC}_2.target='REJECT'
+uci set firewall.parental_sched_\${SEC}_2.enabled='1'
+uci reorder firewall.parental_sched_\${SEC}_2=0 2>/dev/null || true
+''';
+        }
+      } else {
+        scheduleRulesScript = '''
+uci delete firewall.parental_sched_\${SEC}_1 2>/dev/null || true
+uci delete firewall.parental_sched_\${SEC}_2 2>/dev/null || true
+''';
+      }
+
+      // 1. Pause rule in firewall
+      String pauseRuleScript = '';
+      if (profile.isEnabled &&
+          profile.isPaused &&
+          profile.macAddresses.isNotEmpty) {
+        pauseRuleScript =
+            '''
+uci set firewall.parental_pause_\$SEC=rule
+uci set firewall.parental_pause_\$SEC.name="parental_pause_\$SEC"
+uci set firewall.parental_pause_\$SEC.src='lan'
+uci set firewall.parental_pause_\$SEC.dest='wan'
+uci delete firewall.parental_pause_\$SEC.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_pause_\$SEC.src_mac="\$m"; done
+uci set firewall.parental_pause_\$SEC.target='REJECT'
+uci set firewall.parental_pause_\$SEC.enabled='1'
+uci reorder firewall.parental_pause_\$SEC=0 2>/dev/null || true
+''';
+      } else {
+        pauseRuleScript = '''
+uci delete firewall.parental_pause_\$SEC 2>/dev/null || true
+''';
+      }
+
+      // 2. DNS content filter rules
+      String dnsFirewallScript = '';
+      String dhcpTagScript = '';
+      if (profile.isEnabled &&
+          profile.hasContentFilter &&
+          profile.macAddresses.isNotEmpty &&
+          dnsJoined.isNotEmpty) {
+        final ipv6Script = primaryIpv6.isNotEmpty
+            ? '''
+uci set firewall.parental_dns_redir6_\$SEC=redirect
+uci set firewall.parental_dns_redir6_\$SEC.name="parental_dns_redir6_\$SEC"
+uci set firewall.parental_dns_redir6_\$SEC.src='lan'
+uci set firewall.parental_dns_redir6_\$SEC.dest='wan'
+uci set firewall.parental_dns_redir6_\$SEC.proto='tcp udp'
+uci set firewall.parental_dns_redir6_\$SEC.family='ipv6'
+uci set firewall.parental_dns_redir6_\$SEC.src_dport='53'
+uci delete firewall.parental_dns_redir6_\$SEC.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_dns_redir6_\$SEC.src_mac="\$m"; done
+uci set firewall.parental_dns_redir6_\$SEC.dest_ip='$primaryIpv6'
+uci set firewall.parental_dns_redir6_\$SEC.dest_port='53'
+uci set firewall.parental_dns_redir6_\$SEC.target='DNAT'
+uci reorder firewall.parental_dns_redir6_\$SEC=0 2>/dev/null || true
+uci delete firewall.parental_dns_block6_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dns_in6_\$SEC 2>/dev/null || true
+'''
+            : '''
+uci delete firewall.parental_dns_redir6_\$SEC 2>/dev/null || true
+uci set firewall.parental_dns_block6_\$SEC=rule
+uci set firewall.parental_dns_block6_\$SEC.name="parental_dns_block6_\$SEC"
+uci set firewall.parental_dns_block6_\$SEC.src='lan'
+uci set firewall.parental_dns_block6_\$SEC.dest='*'
+uci set firewall.parental_dns_block6_\$SEC.proto='tcp udp'
+uci set firewall.parental_dns_block6_\$SEC.family='ipv6'
+uci set firewall.parental_dns_block6_\$SEC.dest_port='53'
+uci delete firewall.parental_dns_block6_\$SEC.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_dns_block6_\$SEC.src_mac="\$m"; done
+uci set firewall.parental_dns_block6_\$SEC.target='REJECT'
+uci set firewall.parental_dns_block6_\$SEC.enabled='1'
+uci reorder firewall.parental_dns_block6_\$SEC=0 2>/dev/null || true
+
+uci set firewall.parental_dns_in6_\$SEC=rule
+uci set firewall.parental_dns_in6_\$SEC.name="parental_dns_in6_\$SEC"
+uci set firewall.parental_dns_in6_\$SEC.src='lan'
+uci set firewall.parental_dns_in6_\$SEC.proto='tcp udp'
+uci set firewall.parental_dns_in6_\$SEC.family='ipv6'
+uci set firewall.parental_dns_in6_\$SEC.dest_port='53'
+uci delete firewall.parental_dns_in6_\$SEC.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_dns_in6_\$SEC.src_mac="\$m"; done
+uci set firewall.parental_dns_in6_\$SEC.target='REJECT'
+uci set firewall.parental_dns_in6_\$SEC.enabled='1'
+uci reorder firewall.parental_dns_in6_\$SEC=0 2>/dev/null || true
+''';
+
+        dnsFirewallScript =
+            '''
+uci set firewall.parental_dns_redir_\$SEC=redirect
+uci set firewall.parental_dns_redir_\$SEC.name="parental_dns_redir_\$SEC"
+uci set firewall.parental_dns_redir_\$SEC.src='lan'
+uci set firewall.parental_dns_redir_\$SEC.dest='wan'
+uci set firewall.parental_dns_redir_\$SEC.proto='tcp udp'
+uci set firewall.parental_dns_redir_\$SEC.src_dport='53'
+uci delete firewall.parental_dns_redir_\$SEC.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_dns_redir_\$SEC.src_mac="\$m"; done
+${primaryIpv4.isNotEmpty ? "uci set firewall.parental_dns_redir_\$SEC.dest_ip='$primaryIpv4'" : ""}
+uci set firewall.parental_dns_redir_\$SEC.dest_port='53'
+uci set firewall.parental_dns_redir_\$SEC.target='DNAT'
+uci reorder firewall.parental_dns_redir_\$SEC=0 2>/dev/null || true
+
+uci set firewall.parental_dot_block_\$SEC=rule
+uci set firewall.parental_dot_block_\$SEC.name="parental_dot_block_\$SEC"
+uci set firewall.parental_dot_block_\$SEC.src='lan'
+uci set firewall.parental_dot_block_\$SEC.dest='wan'
+uci set firewall.parental_dot_block_\$SEC.proto='tcp'
+uci set firewall.parental_dot_block_\$SEC.dest_port='853'
+uci delete firewall.parental_dot_block_\$SEC.src_mac 2>/dev/null || true
+for m in $macsStr; do uci add_list firewall.parental_dot_block_\$SEC.src_mac="\$m"; done
+uci set firewall.parental_dot_block_\$SEC.target='REJECT'
+uci set firewall.parental_dot_block_\$SEC.enabled='1'
+uci reorder firewall.parental_dot_block_\$SEC=0 2>/dev/null || true
+
+$ipv6Script
+''';
+
+        dhcpTagScript =
+            '''
+T="p_tag_\$SEC"
+uci set dhcp.\$T=tag
+uci delete dhcp.\$T.dhcp_option 2>/dev/null || true
+uci add_list dhcp.\$T.dhcp_option="6,$dnsJoined"
+for m in $macsStr; do
+  hostSec=\$(uci show dhcp 2>/dev/null | grep -i "@host.*\\.mac=.*\$m" | cut -d. -f2 | head -n1)
+  if [ -z "\$hostSec" ]; then
+    hostSec="p_host_\$(echo "\$m" | tr ':' '_')"
+    uci set dhcp.\$hostSec=host
+    uci set dhcp.\$hostSec.mac="\$m"
+    uci set dhcp.\$hostSec.name="p_\$(echo "\$m" | tr ':' '-')"
+  fi
+  uci set dhcp.\$hostSec.tag="\$T"
+done
+uci commit dhcp
+/etc/init.d/dnsmasq restart 2>/dev/null || true
+''';
+      } else {
+        dnsFirewallScript = '''
+uci delete firewall.parental_dns_redir_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dns_redir6_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dot_block_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dns_block6_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dns_in6_\$SEC 2>/dev/null || true
+''';
+
+        dhcpTagScript = '''
+T="p_tag_\$SEC"
+uci delete dhcp.\$T 2>/dev/null || true
+for sec_h in \$(uci show dhcp 2>/dev/null | grep -i '@host' | grep "\\.mac=" | cut -d. -f2 | sort -u); do
+  cur_tag=\$(uci get dhcp.\$sec_h.tag 2>/dev/null)
+  if [ "\$cur_tag" = "\$T" ]; then
+    uci delete dhcp.\$sec_h.tag 2>/dev/null || true
+  fi
+done
+uci commit dhcp
+/etc/init.d/dnsmasq restart 2>/dev/null || true
+''';
+      }
+
+      // 3. Conntrack and runtime firewall rule sync (insert at pos 1 for zero leakage)
+      String conntrackScript = '';
+      if (profile.isEnabled &&
+          (profile.isPaused || profile.isScheduleBlocked) &&
+          profile.macAddresses.isNotEmpty) {
+        conntrackScript =
+            '''
+for m in $macsStr; do
+  nft insert rule inet fw4 forward ether saddr "\$m" drop >/dev/null 2>&1 || true
+  nft insert rule inet fw4 forward ether daddr "\$m" drop >/dev/null 2>&1 || true
+  iptables -I FORWARD 1 -m mac --mac-source "\$m" -j DROP >/dev/null 2>&1 || true
+  for ip in \$(ip neigh show 2>/dev/null | grep -i "\$m" | awk '{print \$1}'); do
+    conntrack -D -s "\$ip" >/dev/null 2>&1 || true
+    conntrack -D -d "\$ip" >/dev/null 2>&1 || true
+  done
+done
+''';
+      } else if (!profile.isEnabled ||
+          (!profile.isPaused && !profile.isScheduleBlocked)) {
+        conntrackScript =
+            '''
+for m in $macsStr; do
+  nft -a list chain inet fw4 forward 2>/dev/null | grep -i "\$m" | awk '{print \$NF}' | while read -r h; do
+    [ -n "\$h" ] && nft delete rule inet fw4 forward handle "\$h" >/dev/null 2>&1 || true
+  done
+  while iptables -D FORWARD -m mac --mac-source "\$m" -j DROP >/dev/null 2>&1; do :; done
+done
+''';
+      }
+
+      // 4. Cron unpause script (100% null-safe)
+      String cronScript = '';
+      if (profile.isEnabled &&
+          profile.isPaused &&
+          profile.pauseExpiresAt != null) {
+        final expSec = profile.pauseExpiresAt!.millisecondsSinceEpoch ~/ 1000;
+        cronScript =
+            '''
+EXP="$expSec"
+CRON_TIME=\$(date -d @"\$EXP" +'%M %H %d %m' 2>/dev/null)
+if [ -n "\$CRON_TIME" ]; then
+  mkdir -p /etc/crontabs
+  touch /etc/crontabs/root
+  sed -i "/parental_pause_\$SEC/d" /etc/crontabs/root 2>/dev/null || true
+  echo "\$CRON_TIME * uci delete firewall.parental_pause_\$SEC 2>/dev/null; uci set parental.\$SEC.is_paused='0'; uci commit firewall; uci commit parental; /etc/init.d/firewall reload; sed -i '/parental_pause_\$SEC/d' /etc/crontabs/root" >> /etc/crontabs/root
+  /etc/init.d/cron enable 2>/dev/null || true
+  /etc/init.d/cron restart 2>/dev/null || /etc/init.d/cron start 2>/dev/null || /etc/init.d/crond restart 2>/dev/null || true
+fi
+''';
+      } else {
+        cronScript = '''
+sed -i "/parental_pause_\$SEC/d" /etc/crontabs/root 2>/dev/null || true
+''';
+      }
 
       final script =
           '''
@@ -2510,20 +2933,228 @@ uci delete parental.\$SEC.mac 2>/dev/null || true
 for m in $macsStr; do uci add_list parental.\$SEC.mac="\$m"; done
 uci delete parental.\$SEC.custom_dns 2>/dev/null || true
 for d in $dnsStr; do uci add_list parental.\$SEC.custom_dns="\$d"; done
+uci set parental.\$SEC.schedule_enabled="${profile.hasSchedule ? '1' : '0'}"
+uci set parental.\$SEC.schedule_block_hour="${profile.schedule?.blockHour ?? 22}"
+uci set parental.\$SEC.schedule_block_min="${profile.schedule?.blockMinute ?? 0}"
+uci set parental.\$SEC.schedule_resume_hour="${profile.schedule?.resumeHour ?? 7}"
+uci set parental.\$SEC.schedule_resume_min="${profile.schedule?.resumeMinute ?? 0}"
+uci delete parental.\$SEC.schedule_days 2>/dev/null || true
+for day in $daysStr; do uci add_list parental.\$SEC.schedule_days="\$day"; done
+uci set parental.\$SEC.daily_time_limit_minutes="${profile.hasTimeLimit ? profile.dailyTimeLimitMinutes! : 0}"
+uci set parental.\$SEC.pause_expires_at="${profile.pauseExpiresAt?.millisecondsSinceEpoch ?? 0}"
 uci commit parental
+
+# 1. Sync pause rule in firewall
+$pauseRuleScript
+
+# 2. Sync schedule rules in firewall
+$scheduleRulesScript
+
+# 3. Sync DNS content filter (Port 53 redirect and Port 853 drop)
+$dnsFirewallScript
+
+uci commit firewall
+/etc/init.d/firewall reload 2>/dev/null || true
+
+# Flush tracked DNS connections for target MACs
+for m in $macsStr; do
+  for ip in \$(ip neigh show 2>/dev/null | grep -i "\$m" | awk '{print \$1}'); do
+    conntrack -D -s "\$ip" -p udp --dport 53 >/dev/null 2>&1 || true
+    conntrack -D -s "\$ip" -p tcp --dport 53 >/dev/null 2>&1 || true
+    conntrack -D -d "\$ip" -p udp --sport 53 >/dev/null 2>&1 || true
+    conntrack -D -d "\$ip" -p tcp --sport 53 >/dev/null 2>&1 || true
+  done
+done
+$conntrackScript
+
+# 5. Cron auto-unpause registration
+$cronScript
+
+# 6. DHCP DNS Tagging
+$dhcpTagScript
+
+# 7. Autonomous minute-by-minute Parental Guard installation
+cat << 'GUARD_EOF' > /usr/bin/parental_guard
+#!/bin/sh
+[ -f /etc/config/parental ] || exit 0
+
+TODAY=\$(date +%Y%m%d)
+CUR_DAY=\$(date +%a)
+HOUR=\$(date +%H | sed 's/^0//')
+MIN=\$(date +%M | sed 's/^0//')
+HOUR=\${HOUR:-0}
+MIN=\${MIN:-0}
+CUR_MIN=\$(( HOUR * 60 + MIN ))
+NOW_EPOCH=\$(date +%s)
+
+profiles=\$(uci show parental 2>/dev/null | grep "=profile" | cut -d. -f2 | cut -d= -f1)
+[ -n "\$profiles" ] || exit 0
+
+for sec in \$profiles; do
+  enabled=\$(uci get parental.\$sec.is_enabled 2>/dev/null || echo "1")
+  if [ "\$enabled" = "0" ]; then
+    continue
+  fi
+
+  macs=\$(uci get parental.\$sec.mac 2>/dev/null)
+  [ -n "\$macs" ] || continue
+
+  is_paused=\$(uci get parental.\$sec.is_paused 2>/dev/null || echo "0")
+  pause_exp=\$(uci get parental.\$sec.pause_expires_at 2>/dev/null || echo "0")
+  if [ "\$is_paused" = "1" ] && [ "\$pause_exp" -gt 0 ] && [ "\$NOW_EPOCH" -ge "\$pause_exp" ]; then
+    uci set parental.\$sec.is_paused='0'
+    uci set parental.\$sec.pause_expires_at='0'
+    uci commit parental
+    is_paused="0"
+  fi
+
+  sched_enabled=\$(uci get parental.\$sec.schedule_enabled 2>/dev/null || echo "0")
+  sched_blocked=0
+  if [ "\$sched_enabled" = "1" ]; then
+    b_h=\$(uci get parental.\$sec.schedule_block_hour 2>/dev/null || echo "22")
+    b_m=\$(uci get parental.\$sec.schedule_block_min 2>/dev/null || echo "0")
+    r_h=\$(uci get parental.\$sec.schedule_resume_hour 2>/dev/null || echo "7")
+    r_m=\$(uci get parental.\$sec.schedule_resume_min 2>/dev/null || echo "0")
+    b_h=\$(echo "\$b_h" | sed 's/^0//'); b_h=\${b_h:-0}
+    b_m=\$(echo "\$b_m" | sed 's/^0//'); b_m=\${b_m:-0}
+    r_h=\$(echo "\$r_h" | sed 's/^0//'); r_h=\${r_h:-0}
+    r_m=\$(echo "\$r_m" | sed 's/^0//'); r_m=\${r_m:-0}
+    b_min=\$(( b_h * 60 + b_m ))
+    r_min=\$(( r_h * 60 + r_m ))
+
+    days=\$(uci get parental.\$sec.schedule_days 2>/dev/null)
+    day_match=0
+    if [ -z "\$days" ]; then
+      day_match=1
+    else
+      for d in \$days; do
+        if [ "\$d" = "\$CUR_DAY" ]; then
+          day_match=1
+          break
+        fi
+      done
+    fi
+
+    if [ "\$day_match" = "1" ]; then
+      if [ \$b_min -lt \$r_min ]; then
+        if [ \$CUR_MIN -ge \$b_min ] && [ \$CUR_MIN -lt \$r_min ]; then
+          sched_blocked=1
+        fi
+      elif [ \$b_min -gt \$r_min ]; then
+        if [ \$CUR_MIN -ge \$b_min ] || [ \$CUR_MIN -lt \$r_min ]; then
+          sched_blocked=1
+        fi
+      else
+        sched_blocked=1
+      fi
+    fi
+  fi
+
+  daily_limit=\$(uci get parental.\$sec.daily_time_limit_minutes 2>/dev/null || echo "0")
+  quota_blocked=0
+  if [ "\$daily_limit" -gt 0 ]; then
+    used_file="/tmp/parental_used_\${sec}"
+    last_date=""
+    used_mins=0
+    if [ -f "\$used_file" ]; then
+      content=\$(cat "\$used_file" 2>/dev/null)
+      last_date=\$(echo "\$content" | cut -d: -f1)
+      used_mins=\$(echo "\$content" | cut -d: -f2)
+      used_mins=\${used_mins:-0}
+    fi
+    if [ "\$last_date" != "\$TODAY" ]; then
+      used_mins=0
+    fi
+
+    is_active=0
+    for m in \$macs; do
+      if ip neigh show 2>/dev/null | grep -i "\$m" | grep -v -i "FAILED" >/dev/null 2>&1; then
+        is_active=1
+        break
+      fi
+    done
+
+    if [ "\$is_active" = "1" ] && [ "\$sched_blocked" = "0" ] && [ "\$is_paused" = "0" ]; then
+      used_mins=\$(( used_mins + 1 ))
+      echo "\${TODAY}:\${used_mins}" > "\$used_file"
+    fi
+
+    if [ "\$used_mins" -ge "\$daily_limit" ]; then
+      quota_blocked=1
+    fi
+  fi
+
+  should_block=0
+  if [ "\$is_paused" = "1" ] || [ "\$sched_blocked" = "1" ] || [ "\$quota_blocked" = "1" ]; then
+    should_block=1
+  fi
+
+  for m in \$macs; do
+    m_clean=\$(echo "\$m" | tr 'A-Z' 'a-z')
+    if [ "\$should_block" = "1" ]; then
+      if command -v nft >/dev/null 2>&1; then
+        nft list chain inet fw4 forward 2>/dev/null | grep -i "\$m_clean" >/dev/null 2>&1 || {
+          nft insert rule inet fw4 forward ether saddr "\$m_clean" drop >/dev/null 2>&1 || true
+          nft insert rule inet fw4 forward ether daddr "\$m_clean" drop >/dev/null 2>&1 || true
+        }
+      fi
+      if command -v iptables >/dev/null 2>&1; then
+        iptables -C FORWARD -m mac --mac-source "\$m_clean" -j DROP >/dev/null 2>&1 || {
+          iptables -I FORWARD 1 -m mac --mac-source "\$m_clean" -j DROP >/dev/null 2>&1 || true
+        }
+      fi
+      for ip in \$(ip neigh show 2>/dev/null | grep -i "\$m_clean" | awk '{print \$1}'); do
+        conntrack -D -s "\$ip" >/dev/null 2>&1 || true
+        conntrack -D -d "\$ip" >/dev/null 2>&1 || true
+      done
+    else
+      if command -v nft >/dev/null 2>&1; then
+        nft -a list chain inet fw4 forward 2>/dev/null | grep -i "\$m_clean" | awk '{print \$NF}' | while read -r h; do
+          [ -n "\$h" ] && nft delete rule inet fw4 forward handle "\$h" >/dev/null 2>&1 || true
+        done
+      fi
+      if command -v iptables >/dev/null 2>&1; then
+        while iptables -D FORWARD -m mac --mac-source "\$m_clean" -j DROP >/dev/null 2>&1; do :; done
+      fi
+    fi
+  done
+done
+GUARD_EOF
+chmod +x /usr/bin/parental_guard
+mkdir -p /etc/crontabs
+touch /etc/crontabs/root
+grep -q "/usr/bin/parental_guard" /etc/crontabs/root 2>/dev/null || echo "* * * * * /bin/sh /usr/bin/parental_guard >/dev/null 2>&1" >> /etc/crontabs/root
+/etc/init.d/cron enable 2>/dev/null || true
+/etc/init.d/cron start 2>/dev/null || /etc/init.d/cron restart 2>/dev/null || /etc/init.d/crond restart 2>/dev/null || true
+/bin/sh /usr/bin/parental_guard >/dev/null 2>&1 || true
 ''';
 
-      return await systemExec(
-            ipAddress,
-            sysauth,
-            useHttps,
-            command: script,
-            context: context,
-          ) !=
-          null;
+      final res = await systemExec(
+        ipAddress,
+        sysauth,
+        useHttps,
+        command: script,
+        context: context,
+      );
+      final ok = _execSucceeded(res);
+      if (!ok) {
+        Logger.warning('saveParentalProfile script execution failed: $res');
+        String detail = '';
+        if (res is List && res.length > 1 && res[1] is Map) {
+          final m = res[1] as Map;
+          final errText = m['stderr']?.toString().trim() ?? '';
+          if (errText.isNotEmpty) {
+            detail = errText;
+          }
+        }
+        if (detail.isNotEmpty) {
+          throw Exception('Router command failed: $detail');
+        }
+      }
+      return ok;
     } catch (e, stack) {
       Logger.exception('saveParentalProfile failed', e, stack);
-      return false;
+      rethrow;
     }
   }
 
@@ -2540,21 +3171,49 @@ uci commit parental
       final script =
           '''
 SEC="$sec"
+T="p_tag_\$SEC"
 uci delete parental.\$SEC 2>/dev/null || true
 uci commit parental
+
+uci delete firewall.parental_pause_\$SEC 2>/dev/null || true
+uci delete firewall.parental_sched_\${SEC}_1 2>/dev/null || true
+uci delete firewall.parental_sched_\${SEC}_2 2>/dev/null || true
+uci delete firewall.parental_dns_redir_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dns_redir6_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dot_block_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dns_block6_\$SEC 2>/dev/null || true
+uci delete firewall.parental_dns_in6_\$SEC 2>/dev/null || true
+uci commit firewall
+/etc/init.d/firewall reload 2>/dev/null || true
+
+sed -i "/parental_pause_\$SEC/d" /etc/crontabs/root 2>/dev/null || true
+
+uci delete dhcp.\$T 2>/dev/null || true
+for sec_h in \$(uci show dhcp 2>/dev/null | grep -i '@host' | grep "\\.mac=" | cut -d. -f2 | sort -u); do
+  cur_tag=\$(uci get dhcp.\$sec_h.tag 2>/dev/null)
+  if [ "\$cur_tag" = "\$T" ]; then
+    uci delete dhcp.\$sec_h.tag 2>/dev/null || true
+  fi
+done
+uci commit dhcp
+/etc/init.d/dnsmasq restart 2>/dev/null || true
 ''';
 
-      return await systemExec(
-            ipAddress,
-            sysauth,
-            useHttps,
-            command: script,
-            context: context,
-          ) !=
-          null;
+      final res = await systemExec(
+        ipAddress,
+        sysauth,
+        useHttps,
+        command: script,
+        context: context,
+      );
+      final ok = _execSucceeded(res);
+      if (!ok) {
+        Logger.warning('deleteParentalProfile script execution failed: $res');
+      }
+      return ok;
     } catch (e, stack) {
       Logger.exception('deleteParentalProfile failed', e, stack);
-      return false;
+      rethrow;
     }
   }
 
@@ -4568,10 +5227,16 @@ exit 0
         ? '''
 MAC_U="$macUpper"
 MAC_L="$macLower"
-nft add rule inet fw4 forward ether saddr "\$MAC_U" drop >/dev/null 2>&1 || true
-nft add rule inet fw4 forward ether saddr "\$MAC_L" drop >/dev/null 2>&1 || true
-iptables -I FORWARD -m mac --mac-source "\$MAC_U" -j DROP >/dev/null 2>&1 || true
-iptables -I FORWARD -m mac --mac-source "\$MAC_L" -j DROP >/dev/null 2>&1 || true
+nft insert rule inet fw4 forward ether saddr "\$MAC_U" drop >/dev/null 2>&1 || true
+nft insert rule inet fw4 forward ether daddr "\$MAC_U" drop >/dev/null 2>&1 || true
+nft insert rule inet fw4 forward ether saddr "\$MAC_L" drop >/dev/null 2>&1 || true
+nft insert rule inet fw4 forward ether daddr "\$MAC_L" drop >/dev/null 2>&1 || true
+iptables -I FORWARD 1 -m mac --mac-source "\$MAC_U" -j DROP >/dev/null 2>&1 || true
+iptables -I FORWARD 1 -m mac --mac-source "\$MAC_L" -j DROP >/dev/null 2>&1 || true
+for ip in \$(ip neigh show 2>/dev/null | grep -i "\$MAC_U" | awk '{print \$1}'); do
+  conntrack -D -s "\$ip" >/dev/null 2>&1 || true
+  conntrack -D -d "\$ip" >/dev/null 2>&1 || true
+done
 exit 0
 '''
         : '''
@@ -4583,15 +5248,16 @@ EXISTS=\$(uci show firewall 2>/dev/null | grep -i "name=['"]*\${RULE_NAME}['"]*"
 if [ -z "\$EXISTS" ]; then
   uci add firewall rule >/dev/null
   uci set firewall.@rule[-1].name="\$RULE_NAME"
-  uci set firewall.@rule[-1].src='*'
+  uci set firewall.@rule[-1].src='lan'
   uci set firewall.@rule[-1].dest='wan'
   uci add_list firewall.@rule[-1].src_mac="\$MAC_U"
-  uci set firewall.@rule[-1].target='DROP'
+  uci set firewall.@rule[-1].target='REJECT'
   uci set firewall.@rule[-1].enabled='1'
 else
   SEC=\$(uci show firewall 2>/dev/null | grep -i "name=['"]*\${RULE_NAME}['"]*" | cut -d. -f2)
   if [ -n "\$SEC" ]; then
-    uci set firewall.\${SEC}.src='*' 2>/dev/null || true
+    uci set firewall.\${SEC}.src='lan' 2>/dev/null || true
+    uci set firewall.\${SEC}.target='REJECT' 2>/dev/null || true
     MAC_EXISTS=\$(uci get firewall.\${SEC}.src_mac 2>/dev/null | grep -i "\$MAC_U")
     if [ -z "\$MAC_EXISTS" ]; then
       uci add_list firewall.\${SEC}.src_mac="\$MAC_U"
@@ -4601,10 +5267,16 @@ fi
 uci commit firewall
 /etc/init.d/firewall reload >/dev/null 2>&1
 
-nft add rule inet fw4 forward ether saddr "\$MAC_U" drop >/dev/null 2>&1 || true
-nft add rule inet fw4 forward ether saddr "\$MAC_L" drop >/dev/null 2>&1 || true
-iptables -I FORWARD -m mac --mac-source "\$MAC_U" -j DROP >/dev/null 2>&1 || true
-iptables -I FORWARD -m mac --mac-source "\$MAC_L" -j DROP >/dev/null 2>&1 || true
+nft insert rule inet fw4 forward ether saddr "\$MAC_U" drop >/dev/null 2>&1 || true
+nft insert rule inet fw4 forward ether daddr "\$MAC_U" drop >/dev/null 2>&1 || true
+nft insert rule inet fw4 forward ether saddr "\$MAC_L" drop >/dev/null 2>&1 || true
+nft insert rule inet fw4 forward ether daddr "\$MAC_L" drop >/dev/null 2>&1 || true
+iptables -I FORWARD 1 -m mac --mac-source "\$MAC_U" -j DROP >/dev/null 2>&1 || true
+iptables -I FORWARD 1 -m mac --mac-source "\$MAC_L" -j DROP >/dev/null 2>&1 || true
+for ip in \$(ip neigh show 2>/dev/null | grep -i "\$MAC_U" | awk '{print \$1}'); do
+  conntrack -D -s "\$ip" >/dev/null 2>&1 || true
+  conntrack -D -d "\$ip" >/dev/null 2>&1 || true
+done
 exit 0
 ''';
 
@@ -4789,10 +5461,14 @@ exit 0
 MAC_U="$macUpper"
 MAC_L="$macLower"
 (
-  nft delete rule inet fw4 forward ether saddr "\$MAC_U" >/dev/null 2>&1 || true
-  nft delete rule inet fw4 forward ether saddr "\$MAC_L" >/dev/null 2>&1 || true
-  iptables -D FORWARD -m mac --mac-source "\$MAC_U" -j DROP >/dev/null 2>&1 || true
-  iptables -D FORWARD -m mac --mac-source "\$MAC_L" -j DROP >/dev/null 2>&1 || true
+  nft -a list chain inet fw4 forward 2>/dev/null | grep -i "\$MAC_U" | awk '{print \$NF}' | while read -r h; do
+    [ -n "\$h" ] && nft delete rule inet fw4 forward handle "\$h" >/dev/null 2>&1 || true
+  done
+  nft -a list chain inet fw4 forward 2>/dev/null | grep -i "\$MAC_L" | awk '{print \$NF}' | while read -r h; do
+    [ -n "\$h" ] && nft delete rule inet fw4 forward handle "\$h" >/dev/null 2>&1 || true
+  done
+  while iptables -D FORWARD -m mac --mac-source "\$MAC_U" -j DROP >/dev/null 2>&1; do :; done
+  while iptables -D FORWARD -m mac --mac-source "\$MAC_L" -j DROP >/dev/null 2>&1; do :; done
 ) >/dev/null 2>&1 &
 exit 0
 ''';
@@ -4841,10 +5517,14 @@ if [ "\$MODIFIED" -eq 1 ]; then
 fi
 
 (
-  nft delete rule inet fw4 forward ether saddr "\$MAC_U" >/dev/null 2>&1 || true
-  nft delete rule inet fw4 forward ether saddr "\$MAC_L" >/dev/null 2>&1 || true
-  iptables -D FORWARD -m mac --mac-source "\$MAC_U" -j DROP >/dev/null 2>&1 || true
-  iptables -D FORWARD -m mac --mac-source "\$MAC_L" -j DROP >/dev/null 2>&1 || true
+  nft -a list chain inet fw4 forward 2>/dev/null | grep -i "\$MAC_U" | awk '{print \$NF}' | while read -r h; do
+    [ -n "\$h" ] && nft delete rule inet fw4 forward handle "\$h" >/dev/null 2>&1 || true
+  done
+  nft -a list chain inet fw4 forward 2>/dev/null | grep -i "\$MAC_L" | awk '{print \$NF}' | while read -r h; do
+    [ -n "\$h" ] && nft delete rule inet fw4 forward handle "\$h" >/dev/null 2>&1 || true
+  done
+  while iptables -D FORWARD -m mac --mac-source "\$MAC_U" -j DROP >/dev/null 2>&1; do :; done
+  while iptables -D FORWARD -m mac --mac-source "\$MAC_L" -j DROP >/dev/null 2>&1; do :; done
 ) >/dev/null 2>&1 &
 exit 0
 ''';
@@ -6752,6 +7432,128 @@ exit 0
   }
 
   @override
+  Future<bool> applyClientSpeedLimits(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required List<ClientSpeedLimit> limits,
+    required RouterCapabilities capabilities,
+    BuildContext? context,
+  }) async {
+    final routerId = '${useHttps ? "https" : "http"}://$ipAddress';
+    return await RouterScopedOperationQueue.instance.runLocked(
+      routerId: routerId,
+      domain: 'qos',
+      action: () async {
+        final mCtx = mountedContext(context);
+        try {
+          final activeLimits = limits
+              .where((l) => l.isEffectivelyRestricted)
+              .toList();
+
+          final qosScript = ClientSpeedLimitTranslator.generateQosScript(
+            limits,
+          );
+          final initScript =
+              ClientSpeedLimitTranslator.generateInitServiceScript();
+
+          // 1. Write /usr/sbin/yala-qos
+          final writeRes = await callWithContext(
+            ipAddress,
+            sysauth,
+            useHttps,
+            object: 'file',
+            method: 'write',
+            params: {
+              'path': ClientSpeedLimitTranslator.scriptPath,
+              'data': qosScript,
+            },
+            context: mCtx,
+          );
+
+          bool writeOk = execSucceeded(writeRes);
+          if (!writeOk) {
+            final shRes = await callWithContext(
+              ipAddress,
+              sysauth,
+              useHttps,
+              object: 'file',
+              method: 'exec',
+              params: fileExecParams('/bin/sh', [
+                '-c',
+                "cat << 'EOF' > ${ClientSpeedLimitTranslator.scriptPath}\n$qosScript\nEOF",
+              ]),
+              context: mCtx,
+            );
+            writeOk = execSucceeded(shRes);
+          }
+
+          if (!writeOk) {
+            Logger.warning(
+              'applyClientSpeedLimits: failed to write ${ClientSpeedLimitTranslator.scriptPath}',
+            );
+            return false;
+          }
+
+          // 2. Write /etc/init.d/yala-qos service script for boot persistence
+          final initWriteRes = await callWithContext(
+            ipAddress,
+            sysauth,
+            useHttps,
+            object: 'file',
+            method: 'write',
+            params: {
+              'path': ClientSpeedLimitTranslator.initServicePath,
+              'data': initScript,
+            },
+            context: mCtx,
+          );
+          if (!execSucceeded(initWriteRes)) {
+            await callWithContext(
+              ipAddress,
+              sysauth,
+              useHttps,
+              object: 'file',
+              method: 'exec',
+              params: fileExecParams('/bin/sh', [
+                '-c',
+                "cat << 'EOF' > ${ClientSpeedLimitTranslator.initServicePath}\n$initScript\nEOF",
+              ]),
+              context: mCtx,
+            );
+          }
+
+          // 3. Make scripts executable and apply / stop
+          final actionCmd = activeLimits.isEmpty
+              ? 'chmod +x ${ClientSpeedLimitTranslator.scriptPath} ${ClientSpeedLimitTranslator.initServicePath} 2>/dev/null; '
+                    '${ClientSpeedLimitTranslator.scriptPath} stop 2>/dev/null; '
+                    '${ClientSpeedLimitTranslator.initServicePath} disable 2>/dev/null; '
+                    'rm -f ${ClientSpeedLimitTranslator.legacyNftablesPath} 2>/dev/null'
+              : 'chmod +x ${ClientSpeedLimitTranslator.scriptPath} ${ClientSpeedLimitTranslator.initServicePath} 2>/dev/null; '
+                    '${ClientSpeedLimitTranslator.scriptPath} apply 2>/dev/null; '
+                    '${ClientSpeedLimitTranslator.initServicePath} enable 2>/dev/null; '
+                    'rm -f ${ClientSpeedLimitTranslator.legacyNftablesPath} 2>/dev/null';
+
+          final execRes = await callWithContext(
+            ipAddress,
+            sysauth,
+            useHttps,
+            object: 'file',
+            method: 'exec',
+            params: fileExecParams('/bin/sh', ['-c', actionCmd]),
+            context: mCtx,
+          );
+
+          return execSucceeded(execRes);
+        } catch (e, stack) {
+          Logger.exception('applyClientSpeedLimits failed', e, stack);
+          return false;
+        }
+      },
+    );
+  }
+
+  @override
   Future<bool> banWirelessClient(
     String ipAddress,
     String sysauth,
@@ -7374,13 +8176,13 @@ echo "\$PAUSE_FW_UCI \$NFT_MACS \$IPT_MACS" | tr ' ' '\\n' | grep -vE "^00:00:00
         addSuccess = _execSucceeded(shellRes);
       }
 
-      // Restart dnsmasq service to ensure clean recovery & application of static lease
+      // Reload dnsmasq service to apply static lease without terminating daemon
       await manageServiceAction(
         ipAddress,
         sysauth,
         useHttps,
         serviceName: 'dnsmasq',
-        action: 'restart',
+        action: 'reload',
         context: mountedContext(context),
       );
 
@@ -10255,6 +11057,106 @@ rm -f "$leasePath" /tmp/dhcp.leases /var/dhcp.leases /tmp/dnsmasq.leases /var/li
         );
       } catch (_) {}
       return false;
+    }
+  }
+
+  @override
+  Future<DnsmasqServiceResult> reloadDnsmasq(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    final mCtx = mountedContext(context);
+    try {
+      final res = await manageServiceAction(
+        ipAddress,
+        sysauth,
+        useHttps,
+        serviceName: 'dnsmasq',
+        action: 'reload',
+        context: mCtx,
+      );
+      if (res) {
+        return DnsmasqServiceResult.success();
+      }
+      return DnsmasqServiceResult.failure('Failed to reload dnsmasq service');
+    } catch (e) {
+      return DnsmasqServiceResult.failure(e.toString());
+    }
+  }
+
+  @override
+  Future<LogFetchResult> fetchSyslog(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    int lines = 200,
+    BuildContext? context,
+  }) async {
+    final mCtx = mountedContext(context);
+    try {
+      final res = await callWithContext(
+        ipAddress,
+        sysauth,
+        useHttps,
+        object: 'file',
+        method: 'exec',
+        params: fileExecParams('/sbin/logread', ['-l', lines.toString()]),
+        context: mCtx,
+      );
+      if (res is Map && res['stdout'] is String) {
+        final raw = res['stdout'] as String;
+        final rawLines = const LineSplitter().convert(raw);
+        final entries = <LogEntry>[];
+        for (var i = 0; i < rawLines.length; i++) {
+          final l = rawLines[i].trim();
+          if (l.isNotEmpty) {
+            entries.add(LogEntry.fromSyslogLine(i, l));
+          }
+        }
+        return LogFetchSuccess(entries);
+      }
+      return const LogFetchRpcError(message: 'Invalid logread response');
+    } catch (e) {
+      return LogFetchRpcError(message: e.toString());
+    }
+  }
+
+  @override
+  Future<LogFetchResult> fetchKernelLog(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    int lines = 200,
+    BuildContext? context,
+  }) async {
+    final mCtx = mountedContext(context);
+    try {
+      final res = await callWithContext(
+        ipAddress,
+        sysauth,
+        useHttps,
+        object: 'file',
+        method: 'exec',
+        params: fileExecParams('/bin/dmesg', ['-r']),
+        context: mCtx,
+      );
+      if (res is Map && res['stdout'] is String) {
+        final raw = res['stdout'] as String;
+        final rawLines = const LineSplitter().convert(raw);
+        final entries = <LogEntry>[];
+        for (var i = 0; i < rawLines.length; i++) {
+          final l = rawLines[i].trim();
+          if (l.isNotEmpty) {
+            entries.add(LogEntry.fromDmesgLine(i, l));
+          }
+        }
+        return LogFetchSuccess(entries);
+      }
+      return const LogFetchRpcError(message: 'Invalid dmesg response');
+    } catch (e) {
+      return LogFetchRpcError(message: e.toString());
     }
   }
 }

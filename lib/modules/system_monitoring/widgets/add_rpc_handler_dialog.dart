@@ -144,7 +144,6 @@ class _AddRpcHandlerDialogState extends ConsumerState<AddRpcHandlerDialog> {
     return AlertDialog(
       actionsOverflowButtonSpacing: 8,
       actionsOverflowDirection: VerticalDirection.down,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       icon: Icon(
         Icons.thermostat_outlined,
         color: theme.colorScheme.primary,

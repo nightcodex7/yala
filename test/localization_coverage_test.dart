@@ -60,7 +60,29 @@ void main() {
     );
 
     test(
-      '3. Verify all 9 supported locales load all new keys without missing any',
+      '2b. Verify Ukrainian (uk) translations exist and match expected texts',
+      () async {
+        final l10n = await AppLocalizations.delegate.load(const Locale('uk'));
+
+        expect(
+          l10n.routerSecuritySection,
+          equals('БЕЗПЕКА ТА ДОСТУП ДО МАРШРУТИЗАТОРА'),
+        );
+        expect(l10n.privacyPolicyTitle, equals('Політика конфіденційності'));
+        expect(l10n.termsAndConditionsTitle, equals('Умови використання'));
+        expect(
+          l10n.loginFailedSession('ncxTest (192.168.1.1)'),
+          equals('Не вдалося встановити сеанс із ncxTest (192.168.1.1).'),
+        );
+        expect(
+          l10n.rpcBtnReverifyRepair,
+          equals('Перевірити знову / Відновити'),
+        );
+      },
+    );
+
+    test(
+      '3. Verify all 10 supported locales load all new keys without missing any',
       () async {
         for (final locale in AppLocalizations.supportedLocales) {
           final l10n = await AppLocalizations.delegate.load(locale);

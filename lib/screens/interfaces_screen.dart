@@ -85,83 +85,89 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        title: Row(
-          children: [
-            const Icon(Icons.gpp_maybe_rounded, color: Colors.red, size: 28),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                l10n?.lockoutWarningTitle ?? 'CRITICAL LOCKOUT WARNING',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          icon: Icon(
+            Icons.gpp_maybe_rounded,
+            color: theme.colorScheme.error,
+            size: 36,
+          ),
+          title: Text(
+            l10n?.lockoutWarningTitle ?? 'CRITICAL LOCKOUT WARNING',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
             ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n?.lockoutWarningBody(interfaceName) ??
-                    'Disabling active access interface "$interfaceName" will lock you out of this router!\n',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                l10n?.lockoutWarningDesc ??
-                    'This is your ACTIVE ACCESS INTERFACE hosting your management session. Disabling it will immediately break communication between the app and the router.',
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade300),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n?.lockoutWarningBody(interfaceName) ??
+                      'Disabling active access interface "$interfaceName" will lock you out of this router!\n',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.report_problem,
-                      size: 18,
-                      color: Colors.red,
+                Text(
+                  l10n?.lockoutWarningDesc ??
+                      'This is your ACTIVE ACCESS INTERFACE hosting your management session. Disabling it will immediately break communication between the app and the router.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer.withValues(
+                      alpha: 0.3,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        l10n?.lockoutWarningSure ??
-                            'Are you absolutely sure you want to proceed?',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.red,
-                          fontWeight: FontWeight.w600,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: theme.colorScheme.error.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.report_problem,
+                        size: 18,
+                        color: theme.colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n?.lockoutWarningSure ??
+                              'Are you absolutely sure you want to proceed?',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: theme.colorScheme.error,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.error,
+                foregroundColor: theme.colorScheme.onError,
               ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade800),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n?.btnDisableInterface ?? 'Disable Interface'),
-          ),
-        ],
-      ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(l10n?.btnDisableInterface ?? 'Disable Interface'),
+            ),
+          ],
+        );
+      },
     );
     return confirm ?? false;
   }
@@ -171,92 +177,83 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        title: Row(
-          children: [
-            const Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.orange,
-              size: 28,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final warnColor = LuciStatusColors.warningColor(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          icon: Icon(Icons.warning_amber_rounded, color: warnColor, size: 36),
+          title: Text(
+            l10n?.activeAccessRestartTitle ?? 'ACTIVE ACCESS RESTART',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                l10n?.activeAccessRestartTitle ?? 'ACTIVE ACCESS RESTART',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n?.activeAccessRestartBody(interfaceName) ??
+                      'Restarting active access interface "$interfaceName" will temporarily sever your app connection!\n',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+                Text(
+                  l10n?.activeAccessRestartDesc ??
+                      'This is your ACTIVE ACCESS INTERFACE hosting your management session. Restarting it will temporarily break communication until the interface re-establishes network binding.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: LuciStatusColors.warningBg(ctx),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: LuciStatusColors.warningBorder(ctx),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.sync_problem, size: 18, color: warnColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n?.activeAccessRestartNotice ??
+                              'Temporary Disconnection: Please allow a few seconds for the router to complete interface re-binding.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: LuciStatusColors.warningText(ctx),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: warnColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(
+                l10n?.btnRestartTempDisconnect ??
+                    'Restart (Temporary Disconnect)',
               ),
             ),
           ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n?.activeAccessRestartBody(interfaceName) ??
-                    'Restarting active access interface "$interfaceName" will temporarily sever your app connection!\n',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                l10n?.activeAccessRestartDesc ??
-                    'This is your ACTIVE ACCESS INTERFACE hosting your management session. Restarting it will temporarily break communication until the interface re-establishes network binding.',
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade300),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.sync_problem,
-                      size: 18,
-                      color: Colors.orange,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        l10n?.activeAccessRestartNotice ??
-                            'Temporary Disconnection: Please allow a few seconds for the router to complete interface re-binding.',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.orange.shade800,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              l10n?.btnRestartTempDisconnect ??
-                  'Restart (Temporary Disconnect)',
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
     return confirm ?? false;
   }
@@ -265,59 +262,53 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
     final l10n = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        title: Row(
-          children: [
-            const Icon(
-              Icons.public_off_outlined,
-              color: Colors.indigo,
-              size: 28,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          icon: Icon(
+            Icons.public_off_outlined,
+            color: theme.colorScheme.primary,
+            size: 36,
+          ),
+          title: Text(
+            l10n?.restartWanTitle ?? 'RESTART WAN INTERFACE',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                l10n?.restartWanTitle ?? 'RESTART WAN INTERFACE',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n?.restartWanBody(interfaceName) ??
+                      'Restarting WAN interface "$interfaceName" will renew its internet lease and drop active WAN connections.\n',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+                Text(
+                  l10n?.restartWanDesc ??
+                      'All devices connected to this router will temporarily lose external internet access until the WAN link re-connects.',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(
+                l10n?.btnRestartWanInterface ?? 'Restart WAN Interface',
               ),
             ),
           ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n?.restartWanBody(interfaceName) ??
-                    'Restarting WAN interface "$interfaceName" will renew its internet lease and drop active WAN connections.\n',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                l10n?.restartWanDesc ??
-                    'All devices connected to this router will temporarily lose external internet access until the WAN link re-connects.',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.indigo),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              l10n?.btnRestartWanInterface ?? 'Restart WAN Interface',
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
     return confirm ?? false;
   }
@@ -553,7 +544,7 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
       if (mounted) {
         context.showToastError(
           'Apply Failed',
-          subtitle: e.toString().replaceAll('Exception: ', ''),
+          subtitle: LuciToastManager.parseErrorReason(e),
         );
       }
     } finally {
@@ -714,6 +705,12 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
         _scrollToInterface(_targetInterface!);
       });
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _lastRenderedScaffold = null;
   }
 
   @override
@@ -1959,7 +1956,7 @@ class _InterfacesScreenState extends ConsumerState<InterfacesScreen> {
                     )
                   else
                     Expanded(
-                      child: SelectableText(
+                      child: Text(
                         value,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
@@ -2592,8 +2589,8 @@ class _UnifiedNetworkCardState extends State<UnifiedNetworkCard>
                                         fontSize: 14.5,
                                         fontWeight: FontWeight.bold,
                                       ),
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  softWrap: false,
                                   semanticsLabel:
                                       'Interface name: ${widget.name}',
                                 ),

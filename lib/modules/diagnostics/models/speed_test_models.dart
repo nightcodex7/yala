@@ -129,6 +129,9 @@ class SpeedTestResult {
   /// Error message if a phase failed.
   final String? errorMessage;
 
+  /// Whether the failure was specifically caused by rpcd ACL permission denial (status 6).
+  final bool isPermissionDenied;
+
   const SpeedTestResult({
     this.downloadSpeedMbps,
     this.uploadSpeedMbps,
@@ -147,11 +150,19 @@ class SpeedTestResult {
     this.latencySamples = const [],
     this.stage = SpeedTestStage.completed,
     this.errorMessage,
+    this.isPermissionDenied = false,
   });
 
   bool get isSuccess =>
       stage == SpeedTestStage.completed &&
       (downloadSpeedMbps != null || uploadSpeedMbps != null);
+
+  /// Helper to check if failure was due to missing OpenWrt rpcd execution permissions
+  bool get isRpcPermissionError =>
+      isPermissionDenied ||
+      (errorMessage != null &&
+          (errorMessage!.contains('RPC execution permissions') ||
+              errorMessage!.contains('RPC Setup')));
 
   Map<String, dynamic> toJson() => {
     'downloadSpeedMbps': downloadSpeedMbps,
@@ -171,6 +182,7 @@ class SpeedTestResult {
     'latencySamples': latencySamples,
     'stage': stage.name,
     'errorMessage': errorMessage,
+    'isPermissionDenied': isPermissionDenied,
   };
 
   factory SpeedTestResult.fromJson(Map<String, dynamic> json) {
@@ -204,6 +216,7 @@ class SpeedTestResult {
         orElse: () => SpeedTestStage.completed,
       ),
       errorMessage: json['errorMessage'] as String?,
+      isPermissionDenied: json['isPermissionDenied'] as bool? ?? false,
     );
   }
 }

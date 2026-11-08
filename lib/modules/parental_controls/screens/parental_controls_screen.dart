@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/main.dart';
 import 'package:yet_another_luci_app/widgets/luci_toast.dart';
 import 'package:yet_another_luci_app/utils/os_platform_integration.dart';
@@ -13,6 +14,7 @@ import '../models/parental_profile.dart';
 import '../controllers/parental_controls_controller.dart';
 import '../widgets/add_edit_profile_dialog.dart';
 import '../widgets/parental_profile_card.dart';
+import '../widgets/parental_profile_details_sheet.dart';
 
 class ParentalControlsScreen extends ConsumerStatefulWidget {
   const ParentalControlsScreen({super.key});
@@ -43,6 +45,14 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _refreshProfiles() async {
+    final appState = ref.read(appStateProvider);
+    await _controller.loadStore(appState);
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -92,7 +102,11 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
       context.showToastSuccess(result.message, actionKey: actionKey);
     } else {
       unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
-      context.showToastError(result.message, actionKey: actionKey);
+      context.showToastError(
+        result.message,
+        subtitle: result.errorReason,
+        actionKey: actionKey,
+      );
     }
   }
 
@@ -116,7 +130,11 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
       context.showToastSuccess(result.message, actionKey: actionKey);
     } else {
       unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
-      context.showToastError(result.message, actionKey: actionKey);
+      context.showToastError(
+        result.message,
+        subtitle: result.errorReason,
+        actionKey: actionKey,
+      );
     }
   }
 
@@ -126,13 +144,32 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
       builder: (ctx) => AddEditProfileDialog(
         allProfiles: _controller.store.profiles,
         onSave: (profile) async {
+          final actionKey = 'add_profile_${profile.id}';
+          context.showToastLoading(
+            'Applying parental controls for ${profile.name}…',
+            actionKey: actionKey,
+          );
           final appState = ref.read(appStateProvider);
-          final res = await _controller.addProfile(profile, appState);
+          final res = await _controller.addProfile(
+            profile,
+            appState,
+            context: context,
+          );
           if (mounted && res.message.isNotEmpty) {
             if (res.success) {
-              context.showToastSuccess(res.message);
+              unawaited(
+                OsPlatformIntegration.triggerHaptic(OsHapticType.medium),
+              );
+              context.showToastSuccess(res.message, actionKey: actionKey);
             } else {
-              context.showToastError(res.message);
+              unawaited(
+                OsPlatformIntegration.triggerHaptic(OsHapticType.heavy),
+              );
+              context.showToastError(
+                res.message,
+                subtitle: res.errorReason,
+                actionKey: actionKey,
+              );
             }
           }
         },
@@ -147,22 +184,69 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
         existing: profile,
         allProfiles: _controller.store.profiles,
         onSave: (updated) async {
+          final actionKey = 'update_profile_${profile.id}';
+          context.showToastLoading(
+            'Saving parental controls for ${updated.name}…',
+            actionKey: actionKey,
+          );
           final appState = ref.read(appStateProvider);
           final res = await _controller.updateProfile(
             updated,
             profile,
             appState,
+            context: context,
           );
           if (mounted && res.message.isNotEmpty) {
             if (res.success) {
-              context.showToastSuccess(res.message);
+              unawaited(
+                OsPlatformIntegration.triggerHaptic(OsHapticType.medium),
+              );
+              context.showToastSuccess(res.message, actionKey: actionKey);
             } else {
-              context.showToastError(res.message);
+              unawaited(
+                OsPlatformIntegration.triggerHaptic(OsHapticType.heavy),
+              );
+              context.showToastError(
+                res.message,
+                subtitle: res.errorReason,
+                actionKey: actionKey,
+              );
             }
           }
         },
       ),
     );
+  }
+
+  Future<void> _toggleProfileEnabled(ParentalProfile profile) async {
+    if (!mounted) return;
+    final actionKey = 'toggle_profile_${profile.id}';
+    context.showToastLoading(
+      profile.isEnabled
+          ? 'Bypassing restrictions for ${profile.name}…'
+          : 'Enforcing guardrails for ${profile.name}…',
+      actionKey: actionKey,
+    );
+    final appState = ref.read(appStateProvider);
+    final res = await _controller.toggleProfileEnabled(
+      profile.id,
+      appState,
+      context: context,
+    );
+    if (!mounted) return;
+    if (res.message.isNotEmpty) {
+      if (res.success) {
+        unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.medium));
+        context.showToastInfo(res.message, actionKey: actionKey);
+      } else {
+        unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
+        context.showToastError(
+          res.message,
+          subtitle: res.errorReason,
+          actionKey: actionKey,
+        );
+      }
+    }
   }
 
   void _confirmDeleteProfile(ParentalProfile profile) {
@@ -187,17 +271,39 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
           FilledButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              final actionKey = 'delete_profile_${profile.id}';
+              context.showToastLoading(
+                'Deleting profile ${profile.name}…',
+                actionKey: actionKey,
+              );
               final appState = ref.read(appStateProvider);
-              final res = await _controller.deleteProfile(profile.id, appState);
+              final res = await _controller.deleteProfile(
+                profile.id,
+                appState,
+                context: context,
+              );
               if (mounted && res.message.isNotEmpty) {
                 if (res.success) {
-                  context.showToastInfo(res.message);
+                  unawaited(
+                    OsPlatformIntegration.triggerHaptic(OsHapticType.medium),
+                  );
+                  context.showToastInfo(res.message, actionKey: actionKey);
                 } else {
-                  context.showToastError(res.message);
+                  unawaited(
+                    OsPlatformIntegration.triggerHaptic(OsHapticType.heavy),
+                  );
+                  context.showToastError(
+                    res.message,
+                    subtitle: res.errorReason,
+                    actionKey: actionKey,
+                  );
                 }
               }
             },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
             child: Text(l10n?.parentalProfileBtnDelete ?? 'Delete'),
           ),
         ],
@@ -234,7 +340,7 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
           if (!hasFirewall)
             _CapabilityBanner(
               icon: Icons.shield_outlined,
-              color: Colors.orange,
+              color: LuciStatusColors.warningColor(context),
               message:
                   l10n?.parentalNoUciDesc ??
                   'No UCI write access detected. Internet pause and content filter '
@@ -262,36 +368,52 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : profiles.isEmpty
-                ? _EmptyState(onAdd: _openAddProfile)
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                    itemCount: profiles.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (ctx, i) {
-                      final profile = profiles[i];
-                      return ParentalProfileCard(
-                        profile: profile,
-                        hasFirewall: hasFirewall,
-                        hasFileExec: hasFileExec,
-                        onPause: (duration) => _pauseProfile(profile, duration),
-                        onResume: () => _resumeProfile(profile),
-                        onEdit: () => _openEditProfile(profile),
-                        onDelete: () => _confirmDeleteProfile(profile),
-                        onToggleEnabled: () async {
-                          final appState = ref.read(appStateProvider);
-                          final res = await _controller.toggleProfileEnabled(
-                            profile.id,
-                            appState,
-                          );
-                          if (mounted &&
-                              context.mounted &&
-                              res.message.isNotEmpty) {
-                            context.showToastInfo(res.message);
-                          }
-                        },
-                      );
-                    },
+                : RefreshIndicator(
+                    onRefresh: _refreshProfiles,
+                    child: profiles.isEmpty
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: SizedBox(
+                              height: 400,
+                              child: _EmptyState(onAdd: _openAddProfile),
+                            ),
+                          )
+                        : ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                            itemCount: profiles.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (ctx, i) {
+                              final profile = profiles[i];
+                              return ParentalProfileCard(
+                                profile: profile,
+                                hasFirewall: hasFirewall,
+                                hasFileExec: hasFileExec,
+                                onTap: () => ParentalProfileDetailsSheet.show(
+                                  context: context,
+                                  profile: profile,
+                                  hasFirewall: hasFirewall,
+                                  hasFileExec: hasFileExec,
+                                  onPause: (duration) =>
+                                      _pauseProfile(profile, duration),
+                                  onResume: () => _resumeProfile(profile),
+                                  onEdit: () => _openEditProfile(profile),
+                                  onDelete: () =>
+                                      _confirmDeleteProfile(profile),
+                                  onToggleEnabled: () =>
+                                      _toggleProfileEnabled(profile),
+                                ),
+                                onPause: (duration) =>
+                                    _pauseProfile(profile, duration),
+                                onResume: () => _resumeProfile(profile),
+                                onEdit: () => _openEditProfile(profile),
+                                onDelete: () => _confirmDeleteProfile(profile),
+                                onToggleEnabled: () =>
+                                    _toggleProfileEnabled(profile),
+                              );
+                            },
+                          ),
                   ),
           ),
         ],
@@ -309,6 +431,7 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.55,
         maxChildSize: 0.9,
@@ -320,20 +443,6 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
             final log = _controller.store.activityLog;
             return Column(
               children: [
-                // Drag handle
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 10, bottom: 4),
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.3,
-                      ),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
                   child: Row(
@@ -436,11 +545,15 @@ class _ParentalControlsScreenState extends ConsumerState<ParentalControlsScreen>
       case ParentalEventType.paused:
       case ParentalEventType.schedulePaused:
       case ParentalEventType.limitReached:
-        return Colors.orange;
+        return LuciStatusColors.warning.harmonizeWith(
+          theme.colorScheme.primary,
+        );
       case ParentalEventType.resumed:
       case ParentalEventType.scheduleResumed:
       case ParentalEventType.limitOverridden:
-        return Colors.green;
+        return LuciStatusColors.connected.harmonizeWith(
+          theme.colorScheme.primary,
+        );
       case ParentalEventType.profileCreated:
       case ParentalEventType.profileDeleted:
       case ParentalEventType.profileUpdated:

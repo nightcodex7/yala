@@ -22,6 +22,7 @@ import 'package:yet_another_luci_app/widgets/rpc_permissions_dialog.dart';
 import 'package:yet_another_luci_app/widgets/edit_hostname_dialog.dart';
 import 'package:yet_another_luci_app/widgets/change_router_password_dialog.dart';
 import 'package:yet_another_luci_app/modules/json_export/json_export_screen.dart';
+import 'package:yet_another_luci_app/modules/account_access/screens/account_access_screen.dart';
 import 'package:yet_another_luci_app/state/app_state.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -37,11 +38,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showReviewerModeResetDialog(BuildContext context, WidgetRef ref) {
     final appState = ref.read(appStateProvider);
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
+        icon: Icon(
+          Icons.exit_to_app_rounded,
+          color: theme.colorScheme.primary,
+          size: 28,
+        ),
         title: Text(l10n?.settingsExitReviewerTitle ?? 'Exit Reviewer Mode?'),
         content: SingleChildScrollView(
           child: Text(
@@ -79,6 +86,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appBar: LuciAppBar(
         title: l10n?.settingsTitle ?? 'Settings',
         showBack: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.manage_accounts_outlined),
+            tooltip: l10n?.accountAndAccessTitle ?? 'Account & Access',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AccountAccessScreen(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -275,45 +296,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                         overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: LuciStatusColors.successBg(context),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: LuciStatusColors.successBorder(context),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          LuciStatusIndicators.statusDot(
-                            context,
-                            appState.hasActiveSession,
-                            size: 8,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            appState.hasActiveSession
-                                ? (AppLocalizations.of(context)?.statusActive ??
-                                      'Active')
-                                : (AppLocalizations.of(
-                                        context,
-                                      )?.statusOffline ??
-                                      'Offline'),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: LuciStatusColors.successText(context),
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                     if (appState.hasActiveSession) ...[
@@ -517,7 +499,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           ...AppThemePalette.values.map((palette) {
             final isSelected = currentPalette == palette;
-            final swatch = palette.swatchColor(isDark);
+            final dynamicPrimary = isDark
+                ? appState.preloadedDarkDynamic?.primary
+                : appState.preloadedLightDynamic?.primary;
+            final swatch =
+                (palette == AppThemePalette.dynamicTheme &&
+                    dynamicPrimary != null)
+                ? dynamicPrimary
+                : palette.swatchColor(isDark);
 
             return Material(
               color: Colors.transparent,
@@ -1237,8 +1226,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 : Icons.warning_amber_rounded,
             size: 22,
             color: isOfficial
-                ? LuciStatusColors.connected
-                : Colors.orange.shade700,
+                ? LuciStatusColors.connectedColor(context)
+                : LuciStatusColors.warningColor(context),
           ),
           onTap: () {
             showDialog(
@@ -1253,8 +1242,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ? Icons.verified_rounded
                           : Icons.warning_amber_rounded,
                       color: isOfficial
-                          ? LuciStatusColors.connected
-                          : Colors.orange,
+                          ? LuciStatusColors.connectedColor(context)
+                          : LuciStatusColors.warningColor(context),
                     ),
                     const SizedBox(width: 8),
                     Expanded(

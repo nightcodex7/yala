@@ -98,18 +98,17 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
     return AlertDialog(
       actionsOverflowButtonSpacing: 8,
       actionsOverflowDirection: VerticalDirection.down,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: LuciColors.primary.withValues(alpha: 0.12),
+              color: theme.colorScheme.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.speed_rounded,
-              color: LuciColors.primary,
+              color: theme.colorScheme.primary,
               size: 24,
             ),
           ),
@@ -170,12 +169,14 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
                                     : Icons.storage_rounded)),
                     size: 16,
                     color: _isStorageReadOnly
-                        ? LuciColors.error
+                        ? theme.colorScheme.error
                         : (isLowStorage
-                              ? LuciStatusColors.warning
+                              ? LuciStatusColors.warningColor(context)
                               : (_availableBytes == null
                                     ? theme.colorScheme.onSurfaceVariant
-                                    : LuciStatusColors.connected)),
+                                    : LuciStatusColors.connectedColor(
+                                        context,
+                                      ))),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -199,17 +200,17 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade900.withValues(alpha: 0.12),
+                  color: LuciStatusColors.warningBg(context),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.amber.shade700.withValues(alpha: 0.3),
+                    color: LuciStatusColors.warningBorder(context),
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.lock_outline_rounded,
-                      color: Colors.amber.shade800,
+                      color: LuciStatusColors.warningColor(context),
                       size: 18,
                     ),
                     const SizedBox(width: 8),
@@ -218,7 +219,7 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
                         'Package installation is restricted because router RPC permissions are missing.',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.amber.shade900,
+                          color: LuciStatusColors.warningText(context),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -241,9 +242,9 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.error_outline_rounded,
-                      color: LuciColors.error,
+                      color: theme.colorScheme.error,
                       size: 18,
                     ),
                     const SizedBox(width: 8),
@@ -264,17 +265,17 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade900.withValues(alpha: 0.12),
+                  color: LuciStatusColors.warningBg(context),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.amber.shade700.withValues(alpha: 0.3),
+                    color: LuciStatusColors.warningBorder(context),
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.warning_amber_rounded,
-                      color: Colors.amber.shade800,
+                      color: LuciStatusColors.warningColor(context),
                       size: 18,
                     ),
                     const SizedBox(width: 8),
@@ -283,7 +284,7 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
                         'Storage is limited (${_formatBytes(_availableBytes!)} free). Package installation requires sufficient flash space for scripts and kernel dependencies.',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.amber.shade900,
+                          color: LuciStatusColors.warningText(context),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -306,18 +307,18 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: LuciColors.primary.withValues(alpha: 0.08),
+                color: theme.colorScheme.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: LuciColors.primary, width: 2),
+                border: Border.all(color: theme.colorScheme.primary, width: 2),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.check_circle_rounded,
-                        color: LuciColors.primary,
+                        color: theme.colorScheme.primary,
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -360,19 +361,21 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: LuciColors.primary.withValues(alpha: 0.08),
+                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: LuciColors.primary.withValues(alpha: 0.25),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.25,
+                        ),
                       ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.info_outline_rounded,
                           size: 14,
-                          color: LuciColors.primary,
+                          color: theme.colorScheme.primary,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
@@ -412,7 +415,7 @@ class _SqmInstallDialogState extends ConsumerState<SqmInstallDialog> {
             icon: const Icon(Icons.build_circle_outlined, size: 18),
             label: const Text('Fix Permissions'),
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.amber.shade800,
+              backgroundColor: LuciStatusColors.warningColor(context),
             ),
           )
         else

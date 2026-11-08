@@ -3,12 +3,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'dart:ui' show DisplayFeatureType;
+import 'package:dynamic_color/dynamic_color.dart';
+export 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Standardized color tokens for throughput and data streams
 class LuciColors {
-  /// Primary theme color
+  /// Primary theme color - legacy fallback
   static const Color primary = Color(0xFF2563EB);
   static const Color success = Color(0xFF22C55E);
   static const Color error = Color(0xFFEF4444);
@@ -20,6 +22,34 @@ class LuciColors {
   /// Upload / Transmit (TX) throughput color - Distinct Blue (#2563EB)
   static const Color tx = Color(0xFF2563EB);
   static const Color txLight = Color(0xFF3B82F6);
+
+  /// Context-aware dynamically harmonized primary theme color
+  static Color primaryColor(BuildContext context) =>
+      Theme.of(context).colorScheme.primary;
+
+  /// Context-aware primary container color
+  static Color primaryContainer(BuildContext context) =>
+      Theme.of(context).colorScheme.primaryContainer;
+
+  /// Context-aware on-primary container color
+  static Color onPrimaryContainer(BuildContext context) =>
+      Theme.of(context).colorScheme.onPrimaryContainer;
+
+  /// Context-aware secondary container color
+  static Color secondaryContainer(BuildContext context) =>
+      Theme.of(context).colorScheme.secondaryContainer;
+
+  /// Context-aware tertiary container color
+  static Color tertiaryContainer(BuildContext context) =>
+      Theme.of(context).colorScheme.tertiaryContainer;
+
+  /// Download / Receive (RX) throughput color harmonized with active theme
+  static Color rxColor(BuildContext context) =>
+      rx.harmonizeWith(Theme.of(context).colorScheme.primary);
+
+  /// Upload / Transmit (TX) throughput color harmonized with active theme
+  static Color txColor(BuildContext context) =>
+      tx.harmonizeWith(Theme.of(context).colorScheme.primary);
 }
 
 /// Semantic status colors calibrated for WCAG AA contrast on dark surfaces.
@@ -46,41 +76,70 @@ class LuciStatusColors {
   /// Info status color
   static const Color info = Color(0xFF3B82F6);
 
+  /// Dynamically harmonized connected color
+  static Color connectedColor(BuildContext context) =>
+      connected.harmonizeWith(Theme.of(context).colorScheme.primary);
+
+  /// Dynamically harmonized connection dot color
+  static Color connectionDotColor(BuildContext context) =>
+      connectionDot.harmonizeWith(Theme.of(context).colorScheme.primary);
+
+  /// Dynamically harmonized warning color
+  static Color warningColor(BuildContext context) =>
+      warning.harmonizeWith(Theme.of(context).colorScheme.primary);
+
+  /// Error color from dynamic theme
+  static Color errorColor(BuildContext context) =>
+      Theme.of(context).colorScheme.error;
+
+  /// Dynamically harmonized info color
+  static Color infoColor(BuildContext context) =>
+      info.harmonizeWith(Theme.of(context).colorScheme.primary);
+
+  /// Inactive color from dynamic theme outline
+  static Color inactiveColor(BuildContext context) =>
+      Theme.of(context).colorScheme.outline;
+
   static Color successBg(BuildContext context) =>
-      const Color(0xFF22C55E).withValues(alpha: 0.15);
+      connectedColor(context).withValues(alpha: 0.15);
   static Color successBorder(BuildContext context) =>
-      const Color(0xFF22C55E).withValues(alpha: 0.4);
-  static Color successText(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xFF4ADE80)
-      : const Color(0xFF15803D);
+      connectedColor(context).withValues(alpha: 0.4);
+  static Color successText(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark ? const Color(0xFF4ADE80) : const Color(0xFF15803D);
+    return base.harmonizeWith(Theme.of(context).colorScheme.primary);
+  }
 
   static Color errorBg(BuildContext context) =>
-      const Color(0xFFEF4444).withValues(alpha: 0.15);
+      Theme.of(context).colorScheme.error.withValues(alpha: 0.15);
   static Color errorBorder(BuildContext context) =>
-      const Color(0xFFEF4444).withValues(alpha: 0.4);
-  static Color errorText(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xFFF87171)
-      : const Color(0xFFDC2626);
+      Theme.of(context).colorScheme.error.withValues(alpha: 0.4);
+  static Color errorText(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? const Color(0xFFF87171)
+        : Theme.of(context).colorScheme.error;
+  }
 
   static Color warningBg(BuildContext context) =>
-      const Color(0xFFFBBF24).withValues(alpha: 0.15);
+      warningColor(context).withValues(alpha: 0.15);
   static Color warningBorder(BuildContext context) =>
-      const Color(0xFFFBBF24).withValues(alpha: 0.4);
-  static Color warningText(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xFFFCD34D)
-      : const Color(0xFFB45309);
+      warningColor(context).withValues(alpha: 0.4);
+  static Color warningText(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309);
+    return base.harmonizeWith(Theme.of(context).colorScheme.primary);
+  }
 
   static Color infoBg(BuildContext context) =>
-      const Color(0xFF3B82F6).withValues(alpha: 0.15);
+      infoColor(context).withValues(alpha: 0.15);
   static Color infoBorder(BuildContext context) =>
-      const Color(0xFF3B82F6).withValues(alpha: 0.4);
-  static Color infoText(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xFF60A5FA)
-      : const Color(0xFF1D4ED8);
+      infoColor(context).withValues(alpha: 0.4);
+  static Color infoText(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8);
+    return base.harmonizeWith(Theme.of(context).colorScheme.primary);
+  }
 }
 
 /// Standardized spacing constants for consistent layout
@@ -198,7 +257,7 @@ class LuciTextStyles {
 /// (IP addresses, config values, RPC output, SSH logs, etc.) instead of
 /// raw `fontFamily: 'monospace'` strings.
 class LuciTypography {
-  /// Returns a [TextStyle] using Geist Mono with optional overrides.
+  /// Returns a [TextStyle] using Geist Mono with optional overrides and font fallbacks.
   /// This is the single source of truth for all mono text in the app.
   static TextStyle monoStyle({
     double fontSize = 12,
@@ -213,10 +272,12 @@ class LuciTypography {
       color: color,
       letterSpacing: letterSpacing,
       height: height,
+    ).copyWith(
+      fontFamilyFallback: const ['Roboto Mono', 'Noto Sans Mono', 'monospace'],
     );
   }
 
-  /// Returns a [TextStyle] using Geist (UI font) with optional overrides.
+  /// Returns a [TextStyle] using Geist (UI font) with optional overrides and font fallbacks.
   static TextStyle uiStyle({
     double fontSize = 14,
     FontWeight fontWeight = FontWeight.w400,
@@ -228,6 +289,8 @@ class LuciTypography {
       fontWeight: fontWeight,
       color: color,
       letterSpacing: letterSpacing,
+    ).copyWith(
+      fontFamilyFallback: const ['Noto Sans', 'Roboto', 'Arial', 'sans-serif'],
     );
   }
 }
@@ -263,8 +326,9 @@ class LuciCardStyles {
     bool isSelected = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
+    final cardColor = Theme.of(context).cardTheme.color ?? colorScheme.surface;
     return BoxDecoration(
-      color: colorScheme.surface,
+      color: cardColor,
       borderRadius: standardRadius,
       border: Border.all(
         color: isSelected
@@ -340,11 +404,14 @@ class LuciStatusIndicators {
     return Chip(
       label: Text(label),
       labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
-        color: isActive ? colorScheme.onPrimary : colorScheme.onError,
+        color: isActive
+            ? colorScheme.onPrimaryContainer
+            : colorScheme.onErrorContainer,
+        fontWeight: FontWeight.bold,
       ),
       backgroundColor: isActive
-          ? colorScheme.primary.withValues(alpha: 0.8)
-          : colorScheme.error.withValues(alpha: 0.7),
+          ? colorScheme.primaryContainer
+          : colorScheme.errorContainer,
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
     );
@@ -427,5 +494,65 @@ class LuciBreakpoints {
     if (width >= expanded) return 24.0;
     if (width >= compact) return 20.0;
     return 16.0;
+  }
+}
+
+/// Standardized Material 3 styling tokens and decorators for Dropdown menus.
+class LuciDropdownStyle {
+  /// Standard Material 3 Menu popup corner radius (16dp).
+  static BorderRadius get borderRadius => BorderRadius.circular(16);
+
+  /// Standard Material 3 Menu elevation (Level 2: 4dp).
+  static const int elevation = 4;
+
+  /// Standard Material 3 Menu maximum vertical viewport height.
+  static const double menuMaxHeight = 360.0;
+
+  /// Resolves the standard Material 3 elevated menu surface color from the active theme.
+  static Color dropdownColor(BuildContext context) =>
+      Theme.of(context).colorScheme.surfaceContainerHigh;
+
+  /// Standard Material 3 rounded trailing dropdown icon.
+  static const Widget icon = Icon(Icons.arrow_drop_down_rounded);
+
+  /// Standard Material 3 dropdown input decoration helper.
+  static InputDecoration decoration(
+    BuildContext context, {
+    String? labelText,
+    String? hintText,
+    String? helperText,
+    int? helperMaxLines,
+    Widget? prefixIcon,
+    bool isDense = true,
+    EdgeInsetsGeometry? contentPadding,
+  }) {
+    final theme = Theme.of(context);
+    return InputDecoration(
+      labelText: labelText,
+      hintText: hintText,
+      helperText: helperText,
+      helperMaxLines: helperMaxLines,
+      prefixIcon: prefixIcon,
+      isDense: isDense,
+      contentPadding:
+          contentPadding ??
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+      ),
+    );
   }
 }

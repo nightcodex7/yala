@@ -560,6 +560,14 @@
   "@rpcToastAutoFixFailedSub": {
     "description": "Toast subtitle when auto-fix fails"
   },
+  "toastOperationTimedOut": "Operation Timed Out",
+  "@toastOperationTimedOut": {
+    "description": "Title for operation timed out toast notification"
+  },
+  "toastOperationTimedOutSub": "The request took too long to complete. Please check network connection.",
+  "@toastOperationTimedOutSub": {
+    "description": "Subtitle for operation timed out toast notification"
+  },
   "loginFailedSession": "Failed to establish session with {target}.",
   "@loginFailedSession": {
     "description": "Error message when session could not be established with router",
@@ -3874,6 +3882,18 @@
   "parentalDnsFilterCustomDesc": "Use custom upstream DNS addresses for this profile.",
   "@parentalDnsFilterCustomDesc": {
     "description": "Description for Custom DNS option"
+  },
+  "parentalDnsReconnectDialogTitle": "Wi-Fi Reconnection Notice",
+  "@parentalDnsReconnectDialogTitle": {
+    "description": "Title for dialog informing user about Wi-Fi reconnection after selecting DNS"
+  },
+  "parentalDnsReconnectDialogMessage": "For the new DNS settings to take immediate effect, connected devices need to disconnect and reconnect to Wi-Fi once (to renew their DHCP lease and flush DNS cache). Otherwise, the new settings will take effect automatically the next time the devices reconnect.",
+  "@parentalDnsReconnectDialogMessage": {
+    "description": "Message explaining that devices need to reconnect to Wi-Fi for DNS to take effect immediately or next reconnect"
+  },
+  "parentalDnsReconnectDialogGotIt": "Got It",
+  "@parentalDnsReconnectDialogGotIt": {
+    "description": "Button to dismiss the DNS reconnection notice dialog"
   },
   "parentalBtnAddProfileFab": "Add Profile",
   "@parentalBtnAddProfileFab": {
@@ -8062,6 +8082,14 @@
   "@speedTestSuccess": {
     "description": "Status message when router speed test finishes"
   },
+  "speedTestRpcPermissionRequired": "Router WAN speed test requires RPC execution permissions. Run RPC Setup in Settings",
+  "@speedTestRpcPermissionRequired": {
+    "description": "Error message when router speed test cannot execute due to restricted RPC permissions"
+  },
+  "speedTestBtnOpenRpcSetup": "Open RPC Setup",
+  "@speedTestBtnOpenRpcSetup": {
+    "description": "Button to open RPC Setup dialog from speed test error banner"
+  },
   "speedTestCancelled": "Speed test cancelled by user",
   "@speedTestCancelled": {
     "description": "Status message when speed test is cancelled"
@@ -8769,7 +8797,6 @@
   "@fastTransition80211vSubtitle": {
     "description": "Subtitle for 802.11v BSS transition management toggle"
   },
-
   "upgradeCenterTitle": "Firmware Upgrade Center",
   "@upgradeCenterTitle": {
     "description": "Title for the Firmware Upgrade Center collapsible card"
@@ -9269,5 +9296,1906 @@
   "sysUpgradeUrlNotFound": "Download URL not found for this upgrade.",
   "@sysUpgradeUrlNotFound": {
     "description": "Toast error message when download URL is missing"
+  },
+  "advRebootTitle": "Advanced Reboot",
+  "@advRebootTitle": {
+    "description": "Title for Advanced Reboot feature and app bar"
+  },
+  "advRebootDesc": "Dual-firmware partition switching, power management & boot diagnostics",
+  "@advRebootDesc": {
+    "description": "Description for Advanced Reboot module"
+  },
+  "advRebootBtnAdvanced": "Advanced",
+  "@advRebootBtnAdvanced": {
+    "description": "Compact button label for Advanced Reboot in More tab"
+  },
+  "advRebootTooltipDiagnostics": "View Diagnostics & Evidence",
+  "@advRebootTooltipDiagnostics": {
+    "description": "Tooltip for action bar button opening boot diagnostics"
+  },
+  "advRebootTooltipRedetect": "Re-detect Capabilities",
+  "@advRebootTooltipRedetect": {
+    "description": "Tooltip for action bar button refreshing boot capabilities"
+  },
+  "advRebootAnalyzingBootEnv": "Analyzing Boot Environment",
+  "@advRebootAnalyzingBootEnv": {
+    "description": "Title shown when probing boot environment"
+  },
+  "advRebootAnalyzingBootEnvDesc": "Reading MTD partitions, board identifier, and bootloader configuration non-destructively...",
+  "@advRebootAnalyzingBootEnvDesc": {
+    "description": "Description shown when probing boot environment"
+  },
+  "advRebootRouterEnvironment": "Router Environment",
+  "@advRebootRouterEnvironment": {
+    "description": "Title for boot environment overview card"
+  },
+  "advRebootBadgeNativeDualBoot": "Native Dual-Boot",
+  "@advRebootBadgeNativeDualBoot": {
+    "description": "Badge indicating native dual-boot capability"
+  },
+  "advRebootBadgeDualBootUnverified": "Dual-Boot (Unverified)",
+  "@advRebootBadgeDualBootUnverified": {
+    "description": "Badge indicating unverified dual-partition layout"
+  },
+  "advRebootBadgeSingleBootLayout": "Single-Boot Layout",
+  "@advRebootBadgeSingleBootLayout": {
+    "description": "Badge indicating single-boot flash partition layout"
+  },
+  "advRebootBoardId": "Board ID",
+  "@advRebootBoardId": {
+    "description": "Label for device board identifier"
+  },
+  "advRebootUnknown": "Unknown",
+  "@advRebootUnknown": {
+    "description": "Label when identifier or value is unknown"
+  },
+  "advRebootArchitecture": "Architecture",
+  "@advRebootArchitecture": {
+    "description": "Label for system CPU architecture"
+  },
+  "advRebootRelease": "Release",
+  "@advRebootRelease": {
+    "description": "Label for OpenWrt release version"
+  },
+  "advRebootActiveBootSlot": "Active Boot Slot",
+  "@advRebootActiveBootSlot": {
+    "description": "Label for currently active boot partition"
+  },
+  "advRebootAlternateBootSlot": "Alternate Boot Slot",
+  "@advRebootAlternateBootSlot": {
+    "description": "Label for secondary alternate boot partition"
+  },
+  "advRebootSlotWithOs": "Slot {slot} ({os})",
+  "@advRebootSlotWithOs": {
+    "description": "Formatted partition slot with operating system label",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      },
+      "os": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootSlotWithoutOs": "Slot {slot}",
+  "@advRebootSlotWithoutOs": {
+    "description": "Formatted partition slot without operating system label",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootDualPartitionUnknown": "Dual Partition (Slot Unknown)",
+  "@advRebootDualPartitionUnknown": {
+    "description": "Status when dual partition layout exists but active slot cannot be determined"
+  },
+  "advRebootSinglePartitionLayout": "Single Partition Layout",
+  "@advRebootSinglePartitionLayout": {
+    "description": "Status when router flash has only a single boot partition"
+  },
+  "advRebootAvailableOperations": "Available Operations",
+  "@advRebootAvailableOperations": {
+    "description": "Section header for available reboot operations"
+  },
+  "advRebootStandardRebootTitle": "Standard System Reboot",
+  "@advRebootStandardRebootTitle": {
+    "description": "Title for standard system restart card"
+  },
+  "advRebootStandardRebootDesc": "Performs a standard OpenWrt operating system restart. Available unconditionally on all reachable routers.",
+  "@advRebootStandardRebootDesc": {
+    "description": "Description for standard system reboot"
+  },
+  "advRebootBtnStandardReboot": "Reboot Router",
+  "@advRebootBtnStandardReboot": {
+    "description": "Button to trigger standard reboot"
+  },
+  "advRebootAltPartitionTitle": "Alternate Firmware Partition",
+  "@advRebootAltPartitionTitle": {
+    "description": "Title for alternate partition boot card"
+  },
+  "advRebootAltPartitionEvaluating": "Evaluating dual-partition boot capability...",
+  "@advRebootAltPartitionEvaluating": {
+    "description": "Default description when evaluating alternate partition capability"
+  },
+  "advRebootBtnRebootToSlotWithOs": "Reboot to Slot {slot} ({os})",
+  "@advRebootBtnRebootToSlotWithOs": {
+    "description": "Button to reboot into alternate slot with OS name",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      },
+      "os": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootBtnRebootToSlotWithoutOs": "Reboot to Slot {slot}",
+  "@advRebootBtnRebootToSlotWithoutOs": {
+    "description": "Button to reboot into alternate slot without OS name",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootBtnAltUnavailable": "Alternate Boot Unavailable",
+  "@advRebootBtnAltUnavailable": {
+    "description": "Button label when alternate boot is unsupported"
+  },
+  "advRebootPowerOffTitle": "Power Off Router",
+  "@advRebootPowerOffTitle": {
+    "description": "Title for power off card"
+  },
+  "advRebootPowerOffDesc": "Power off capability evaluated per platform.",
+  "@advRebootPowerOffDesc": {
+    "description": "Description for hardware power off card"
+  },
+  "advRebootBtnPowerOff": "Power Off",
+  "@advRebootBtnPowerOff": {
+    "description": "Button label to trigger router power off"
+  },
+  "advRebootStatusSupported": "Supported",
+  "@advRebootStatusSupported": {
+    "description": "Capability chip label: supported"
+  },
+  "advRebootStatusUnsupported": "Unsupported",
+  "@advRebootStatusUnsupported": {
+    "description": "Capability chip label: unsupported"
+  },
+  "advRebootStatusUnknown": "Unknown / Unverified",
+  "@advRebootStatusUnknown": {
+    "description": "Capability chip label: unknown or unverified"
+  },
+  "advRebootStatusError": "Error",
+  "@advRebootStatusError": {
+    "description": "Capability chip label: error"
+  },
+  "advRebootStateIdle": "Idle",
+  "@advRebootStateIdle": {
+    "description": "Progress state: idle"
+  },
+  "advRebootStatePreflight": "Validating Prerequisites",
+  "@advRebootStatePreflight": {
+    "description": "Progress state: validating prerequisites"
+  },
+  "advRebootStateAwaitingConfirmation": "Awaiting Confirmation",
+  "@advRebootStateAwaitingConfirmation": {
+    "description": "Progress state: awaiting confirmation"
+  },
+  "advRebootStateExecuting": "Sending Commands",
+  "@advRebootStateExecuting": {
+    "description": "Progress state: sending commands"
+  },
+  "advRebootStateWaitingForDisconnect": "Waiting for Reboot",
+  "@advRebootStateWaitingForDisconnect": {
+    "description": "Progress state: waiting for router reboot/disconnect"
+  },
+  "advRebootStateReconnecting": "Reconnecting to Router",
+  "@advRebootStateReconnecting": {
+    "description": "Progress state: reconnecting to router"
+  },
+  "advRebootStateVerifying": "Verifying Boot Outcome",
+  "@advRebootStateVerifying": {
+    "description": "Progress state: verifying boot outcome"
+  },
+  "advRebootStateSucceeded": "Operation Complete",
+  "@advRebootStateSucceeded": {
+    "description": "Progress state: operation complete"
+  },
+  "advRebootStateFailed": "Operation Failed",
+  "@advRebootStateFailed": {
+    "description": "Progress state: operation failed"
+  },
+  "advRebootStateOutcomeUnknown": "Outcome Unknown",
+  "@advRebootStateOutcomeUnknown": {
+    "description": "Progress state: outcome unknown"
+  },
+  "advRebootStateCancelled": "Operation Cancelled",
+  "@advRebootStateCancelled": {
+    "description": "Progress state: operation cancelled"
+  },
+  "advRebootDetailsPrefix": "Details: {detail}",
+  "@advRebootDetailsPrefix": {
+    "description": "Failure details prefix",
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootDialogStandardTitle": "Reboot Router?",
+  "@advRebootDialogStandardTitle": {
+    "description": "Title for standard reboot confirmation dialog"
+  },
+  "advRebootDialogStandardMsg": "This will restart the router operating system. The app will disconnect until the router completes its reboot cycle.",
+  "@advRebootDialogStandardMsg": {
+    "description": "Message for standard reboot confirmation dialog"
+  },
+  "advRebootDialogAltTitleWithOs": "Reboot into Partition Slot {slot} ({os})?",
+  "@advRebootDialogAltTitleWithOs": {
+    "description": "Title for alternate partition dialog with OS",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      },
+      "os": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootDialogAltTitleWithoutOs": "Reboot into Partition Slot {slot}?",
+  "@advRebootDialogAltTitleWithoutOs": {
+    "description": "Title for alternate partition dialog without OS",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootDialogAltDescWithOs": "You are switching the router to boot into {os} on Slot {slot} on next restart.",
+  "@advRebootDialogAltDescWithOs": {
+    "description": "Explanation text when switching to slot with OS name",
+    "placeholders": {
+      "os": {
+        "type": "String"
+      },
+      "slot": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootDialogAltDescWithoutOs": "You are switching the router to boot from Slot {slot} on next restart.",
+  "@advRebootDialogAltDescWithoutOs": {
+    "description": "Explanation text when switching to slot without OS name",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootDialogSafetyNotesTitle": "Important Safety Considerations:",
+  "@advRebootDialogSafetyNotesTitle": {
+    "description": "Header for safety considerations in alternate partition dialog"
+  },
+  "advRebootDialogSafetyNote1": "The alternate partition may contain an older or different OpenWrt build.",
+  "@advRebootDialogSafetyNote1": {
+    "description": "First safety bullet note"
+  },
+  "advRebootDialogSafetyNote2": "Network configuration, Wi-Fi passwords, and LAN IP addresses may differ.",
+  "@advRebootDialogSafetyNote2": {
+    "description": "Second safety bullet note"
+  },
+  "advRebootDialogSafetyNote3": "If the alternate partition uses a different subnet, you must reconnect your device manually.",
+  "@advRebootDialogSafetyNote3": {
+    "description": "Third safety bullet note"
+  },
+  "advRebootDialogAltConfirmBtn": "Switch to Slot {slot} & Reboot",
+  "@advRebootDialogAltConfirmBtn": {
+    "description": "Confirm button label for alternate partition reboot",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootDialogPowerOffTitle": "Power Off Router?",
+  "@advRebootDialogPowerOffTitle": {
+    "description": "Title for power off confirmation dialog"
+  },
+  "advRebootDialogPowerOffMsg": "This will shut down the router hardware. Network and internet access will terminate immediately.\n\nAutomatic reconnection is NOT possible. You will need physical access to press the power button or cycle power to turn the router back on.",
+  "@advRebootDialogPowerOffMsg": {
+    "description": "Message for power off confirmation dialog"
+  },
+  "advRebootDialogPowerOffConfirmBtn": "Shut Down",
+  "@advRebootDialogPowerOffConfirmBtn": {
+    "description": "Confirm button label to shut down router"
+  },
+  "advRebootDiagnosticsTitle": "Boot Diagnostics",
+  "@advRebootDiagnosticsTitle": {
+    "description": "Title for boot diagnostics bottom sheet"
+  },
+  "advRebootCopyReportTooltip": "Copy Diagnostic Report",
+  "@advRebootCopyReportTooltip": {
+    "description": "Tooltip for copying diagnostic report"
+  },
+  "advRebootCopiedToast": "Diagnostics copied to clipboard (sanitized)",
+  "@advRebootCopiedToast": {
+    "description": "Toast message after diagnostics are copied"
+  },
+  "advRebootAltPartitionSupportedDesc": "Dual-partition boot mechanism verified. Currently booted on Slot {activeSlot}. Ready to reboot into Slot {targetSlot}.",
+  "@advRebootAltPartitionSupportedDesc": {
+    "description": "Subtitle description when dual-partition boot is verified and supported",
+    "placeholders": {
+      "activeSlot": {
+        "type": "String"
+      },
+      "targetSlot": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootAltPartitionSingleLayoutDesc": "Single firmware partition layout detected. This router hardware does not support dual-boot switching.",
+  "@advRebootAltPartitionSingleLayoutDesc": {
+    "description": "Description when router flash has single partition layout"
+  },
+  "advRebootAltPartitionUnverifiedDesc": "Dual-firmware partition layout detected, but bootloader variables could not be verified. Partition switching is disabled for safety.",
+  "@advRebootAltPartitionUnverifiedDesc": {
+    "description": "Description when dual-firmware partition layout detected but bootloader variables are unverified"
+  },
+  "advRebootAltPartitionMissingUtilsDesc": "Bootloader control utilities (fw_printenv / fw_setenv) are missing on the router.",
+  "@advRebootAltPartitionMissingUtilsDesc": {
+    "description": "Description when U-Boot environment tools are missing"
+  },
+  "advRebootAltPartitionWarning": "You are about to switch the active boot partition to Slot {slot}. The alternate partition may contain different firmware, network configurations, or passwords. If the alternate firmware uses a different IP address, you will need to reconnect manually.",
+  "@advRebootAltPartitionWarning": {
+    "description": "Warning banner inside alternate partition card",
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootPowerOffSupportedDesc": "Hardware ACPI / PMIC power management is supported. Device will power off completely.",
+  "@advRebootPowerOffSupportedDesc": {
+    "description": "Description when hardware power off is supported"
+  },
+  "advRebootPowerOffUnsupportedDesc": "Hardware DC power-down is not supported on this platform ({platform}). Executing poweroff halts Linux execution but leaves hardware energized, requiring physical power cycling.",
+  "@advRebootPowerOffUnsupportedDesc": {
+    "description": "Description when hardware power off is unsupported",
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
+  "advRebootProgPreflight": "Performing pre-flight safety validations...",
+  "@advRebootProgPreflight": {
+    "description": "Progress message during preflight validation"
+  },
+  "advRebootProgExecuting": "Dispatching operation commands to router...",
+  "@advRebootProgExecuting": {
+    "description": "Progress message during command execution"
+  },
+  "advRebootProgWaitingReboot": "Waiting for router to initiate reboot...",
+  "@advRebootProgWaitingReboot": {
+    "description": "Progress message waiting for router reboot initiation"
+  },
+  "advRebootProgWaitingShutdown": "Waiting for device to shut down...",
+  "@advRebootProgWaitingShutdown": {
+    "description": "Progress message waiting for device shutdown"
+  },
+  "advRebootProgRebooting": "Router is rebooting. Waiting for router to come back online...",
+  "@advRebootProgRebooting": {
+    "description": "Progress message when router is rebooting"
+  },
+  "advRebootProgPolling": "Polling for router availability (attempt {attempt} of {max})...",
+  "@advRebootProgPolling": {
+    "description": "Progress message during router reconnection polling",
+    "placeholders": {
+      "attempt": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "advRebootProgVerifying": "Router is back online. Verifying boot outcome...",
+  "@advRebootProgVerifying": {
+    "description": "Progress message when verifying boot outcome"
+  },
+  "advRebootProgRebootSuccess": "Router rebooted successfully.",
+  "@advRebootProgRebootSuccess": {
+    "description": "Progress message when reboot succeeds"
+  },
+  "advRebootProgPowerOffSuccess": "Device has powered down successfully. Network access has terminated.",
+  "@advRebootProgPowerOffSuccess": {
+    "description": "Progress message when power off succeeds"
+  },
+  "advRebootProgCancelled": "Operation cancelled by user.",
+  "@advRebootProgCancelled": {
+    "description": "Progress message when operation is cancelled"
+  },
+  "advRebootProgTimeout": "Reboot was initiated, but the router did not become reachable within the timeout window.",
+  "@advRebootProgTimeout": {
+    "description": "Progress message when reconnection times out"
+  },
+  "accountAndAccessTitle": "Account & Access",
+  "@accountAndAccessTitle": {
+    "description": "Title for Account & Access inspector screen and tooltip"
+  },
+  "accountAndAccessTooltip": "Account & Access",
+  "@accountAndAccessTooltip": {
+    "description": "Tooltip for Account & Access header icon in Settings"
+  },
+  "accountSectionCurrentAccount": "Current Account",
+  "@accountSectionCurrentAccount": {
+    "description": "Section title for current router account identity"
+  },
+  "accountSectionAuthMethods": "Authentication & Connection Methods",
+  "@accountSectionAuthMethods": {
+    "description": "Section title for authentication and transport connection methods"
+  },
+  "accountSectionLuciRpc": "LuCI RPC Permissions",
+  "@accountSectionLuciRpc": {
+    "description": "Section title for LuCI RPC permissions"
+  },
+  "accountSectionSsh": "SSH Access",
+  "@accountSectionSsh": {
+    "description": "Section title for SSH access inspection"
+  },
+  "accountSectionOtherCaps": "Other Verified Access Capabilities",
+  "@accountSectionOtherCaps": {
+    "description": "Section title for other verified router subsystems and capabilities"
+  },
+  "accountSectionDiagnostics": "Detection Status & Diagnostics",
+  "@accountSectionDiagnostics": {
+    "description": "Section title for detection status and diagnostic audit log"
+  },
+  "accountReadOnlyNotice": "Read-Only Access Inspector: Evaluates authenticated router identity, effective RPC capabilities, and SSH channels non-destructively. No passwords, credentials, or router settings can be modified here.",
+  "@accountReadOnlyNotice": {
+    "description": "Disclaimer notice explaining strictly read-only inspection"
+  },
+  "accountDetailedAccessNotice": "Detailed Access Inspection for \"{account}\": Evaluates verified RPC ACLs, console reachability, and subsystem capabilities non-destructively.",
+  "@accountDetailedAccessNotice": {
+    "description": "Notice for detailed access inspection screen",
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "accountAccessAndPermissionsHeader": "Access & Permissions ({account})",
+  "@accountAccessAndPermissionsHeader": {
+    "description": "Header title for account detail screen",
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "accountRouterAccountsTitle": "Router Accounts",
+  "@accountRouterAccountsTitle": {
+    "description": "Title for router accounts section"
+  },
+  "accountRouterAccountsSubtitle": "Accounts identified on this router. Tap an account to reveal its effective access & permissions.",
+  "@accountRouterAccountsSubtitle": {
+    "description": "Subtitle for router accounts section"
+  },
+  "accountOtherAccountsTitle": "Other Configured Accounts ({count})",
+  "@accountOtherAccountsTitle": {
+    "description": "Title for secondary accounts list",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountViewAccess": "View Access",
+  "@accountViewAccess": {
+    "description": "Label for button opening account detail view"
+  },
+  "accountProfileLabelOnly": "Profile Label Only",
+  "@accountProfileLabelOnly": {
+    "description": "Badge when username is only locally configured"
+  },
+  "accountConfirmedViaUnixShell": "Confirmed independently via router UNIX shell (root)",
+  "@accountConfirmedViaUnixShell": {
+    "description": "Status text when account identity is verified via UNIX shell"
+  },
+  "accountUnconfirmedSessionApi": "Identity unconfirmed by LuCI session API (local profile label only)",
+  "@accountUnconfirmedSessionApi": {
+    "description": "Status text when account identity is not confirmed by LuCI"
+  },
+  "accountNoOtherAccountsTitle": "No Other Accounts Configured",
+  "@accountNoOtherAccountsTitle": {
+    "description": "Title when no secondary accounts exist on the router"
+  },
+  "accountNoOtherAccountsDesc": "This router operates with a single administrator account ({username}). No secondary operator or guest user accounts were detected in rpcd configuration or system logins.",
+  "@accountNoOtherAccountsDesc": {
+    "description": "Explanation for single-account OpenWrt setups",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "accountStatusActiveBadge": "ACTIVE",
+  "@accountStatusActiveBadge": {
+    "description": "Active session badge label"
+  },
+  "accountAuditingLoading": "Auditing account identity & effective permissions...",
+  "@accountAuditingLoading": {
+    "description": "Loading message when auditing router account access"
+  },
+  "accountInspectionErrorTitle": "Inspection Error",
+  "@accountInspectionErrorTitle": {
+    "description": "Title for account inspection error card"
+  },
+  "accountRetryInspection": "Retry Inspection",
+  "@accountRetryInspection": {
+    "description": "Button to retry account access inspection"
+  },
+  "accountCurrentSubtitle": "Active router session identity and credentials evaluation",
+  "@accountCurrentSubtitle": {
+    "description": "Subtitle for current account card"
+  },
+  "accountConfirmedByRouter": "Confirmed by Router",
+  "@accountConfirmedByRouter": {
+    "description": "Badge when account is verified by router"
+  },
+  "accountAuthMethodLabel": "Authentication Method",
+  "@accountAuthMethodLabel": {
+    "description": "Label for authentication method row"
+  },
+  "accountConnectionTransportLabel": "Connection Transport",
+  "@accountConnectionTransportLabel": {
+    "description": "Label for connection transport row"
+  },
+  "accountSessionStatusLabel": "Session Status",
+  "@accountSessionStatusLabel": {
+    "description": "Label for session status row"
+  },
+  "accountSessionValidityLabel": "Session Validity",
+  "@accountSessionValidityLabel": {
+    "description": "Label for session validity row"
+  },
+  "accountLastVerificationLabel": "Last Verification",
+  "@accountLastVerificationLabel": {
+    "description": "Label for last verification timestamp row"
+  },
+  "accountMethodsSubtitle": "Audited session communication channels and daemon states",
+  "@accountMethodsSubtitle": {
+    "description": "Subtitle for connection methods card"
+  },
+  "accountStatusActiveAndVerified": "Active and verified",
+  "@accountStatusActiveAndVerified": {
+    "description": "Method status active and verified"
+  },
+  "accountStatusAvailableUnverified": "Available but unverified",
+  "@accountStatusAvailableUnverified": {
+    "description": "Method status available unverified"
+  },
+  "accountStatusUnavailable": "Unavailable",
+  "@accountStatusUnavailable": {
+    "description": "Method status unavailable"
+  },
+  "accountStatusPermissionDenied": "Permission denied",
+  "@accountStatusPermissionDenied": {
+    "description": "Method status permission denied"
+  },
+  "accountStatusNotTested": "Not tested",
+  "@accountStatusNotTested": {
+    "description": "Method status not tested"
+  },
+  "accountStatusUnknown": "Unknown",
+  "@accountStatusUnknown": {
+    "description": "Method status unknown"
+  },
+  "accountStatusNotApplicable": "Not applicable",
+  "@accountStatusNotApplicable": {
+    "description": "Method status not applicable"
+  },
+  "accountEvidencePrefix": "Evidence: {evidence}",
+  "@accountEvidencePrefix": {
+    "description": "Prefix showing probe evidence source",
+    "placeholders": {
+      "evidence": {
+        "type": "String"
+      }
+    }
+  },
+  "accountRpcSubtitle": "Effective session capabilities and ubus ACL authorizations",
+  "@accountRpcSubtitle": {
+    "description": "Subtitle for RPC permissions card"
+  },
+  "accountRpcDisclaimer": "Evaluated from authoritative OpenWrt session ACLs and read-only schema queries. No configuration changes are performed to test write access.",
+  "@accountRpcDisclaimer": {
+    "description": "Disclaimer explaining RPC evaluation methodology"
+  },
+  "accountRpcCatAll": "All",
+  "@accountRpcCatAll": {
+    "description": "Filter chip label for all RPC categories"
+  },
+  "accountRpcCatCoreSystem": "Core System",
+  "@accountRpcCatCoreSystem": {
+    "description": "Filter chip label for Core System RPC category"
+  },
+  "accountRpcCatNetwork": "Network & Interfaces",
+  "@accountRpcCatNetwork": {
+    "description": "Filter chip label for Network RPC category"
+  },
+  "accountRpcCatSecurity": "Security & Firewall",
+  "@accountRpcCatSecurity": {
+    "description": "Filter chip label for Security RPC category"
+  },
+  "accountRpcCatServices": "Services & Management",
+  "@accountRpcCatServices": {
+    "description": "Filter chip label for Services RPC category"
+  },
+  "accountRpcNoCapsInCategory": "No capabilities found in this category.",
+  "@accountRpcNoCapsInCategory": {
+    "description": "Empty state text when no RPC capabilities match category"
+  },
+  "accountPrefixRead": "Read:",
+  "@accountPrefixRead": {
+    "description": "Prefix for read permission badge"
+  },
+  "accountPrefixWrite": "Write:",
+  "@accountPrefixWrite": {
+    "description": "Prefix for write permission badge"
+  },
+  "accountPermVerifiedRead": "Verified Read",
+  "@accountPermVerifiedRead": {
+    "description": "Permission badge verified read"
+  },
+  "accountPermAuthorizedWrite": "Authorized Write",
+  "@accountPermAuthorizedWrite": {
+    "description": "Permission badge authorized write"
+  },
+  "accountPermDenied": "Denied",
+  "@accountPermDenied": {
+    "description": "Permission badge denied"
+  },
+  "accountPermNotTested": "Not Tested (No Mutation)",
+  "@accountPermNotTested": {
+    "description": "Permission badge not tested"
+  },
+  "accountPermUnknown": "Unknown",
+  "@accountPermUnknown": {
+    "description": "Permission badge unknown"
+  },
+  "accountPermNotSupported": "Not Supported",
+  "@accountPermNotSupported": {
+    "description": "Permission badge not supported"
+  },
+  "accountPermNotApplicable": "Not Applicable",
+  "@accountPermNotApplicable": {
+    "description": "Permission badge not applicable"
+  },
+  "accountSshSubtitle": "Terminal daemon reachability and read-only shell identity audit",
+  "@accountSshSubtitle": {
+    "description": "Subtitle for SSH access card"
+  },
+  "accountSshStatusVerifiedWorking": "Verified Working & Authenticated",
+  "@accountSshStatusVerifiedWorking": {
+    "description": "SSH status verified working"
+  },
+  "accountSshStatusReachableUnverified": "Port Open (Unverified)",
+  "@accountSshStatusReachableUnverified": {
+    "description": "SSH status port open unverified"
+  },
+  "accountSshStatusPortClosed": "Port Closed or Unreachable",
+  "@accountSshStatusPortClosed": {
+    "description": "SSH status port closed"
+  },
+  "accountSshStatusPermissionDenied": "Permission Denied (Invalid Credentials)",
+  "@accountSshStatusPermissionDenied": {
+    "description": "SSH status permission denied"
+  },
+  "accountSshStatusNotTested": "Not Verified (Probes Deferred)",
+  "@accountSshStatusNotTested": {
+    "description": "SSH status not tested"
+  },
+  "accountSshStatusUnknown": "Unknown Reachability",
+  "@accountSshStatusUnknown": {
+    "description": "SSH status unknown"
+  },
+  "accountSshStatusNotInstalled": "Not Detected / Disabled",
+  "@accountSshStatusNotInstalled": {
+    "description": "SSH status not detected"
+  },
+  "accountSshReachabilityLabel": "SSH Reachability",
+  "@accountSshReachabilityLabel": {
+    "description": "Label for SSH reachability row"
+  },
+  "accountSshPortLabel": "SSH Listening Port",
+  "@accountSshPortLabel": {
+    "description": "Label for SSH port row"
+  },
+  "accountSshDaemonStatusLabel": "Daemon Service Status",
+  "@accountSshDaemonStatusLabel": {
+    "description": "Label for SSH daemon status row"
+  },
+  "accountSshActiveSessionLabel": "Active SSH Session",
+  "@accountSshActiveSessionLabel": {
+    "description": "Label for active SSH session row"
+  },
+  "accountSshActiveConnected": "Connected and verified",
+  "@accountSshActiveConnected": {
+    "description": "Value when SSH connection is active"
+  },
+  "accountSshActiveNone": "No active session",
+  "@accountSshActiveNone": {
+    "description": "Value when no SSH connection exists"
+  },
+  "accountSshVerifiedIdentityLabel": "Verified Account Identity",
+  "@accountSshVerifiedIdentityLabel": {
+    "description": "Label for SSH verified identity row"
+  },
+  "accountSshIdentityConfirmed": "{username} (confirmed via UNIX shell)",
+  "@accountSshIdentityConfirmed": {
+    "description": "Value when SSH identity confirmed",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "accountSshIdentityUnverified": "Unverified via SSH",
+  "@accountSshIdentityUnverified": {
+    "description": "Value when SSH identity is unverified"
+  },
+  "accountSshCmdTestLabel": "Read-Only Command Test",
+  "@accountSshCmdTestLabel": {
+    "description": "Label for SSH read-only command test row"
+  },
+  "accountSshCmdTestSuccess": "Executed \"id -u -n\" successfully",
+  "@accountSshCmdTestSuccess": {
+    "description": "Value when SSH command execution succeeded"
+  },
+  "accountSshCmdTestFailed": "Command execution rejected or failed",
+  "@accountSshCmdTestFailed": {
+    "description": "Value when SSH command execution failed"
+  },
+  "accountSshCmdOutputLabel": "Command Probe Output",
+  "@accountSshCmdOutputLabel": {
+    "description": "Label for command output row"
+  },
+  "accountSubsystemsSubtitle": "OpenWrt subsystem architectures and integrated services",
+  "@accountSubsystemsSubtitle": {
+    "description": "Subtitle for subsystems card"
+  },
+  "accountDiagnosticsSubtitle": "Inspection telemetry, audit timings, and sanitized probe events",
+  "@accountDiagnosticsSubtitle": {
+    "description": "Subtitle for diagnostics card"
+  },
+  "accountAuditCompletedAtLabel": "Audit Completed At",
+  "@accountAuditCompletedAtLabel": {
+    "description": "Label for audit timestamp row"
+  },
+  "accountExecutionDurationLabel": "Execution Duration",
+  "@accountExecutionDurationLabel": {
+    "description": "Label for audit duration row"
+  },
+  "accountInspectionScopeLabel": "Inspection Scope",
+  "@accountInspectionScopeLabel": {
+    "description": "Label for inspection scope row"
+  },
+  "accountInspectionScopePartial": "Partial (Some probes deferred)",
+  "@accountInspectionScopePartial": {
+    "description": "Value for partial inspection scope"
+  },
+  "accountInspectionScopeComprehensive": "Comprehensive Audit",
+  "@accountInspectionScopeComprehensive": {
+    "description": "Value for comprehensive inspection scope"
+  },
+  "accountConfigMutationsLabel": "Configuration Mutations",
+  "@accountConfigMutationsLabel": {
+    "description": "Label for configuration mutations row"
+  },
+  "accountConfigMutationsValue": "0 writes performed (Strictly Read-Only)",
+  "@accountConfigMutationsValue": {
+    "description": "Value indicating zero configuration mutations performed"
+  },
+  "accountSanitizedAuditTrailTitle": "Sanitized Audit Trail ({count} events)",
+  "@accountSanitizedAuditTrailTitle": {
+    "description": "Title for collapsible audit trail events list",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountAuditTrailHide": "Hide",
+  "@accountAuditTrailHide": {
+    "description": "Label to hide audit trail"
+  },
+  "accountAuditTrailShow": "Show",
+  "@accountAuditTrailShow": {
+    "description": "Label to show audit trail"
+  },
+  "accountNoDiagnosticEvents": "No diagnostic events recorded.",
+  "@accountNoDiagnosticEvents": {
+    "description": "Text when no diagnostic events are recorded"
+  },
+  "accountIdentitySourceConfirmed": "{username} (confirmed via UNIX shell UID 0)",
+  "@accountIdentitySourceConfirmed": {
+    "description": "Identity source confirmed via UNIX shell",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "accountIdentitySourceUnconfirmed": "Configured profile label (unconfirmed by LuCI session API)",
+  "@accountIdentitySourceUnconfirmed": {
+    "description": "Identity source unconfirmed profile label"
+  },
+  "accountAuthMethodLuciToken": "LuCI RPC sysauth token",
+  "@accountAuthMethodLuciToken": {
+    "description": "Auth method LuCI token"
+  },
+  "accountAuthMethodHttpBasic": "HTTP Basic Authentication",
+  "@accountAuthMethodHttpBasic": {
+    "description": "Auth method HTTP basic"
+  },
+  "accountAuthMethodReviewer": "Reviewer Mock Session",
+  "@accountAuthMethodReviewer": {
+    "description": "Auth method reviewer mode mock"
+  },
+  "accountTransportHttps": "HTTPS (TLS encrypted)",
+  "@accountTransportHttps": {
+    "description": "Transport HTTPS"
+  },
+  "accountTransportHttp": "HTTP (unencrypted LAN)",
+  "@accountTransportHttp": {
+    "description": "Transport HTTP"
+  },
+  "accountTransportReviewer": "Virtual Reviewer Transport",
+  "@accountTransportReviewer": {
+    "description": "Transport reviewer mode virtual"
+  },
+  "accountSessionStatusActive": "Authenticated & Active",
+  "@accountSessionStatusActive": {
+    "description": "Session status active"
+  },
+  "accountSessionStatusUnverified": "Session Unverified or Expired",
+  "@accountSessionStatusUnverified": {
+    "description": "Session status unverified"
+  },
+  "accountSessionStatusOffline": "Offline / Unreachable",
+  "@accountSessionStatusOffline": {
+    "description": "Session status offline"
+  },
+  "accountSessionValidityVerified": "Active session verified via system.board RPC",
+  "@accountSessionValidityVerified": {
+    "description": "Session validity verified"
+  },
+  "accountSessionValidityFailed": "Session probe failed: network error or invalid token",
+  "@accountSessionValidityFailed": {
+    "description": "Session validity failed"
+  },
+  "accountSessionValidityExpired": "Session expired or rejected by router",
+  "@accountSessionValidityExpired": {
+    "description": "Session validity expired"
+  },
+  "accountSessionValiditySimulated": "Simulated review environment",
+  "@accountSessionValiditySimulated": {
+    "description": "Session validity simulated"
+  },
+  "accountMethodLuciHttpName": "LuCI HTTP/HTTPS Web Session",
+  "@accountMethodLuciHttpName": {
+    "description": "Name of LuCI HTTP method"
+  },
+  "accountMethodLuciHttpDesc": "Active HTTP session responding with valid sysauth credentials.",
+  "@accountMethodLuciHttpDesc": {
+    "description": "Explanation of LuCI HTTP method active"
+  },
+  "accountMethodLuciHttpDescFailed": "HTTP session token could not be verified against router system.board.",
+  "@accountMethodLuciHttpDescFailed": {
+    "description": "Explanation of LuCI HTTP method failed"
+  },
+  "accountMethodLuciRpcName": "LuCI JSON-RPC (ubus)",
+  "@accountMethodLuciRpcName": {
+    "description": "Name of LuCI JSON-RPC method"
+  },
+  "accountMethodLuciRpcDesc": "{count} ubus objects available to current session.",
+  "@accountMethodLuciRpcDesc": {
+    "description": "Explanation of LuCI JSON-RPC method",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountMethodLuciRpcDescFailed": "No ubus objects returned or RPC endpoint unreachable.",
+  "@accountMethodLuciRpcDescFailed": {
+    "description": "Explanation of LuCI JSON-RPC method failed"
+  },
+  "accountMethodSshName": "SSH Console Access",
+  "@accountMethodSshName": {
+    "description": "Name of SSH method"
+  },
+  "accountMethodSshDesc": "SSH connection verified on port {port}; authenticated as {user}.",
+  "@accountMethodSshDesc": {
+    "description": "Explanation of SSH method verified",
+    "placeholders": {
+      "port": {
+        "type": "int"
+      },
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "accountEvidenceSystemBoard": "Direct system.board read probe",
+  "@accountEvidenceSystemBoard": {
+    "description": "Evidence direct system.board"
+  },
+  "accountEvidenceSessionAccess": "rpcd session.access effective ACLs",
+  "@accountEvidenceSessionAccess": {
+    "description": "Evidence rpcd session.access"
+  },
+  "accountEvidenceUbusSchema": "ubus schema introspection",
+  "@accountEvidenceUbusSchema": {
+    "description": "Evidence ubus schema introspection"
+  },
+  "accountEvidenceDropbearUci": "UCI dropbear configuration",
+  "@accountEvidenceDropbearUci": {
+    "description": "Evidence UCI dropbear configuration"
+  },
+  "accountEvidenceDefaultPort": "Default port fallback",
+  "@accountEvidenceDefaultPort": {
+    "description": "Evidence default port fallback"
+  },
+  "accountCapSystemInfo": "System Information",
+  "@accountCapSystemInfo": {
+    "description": "Capability title system info"
+  },
+  "accountCapSystemInfoDesc": "Read access verified via system.board and system.info RPCs.",
+  "@accountCapSystemInfoDesc": {
+    "description": "Capability explanation system info"
+  },
+  "accountCapNetworkInterfaces": "Network Interfaces & Status",
+  "@accountCapNetworkInterfaces": {
+    "description": "Capability title network interfaces"
+  },
+  "accountCapNetworkInterfacesDesc": "Read status verified via ubus; write evaluated via UCI network ACL without mutating.",
+  "@accountCapNetworkInterfacesDesc": {
+    "description": "Capability explanation network interfaces"
+  },
+  "accountCapWireless": "Wireless Management & Radios",
+  "@accountCapWireless": {
+    "description": "Capability title wireless"
+  },
+  "accountCapWirelessDesc": "Wireless device queries operational; write evaluated via UCI wireless ACL.",
+  "@accountCapWirelessDesc": {
+    "description": "Capability explanation wireless"
+  },
+  "accountCapWirelessUnsupported": "Wireless hardware not detected on this device.",
+  "@accountCapWirelessUnsupported": {
+    "description": "Capability explanation wireless unsupported"
+  },
+  "accountCapDhcp": "DHCP & IP Leases",
+  "@accountCapDhcp": {
+    "description": "Capability title DHCP"
+  },
+  "accountCapDhcpDesc": "DHCP read capability verified; write evaluated via UCI dhcp ACL.",
+  "@accountCapDhcpDesc": {
+    "description": "Capability explanation DHCP"
+  },
+  "accountCapFirewall": "Firewall Rules & Security",
+  "@accountCapFirewall": {
+    "description": "Capability title firewall"
+  },
+  "accountCapFirewallDesc": "Firewall configuration visibility confirmed; write evaluated via UCI firewall ACL without mutating.",
+  "@accountCapFirewallDesc": {
+    "description": "Capability explanation firewall"
+  },
+  "accountCapSystemLogs": "System & Kernel Logs",
+  "@accountCapSystemLogs": {
+    "description": "Capability title system logs"
+  },
+  "accountCapSystemLogsDesc": "System and kernel ring buffer logs are readable.",
+  "@accountCapSystemLogsDesc": {
+    "description": "Capability explanation system logs"
+  },
+  "accountCapPackageManager": "Package Manager (OPKG/APK)",
+  "@accountCapPackageManager": {
+    "description": "Capability title package manager"
+  },
+  "accountCapPackageManagerDesc": "Package manager read capabilities verified; write authorization inferred from backend file.exec.",
+  "@accountCapPackageManagerDesc": {
+    "description": "Capability explanation package manager"
+  },
+  "accountCapUciReads": "UCI Configuration Reads",
+  "@accountCapUciReads": {
+    "description": "Capability title UCI reads"
+  },
+  "accountCapUciReadsDesc": "Session can execute read operations across permitted UCI configuration packages.",
+  "@accountCapUciReadsDesc": {
+    "description": "Capability explanation UCI reads"
+  },
+  "accountCapUciWrites": "UCI Configuration Writes",
+  "@accountCapUciWrites": {
+    "description": "Capability title UCI writes"
+  },
+  "accountCapUciWritesDesc": "Write authorization verified from session ACLs without mutating any configuration.",
+  "@accountCapUciWritesDesc": {
+    "description": "Capability explanation UCI writes"
+  },
+  "accountCapServiceControl": "Service Control & Init Scripts",
+  "@accountCapServiceControl": {
+    "description": "Capability title service control"
+  },
+  "accountCapServiceControlDesc": "System init scripts listable; service state modifications evaluated from RPC method list.",
+  "@accountCapServiceControlDesc": {
+    "description": "Capability explanation service control"
+  },
+  "accountCapRouterReboot": "Router Reboot Capability",
+  "@accountCapRouterReboot": {
+    "description": "Capability title router reboot"
+  },
+  "accountCapRouterRebootDesc": "Reboot RPC method verified present in router API schema.",
+  "@accountCapRouterRebootDesc": {
+    "description": "Capability explanation router reboot"
+  },
+  "accountCapSystemUpgrade": "System Backup & Upgrade",
+  "@accountCapSystemUpgrade": {
+    "description": "Capability title system upgrade"
+  },
+  "accountCapSystemUpgradeDesc": "System backup archive download is supported; firmware flash write is unverified.",
+  "@accountCapSystemUpgradeDesc": {
+    "description": "Capability explanation system upgrade"
+  },
+  "accountSshDaemonDropbearUci": "Dropbear SSH configuration detected in UCI",
+  "@accountSshDaemonDropbearUci": {
+    "description": "SSH daemon status dropbear in UCI"
+  },
+  "accountSshDaemonDropbearInit": "Dropbear service detected in system init scripts",
+  "@accountSshDaemonDropbearInit": {
+    "description": "SSH daemon status dropbear in init"
+  },
+  "accountSshDaemonNone": "No OpenWrt SSH daemon (dropbear/openssh) active in UCI",
+  "@accountSshDaemonNone": {
+    "description": "SSH daemon status none active"
+  },
+  "accountSshDaemonInaccessible": "SSH daemon configuration inaccessible via LuCI",
+  "@accountSshDaemonInaccessible": {
+    "description": "SSH daemon status inaccessible"
+  },
+  "accountSshExplanationVerified": "SSH connection verified on port {port}; authenticated as {user}.",
+  "@accountSshExplanationVerified": {
+    "description": "SSH explanation verified",
+    "placeholders": {
+      "port": {
+        "type": "int"
+      },
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "accountSshExplanationAuthFailed": "SSH connection rejected: authentication failed (bad password).",
+  "@accountSshExplanationAuthFailed": {
+    "description": "SSH explanation auth failed"
+  },
+  "accountSshExplanationClosed": "SSH port closed or host unreachable.",
+  "@accountSshExplanationClosed": {
+    "description": "SSH explanation closed"
+  },
+  "accountSshExplanationNoCreds": "Router profile does not contain stored SSH credentials; password guessing is strictly avoided.",
+  "@accountSshExplanationNoCreds": {
+    "description": "SSH explanation no credentials"
+  },
+  "accountSshExplanationNoService": "No SSH service abstraction available in environment.",
+  "@accountSshExplanationNoService": {
+    "description": "SSH explanation no service"
+  },
+  "accountSshExplanationNotPerformed": "SSH probe was not performed.",
+  "@accountSshExplanationNotPerformed": {
+    "description": "SSH explanation not performed"
+  },
+  "accountSshOutputUsername": "UNIX username: {user}",
+  "@accountSshOutputUsername": {
+    "description": "SSH command output username",
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "accountSshSecurityNotes": "Security Guarantee: YALA never exposes stored passwords or private keys, never touches /etc/shadow, and only executes bounded read-only commands without guessing passwords.",
+  "@accountSshSecurityNotes": {
+    "description": "SSH security guarantee notes"
+  },
+  "accountSubsystemUci": "UCI Configuration System",
+  "@accountSubsystemUci": {
+    "description": "Subsystem UCI name"
+  },
+  "accountSubsystemUciStatus": "{count} configurations mapped",
+  "@accountSubsystemUciStatus": {
+    "description": "Subsystem UCI status mapped",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountSubsystemUciStatusActive": "Active (Standard)",
+  "@accountSubsystemUciStatusActive": {
+    "description": "Subsystem UCI status standard active"
+  },
+  "accountSubsystemUciDetail": "Configs: {configs}",
+  "@accountSubsystemUciDetail": {
+    "description": "Subsystem UCI detail",
+    "placeholders": {
+      "configs": {
+        "type": "String"
+      }
+    }
+  },
+  "accountSubsystemUciDetailStandard": "Standard OpenWrt Unified Configuration Interface active.",
+  "@accountSubsystemUciDetailStandard": {
+    "description": "Subsystem UCI detail standard"
+  },
+  "accountSubsystemPkg": "Package Manager Engine",
+  "@accountSubsystemPkg": {
+    "description": "Subsystem package manager name"
+  },
+  "accountSubsystemPkgApkDesc": "Alpine Package Keeper (APK) engine detected (OpenWrt >= 24.x).",
+  "@accountSubsystemPkgApkDesc": {
+    "description": "Subsystem APK detail"
+  },
+  "accountSubsystemPkgOpkgDesc": "OPKG package manager detected (OpenWrt <= 23.x).",
+  "@accountSubsystemPkgOpkgDesc": {
+    "description": "Subsystem OPKG detail"
+  },
+  "accountSubsystemFirewall": "Firewall Engine Backend",
+  "@accountSubsystemFirewall": {
+    "description": "Subsystem firewall name"
+  },
+  "accountSubsystemFw4Desc": "nftables firewall engine (fw4) active.",
+  "@accountSubsystemFw4Desc": {
+    "description": "Subsystem FW4 detail"
+  },
+  "accountSubsystemFw3Desc": "iptables firewall engine (fw3) active.",
+  "@accountSubsystemFw3Desc": {
+    "description": "Subsystem FW3 detail"
+  },
+  "accountSubsystemAdGuard": "AdGuard Home Integration",
+  "@accountSubsystemAdGuard": {
+    "description": "Subsystem AdGuard name"
+  },
+  "accountSubsystemAdGuardDesc": "Local network-wide ad and tracker blocking service active.",
+  "@accountSubsystemAdGuardDesc": {
+    "description": "Subsystem AdGuard detail"
+  },
+  "accountSubsystemOdhcpd": "Embedded DHCP & IPv6 Daemon (odhcpd)",
+  "@accountSubsystemOdhcpd": {
+    "description": "Subsystem odhcpd name"
+  },
+  "accountSubsystemOdhcpdDesc": "Embedded DHCP, DHCPv6 and Router Advertisement server running.",
+  "@accountSubsystemOdhcpdDesc": {
+    "description": "Subsystem odhcpd detail"
+  },
+  "accountSubsystemCron": "Scheduled Tasks Daemon (cron)",
+  "@accountSubsystemCron": {
+    "description": "Subsystem cron name"
+  },
+  "accountSubsystemCronDesc": "Task scheduling service detected and available.",
+  "@accountSubsystemCronDesc": {
+    "description": "Subsystem cron detail"
+  },
+  "accountSubsystemStatusActive": "Active",
+  "@accountSubsystemStatusActive": {
+    "description": "Subsystem status active"
+  },
+  "accountRoleAdmin": "Primary Administrator (UID 0)",
+  "@accountRoleAdmin": {
+    "description": "Role primary administrator"
+  },
+  "accountRoleSessionUser": "Authenticated Session User",
+  "@accountRoleSessionUser": {
+    "description": "Role authenticated session user"
+  },
+  "accountRoleConfiguredUser": "Configured User Account",
+  "@accountRoleConfiguredUser": {
+    "description": "Role configured user account"
+  },
+  "accountRoleSecondaryOperator": "Secondary Operator",
+  "@accountRoleSecondaryOperator": {
+    "description": "Role secondary operator"
+  },
+  "accountSourceDiscoveredLogins": "Discovered in router logins (/etc/passwd or rpcd)",
+  "@accountSourceDiscoveredLogins": {
+    "description": "Source discovered logins"
+  },
+  "accountSourceConfirmedShell": "Confirmed via UNIX shell",
+  "@accountSourceConfirmedShell": {
+    "description": "Source confirmed shell"
+  },
+  "accountSourceProfileLabel": "Profile label",
+  "@accountSourceProfileLabel": {
+    "description": "Source profile label"
+  },
+  "accountSourceUciLogin": "UCI rpcd login",
+  "@accountSourceUciLogin": {
+    "description": "Source UCI rpcd login"
+  },
+  "toastErrorPermissionDenied": "Permission denied. Check router ACL/rpcd configuration.",
+  "@toastErrorPermissionDenied": {
+    "description": "Toast error reason when permission is denied or ACL restricted"
+  },
+  "toastErrorSessionExpired": "Session expired or unauthorized. Please re-login.",
+  "@toastErrorSessionExpired": {
+    "description": "Toast error reason when HTTP 401 or session expired"
+  },
+  "toastErrorRpcNotFound": "RPC endpoint not found. Router may need rpcd-mod-luci.",
+  "@toastErrorRpcNotFound": {
+    "description": "Toast error reason when RPC endpoint HTTP 404 is encountered"
+  },
+  "toastErrorRouterUnreachable": "Router unreachable. Check your network connection.",
+  "@toastErrorRouterUnreachable": {
+    "description": "Toast error reason when router is unreachable or socket error occurs"
+  },
+  "toastErrorRequestTimeout": "Request timed out. Router may be busy.",
+  "@toastErrorRequestTimeout": {
+    "description": "Toast error reason when request times out or ubus code 7 occurs"
+  },
+  "toastErrorBinaryNotFound": "Required binary not found on router.",
+  "@toastErrorBinaryNotFound": {
+    "description": "Toast error reason when required executable is not found on router"
+  },
+  "toastErrorStorageFull": "Router storage is full (no space left on device).",
+  "@toastErrorStorageFull": {
+    "description": "Toast error reason when router storage or filesystem is full"
+  },
+  "toastErrorMemoryExhausted": "Router ran out of memory during operation.",
+  "@toastErrorMemoryExhausted": {
+    "description": "Toast error reason when router process is killed due to OOM"
+  },
+  "toastErrorServerError": "Router returned a server error. Please try again.",
+  "@toastErrorServerError": {
+    "description": "Toast error reason when router returns HTTP 5xx error"
+  },
+  "toastErrorUnexpected": "An unexpected error occurred. Please try again.",
+  "@toastErrorUnexpected": {
+    "description": "Fallback toast error reason when unknown error occurs"
+  },
+  "toastErrorCheckPermissionsOrService": "Check router permissions or service availability.",
+  "@toastErrorCheckPermissionsOrService": {
+    "description": "Toast subtitle guiding user to check permissions or service status"
+  },
+  "toastErrorCheckPermissionsOrUci": "Check router permissions or UCI configuration.",
+  "@toastErrorCheckPermissionsOrUci": {
+    "description": "Toast subtitle guiding user to check permissions or UCI configuration"
+  },
+  "toastErrorCheckPermissionsOrWireless": "Check router permissions or wireless configuration.",
+  "@toastErrorCheckPermissionsOrWireless": {
+    "description": "Toast subtitle guiding user to check permissions or wireless configuration"
+  },
+  "toastErrorCheckPermissionsOrFirewall": "Check router permissions or firewall configuration.",
+  "@toastErrorCheckPermissionsOrFirewall": {
+    "description": "Toast subtitle guiding user to check permissions or firewall configuration"
+  },
+  "toastErrorCheckPermissionsOrDhcp": "Check router permissions or UCI DHCP configuration.",
+  "@toastErrorCheckPermissionsOrDhcp": {
+    "description": "Toast subtitle guiding user to check permissions or DHCP configuration"
+  },
+  "dnsmasqReloadTitle": "Reload DHCP & DNS Service",
+  "@dnsmasqReloadTitle": {
+    "description": "Translation for dnsmasqReloadTitle"
+  },
+  "dnsmasqReloadSubtitle": "Reload dnsmasq to apply configuration changes and refresh its internal state",
+  "@dnsmasqReloadSubtitle": {
+    "description": "Translation for dnsmasqReloadSubtitle"
+  },
+  "dnsmasqReloading": "Reloading dnsmasq...",
+  "@dnsmasqReloading": {
+    "description": "Translation for dnsmasqReloading"
+  },
+  "dnsmasqReloadButton": "Reload dnsmasq",
+  "@dnsmasqReloadButton": {
+    "description": "Translation for dnsmasqReloadButton"
+  },
+  "dnsmasqReloadConfirmTitle": "Reload dnsmasq?",
+  "@dnsmasqReloadConfirmTitle": {
+    "description": "Translation for dnsmasqReloadConfirmTitle"
+  },
+  "dnsmasqReloadConfirmBody": "This will reload the dnsmasq service. Connected clients should retain their existing leases, but a brief interruption to DNS resolution may occur. This does not force clients to renew DHCP leases.",
+  "@dnsmasqReloadConfirmBody": {
+    "description": "Translation for dnsmasqReloadConfirmBody"
+  },
+  "dnsmasqReloadSuccess": "dnsmasq reloaded successfully",
+  "@dnsmasqReloadSuccess": {
+    "description": "Translation for dnsmasqReloadSuccess"
+  },
+  "dnsmasqReloadNotRunning": "dnsmasq does not appear to be running",
+  "@dnsmasqReloadNotRunning": {
+    "description": "Translation for dnsmasqReloadNotRunning"
+  },
+  "dnsmasqReloadError": "Failed to reload dnsmasq",
+  "@dnsmasqReloadError": {
+    "description": "Translation for dnsmasqReloadError"
+  },
+  "logViewerTitle": "System Logs",
+  "@logViewerTitle": {
+    "description": "Translation for logViewerTitle"
+  },
+  "logViewerSyslogTab": "System Log",
+  "@logViewerSyslogTab": {
+    "description": "Translation for logViewerSyslogTab"
+  },
+  "logViewerKernelTab": "Kernel Log",
+  "@logViewerKernelTab": {
+    "description": "Translation for logViewerKernelTab"
+  },
+  "logViewerLoading": "Loading logs...",
+  "@logViewerLoading": {
+    "description": "Translation for logViewerLoading"
+  },
+  "logViewerEmpty": "No log entries found",
+  "@logViewerEmpty": {
+    "description": "Translation for logViewerEmpty"
+  },
+  "logViewerError": "Failed to load logs",
+  "@logViewerError": {
+    "description": "Translation for logViewerError"
+  },
+  "logViewerFilter": "Filter logs...",
+  "@logViewerFilter": {
+    "description": "Translation for logViewerFilter"
+  },
+  "logViewerLevel": "Level",
+  "@logViewerLevel": {
+    "description": "Translation for logViewerLevel"
+  },
+  "logViewerLines": "Lines",
+  "@logViewerLines": {
+    "description": "Translation for logViewerLines"
+  },
+  "logViewerTimestamp": "Timestamp",
+  "@logViewerTimestamp": {
+    "description": "Translation for logViewerTimestamp"
+  },
+  "logViewerRefresh": "Refresh logs",
+  "@logViewerRefresh": {
+    "description": "Translation for logViewerRefresh"
+  },
+  "logViewerCopy": "Copy",
+  "@logViewerCopy": {
+    "description": "Translation for logViewerCopy"
+  },
+  "logViewerCopied": "Log copied to clipboard",
+  "@logViewerCopied": {
+    "description": "Translation for logViewerCopied"
+  },
+  "logViewerCopyAll": "Copy All",
+  "@logViewerCopyAll": {
+    "description": "Translation for logViewerCopyAll"
+  },
+  "logViewerDescription": "System log (logread) and kernel ring buffer (dmesg) viewer",
+  "@logViewerDescription": {
+    "description": "Translation for logViewerDescription"
+  },
+  "logViewerErrorBinaryMissing": "Log utility not found on this router",
+  "@logViewerErrorBinaryMissing": {
+    "description": "Translation for logViewerErrorBinaryMissing"
+  },
+  "logViewerErrorGeneric": "Failed to load logs",
+  "@logViewerErrorGeneric": {
+    "description": "Translation for logViewerErrorGeneric"
+  },
+  "logViewerErrorPermission": "Permission denied — check RPC ACLs",
+  "@logViewerErrorPermission": {
+    "description": "Translation for logViewerErrorPermission"
+  },
+  "logViewerErrorTimeout": "Log fetch timed out",
+  "@logViewerErrorTimeout": {
+    "description": "Translation for logViewerErrorTimeout"
+  },
+  "logViewerLevelAll": "All",
+  "@logViewerLevelAll": {
+    "description": "Translation for logViewerLevelAll"
+  },
+  "logViewerLevelDebug": "Debug",
+  "@logViewerLevelDebug": {
+    "description": "Translation for logViewerLevelDebug"
+  },
+  "logViewerLevelError": "Error",
+  "@logViewerLevelError": {
+    "description": "Translation for logViewerLevelError"
+  },
+  "logViewerLevelInfo": "Info",
+  "@logViewerLevelInfo": {
+    "description": "Translation for logViewerLevelInfo"
+  },
+  "logViewerLevelWarn": "Warning",
+  "@logViewerLevelWarn": {
+    "description": "Translation for logViewerLevelWarn"
+  },
+  "logViewerLineCount": "{count} lines",
+  "@logViewerLineCount": {
+    "description": "Translation for logViewerLineCount",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "200"
+      }
+    }
+  },
+  "logViewerNoKernelLog": "Kernel log unavailable on this router",
+  "@logViewerNoKernelLog": {
+    "description": "Translation for logViewerNoKernelLog"
+  },
+  "logViewerScrollToBottom": "Scroll to bottom",
+  "@logViewerScrollToBottom": {
+    "description": "Translation for logViewerScrollToBottom"
+  },
+  "logViewerScrollToTop": "Scroll to top",
+  "@logViewerScrollToTop": {
+    "description": "Translation for logViewerScrollToTop"
+  },
+  "logViewerTimestampNote": "Timestamps reported by router clock",
+  "@logViewerTimestampNote": {
+    "description": "Translation for logViewerTimestampNote"
+  },
+  "sshTerminalTitle": "SSH Console",
+  "@sshTerminalTitle": {
+    "description": "Translation for sshTerminalTitle"
+  },
+  "sshTerminalConnected": "Connected",
+  "@sshTerminalConnected": {
+    "description": "Translation for sshTerminalConnected"
+  },
+  "sshTerminalDisconnected": "Disconnected",
+  "@sshTerminalDisconnected": {
+    "description": "Translation for sshTerminalDisconnected"
+  },
+  "sshTerminalAuthFailed": "Authentication failed",
+  "@sshTerminalAuthFailed": {
+    "description": "Translation for sshTerminalAuthFailed"
+  },
+  "sshTerminalConnectionFailed": "Connection failed",
+  "@sshTerminalConnectionFailed": {
+    "description": "Translation for sshTerminalConnectionFailed"
+  },
+  "sshTerminalReconnect": "Reconnect",
+  "@sshTerminalReconnect": {
+    "description": "Translation for sshTerminalReconnect"
+  },
+  "sshTerminalClear": "Clear",
+  "@sshTerminalClear": {
+    "description": "Translation for sshTerminalClear"
+  },
+  "sshTerminalClearConfirm": "Clear terminal output?",
+  "@sshTerminalClearConfirm": {
+    "description": "Translation for sshTerminalClearConfirm"
+  },
+  "sshTerminalCopy": "Copy output",
+  "@sshTerminalCopy": {
+    "description": "Translation for sshTerminalCopy"
+  },
+  "sshTerminalSend": "Send",
+  "@sshTerminalSend": {
+    "description": "Translation for sshTerminalSend"
+  },
+  "sshTerminalEnterCommand": "Enter command...",
+  "@sshTerminalEnterCommand": {
+    "description": "Translation for sshTerminalEnterCommand"
+  },
+  "sshTerminalSaveCommand": "Save command",
+  "@sshTerminalSaveCommand": {
+    "description": "Translation for sshTerminalSaveCommand"
+  },
+  "sshTerminalSavedCommands": "Saved commands",
+  "@sshTerminalSavedCommands": {
+    "description": "Translation for sshTerminalSavedCommands"
+  },
+  "sshTerminalRiskDestructiveTitle": "Destructive Command",
+  "@sshTerminalRiskDestructiveTitle": {
+    "description": "Translation for sshTerminalRiskDestructiveTitle"
+  },
+  "sshTerminalRiskDestructiveBody": "This command may cause irreversible changes or system damage. Proceed with extreme caution.",
+  "@sshTerminalRiskDestructiveBody": {
+    "description": "Translation for sshTerminalRiskDestructiveBody"
+  },
+  "sshTerminalRiskElevatedBody": "This command has elevated risk. Please verify it before running.",
+  "@sshTerminalRiskElevatedBody": {
+    "description": "Translation for sshTerminalRiskElevatedBody"
+  },
+  "sshTerminalCtrlC": "Ctrl+C",
+  "@sshTerminalCtrlC": {
+    "description": "Translation for sshTerminalCtrlC"
+  },
+  "sshTerminalCtrlCTooltip": "Send Ctrl+C (interrupt)",
+  "@sshTerminalCtrlCTooltip": {
+    "description": "Translation for sshTerminalCtrlCTooltip"
+  },
+  "sshTerminalMaxCommands": "Maximum saved commands reached (50)",
+  "@sshTerminalMaxCommands": {
+    "description": "Translation for sshTerminalMaxCommands"
+  },
+  "sshNoSavedCommands": "No saved commands yet",
+  "@sshNoSavedCommands": {
+    "description": "Translation for sshNoSavedCommands"
+  },
+  "sshCommandName": "Command name",
+  "@sshCommandName": {
+    "description": "Translation for sshCommandName"
+  },
+  "sshCommandNameHint": "e.g. Show interfaces",
+  "@sshCommandNameHint": {
+    "description": "Translation for sshCommandNameHint"
+  },
+  "sshCommandTextHint": "e.g. ip link show",
+  "@sshCommandTextHint": {
+    "description": "Translation for sshCommandTextHint"
+  },
+  "sshCommandSaved": "Command saved",
+  "@sshCommandSaved": {
+    "description": "Translation for sshCommandSaved"
+  },
+  "sshCommandSecretWarning": "Do not save commands containing passwords or tokens",
+  "@sshCommandSecretWarning": {
+    "description": "Translation for sshCommandSecretWarning"
+  },
+  "sshCommandDelete": "Delete",
+  "@sshCommandDelete": {
+    "description": "Translation for sshCommandDelete"
+  },
+  "sshCommandDeleteConfirm": "Delete this saved command?",
+  "@sshCommandDeleteConfirm": {
+    "description": "Translation for sshCommandDeleteConfirm"
+  },
+  "sshCommandDeleted": "Command deleted",
+  "@sshCommandDeleted": {
+    "description": "Translation for sshCommandDeleted"
+  },
+  "sshCommandUpdated": "Command updated",
+  "@sshCommandUpdated": {
+    "description": "Translation for sshCommandUpdated"
+  },
+  "sshTerminalAllCopied": "Terminal output copied to clipboard",
+  "@sshTerminalAllCopied": {
+    "description": "Translation for sshTerminalAllCopied"
+  },
+  "sshTerminalConnecting": "Connecting to {host}...",
+  "@sshTerminalConnecting": {
+    "description": "Translation for sshTerminalConnecting",
+    "placeholders": {
+      "host": {
+        "type": "String",
+        "example": "192.168.1.1"
+      }
+    }
+  },
+  "sshTerminalCopyAll": "Copy All",
+  "@sshTerminalCopyAll": {
+    "description": "Translation for sshTerminalCopyAll"
+  },
+  "sshTerminalDescription": "Interactive persistent SSH shell with saved command library",
+  "@sshTerminalDescription": {
+    "description": "Translation for sshTerminalDescription"
+  },
+  "sshTerminalMaxCommandsReached": "Maximum of 50 saved commands reached. Delete one to save another.",
+  "@sshTerminalMaxCommandsReached": {
+    "description": "Translation for sshTerminalMaxCommandsReached"
+  },
+  "sshTerminalNoCredentials": "No SSH credentials stored for this router.",
+  "@sshTerminalNoCredentials": {
+    "description": "Translation for sshTerminalNoCredentials"
+  },
+  "sshTerminalOutputTruncated": "[Output truncated — buffer limit reached]",
+  "@sshTerminalOutputTruncated": {
+    "description": "Translation for sshTerminalOutputTruncated"
+  },
+  "sshTerminalRiskElevatedTitle": "Elevated Privilege Command",
+  "@sshTerminalRiskElevatedTitle": {
+    "description": "Translation for sshTerminalRiskElevatedTitle"
+  },
+  "sshTerminalSessionNote": "Shell state persists within this session (cd, exports work). Closing the screen ends the session.",
+  "@sshTerminalSessionNote": {
+    "description": "Translation for sshTerminalSessionNote"
+  },
+  "sshTerminalSubtitle": "Interactive shell session on your router",
+  "@sshTerminalSubtitle": {
+    "description": "Translation for sshTerminalSubtitle"
+  },
+  "sshTerminalArrowUp": "Up (↑)",
+  "@sshTerminalArrowUp": {
+    "description": "Translation for sshTerminalArrowUp"
+  },
+  "sshTerminalArrowDown": "Down (↓)",
+  "@sshTerminalArrowDown": {
+    "description": "Translation for sshTerminalArrowDown"
+  },
+  "sshTerminalArrowLeft": "Left (←)",
+  "@sshTerminalArrowLeft": {
+    "description": "Translation for sshTerminalArrowLeft"
+  },
+  "sshTerminalArrowRight": "Right (→)",
+  "@sshTerminalArrowRight": {
+    "description": "Translation for sshTerminalArrowRight"
+  },
+  "jsonExportCatSshSavedCommands": "SSH Saved Commands",
+  "@jsonExportCatSshSavedCommands": {
+    "description": "Category title for SSH saved commands"
+  },
+  "jsonExportCatSshSavedCommandsSubtitle": "Saved SSH console commands and shortcuts",
+  "@jsonExportCatSshSavedCommandsSubtitle": {
+    "description": "Category subtitle for SSH saved commands"
+  },
+  "sshImportCommands": "Import Commands",
+  "@sshImportCommands": {
+    "description": "Button and tooltip label for importing SSH saved commands"
+  },
+  "sshImportCommandsEmpty": "The selected file is empty.",
+  "@sshImportCommandsEmpty": {
+    "description": "Error message when imported JSON file is empty"
+  },
+  "sshImportCommandsNoValid": "No valid SSH commands found in JSON.",
+  "@sshImportCommandsNoValid": {
+    "description": "Warning message when no valid SSH commands were parsed from JSON"
+  },
+  "sshImportCommandsSuccess": "Successfully imported {count} command(s)",
+  "@sshImportCommandsSuccess": {
+    "description": "Toast message when saved SSH commands are successfully imported",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "bandwidthThrottlingTitle": "Bandwidth Throttling",
+  "@bandwidthThrottlingTitle": {
+    "description": "Title for the bandwidth throttling and speed limits screen"
+  },
+  "bandwidthThrottlingTooltip": "Bandwidth Throttling",
+  "@bandwidthThrottlingTooltip": {
+    "description": "Tooltip for bandwidth throttling action icon"
+  },
+  "bandwidthThrottlingAddLimit": "Add Speed Limit",
+  "@bandwidthThrottlingAddLimit": {
+    "description": "Button and tooltip to add a new client speed limit"
+  },
+  "bandwidthThrottlingSelectDevice": "Select Device to Throttle",
+  "@bandwidthThrottlingSelectDevice": {
+    "description": "Header title for bottom sheet selecting a client device to throttle"
+  },
+  "bandwidthThrottlingNoClientsDetected": "No clients currently detected on {router}",
+  "@bandwidthThrottlingNoClientsDetected": {
+    "description": "Toast message when no clients are found on the router",
+    "placeholders": {
+      "router": {
+        "type": "String"
+      }
+    }
+  },
+  "bandwidthThrottlingActiveRestrictions": "{count, plural, =1{1 Active Speed Restriction} other{{count} Active Speed Restrictions}}",
+  "@bandwidthThrottlingActiveRestrictions": {
+    "description": "Count of active speed restrictions in header summary card",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "bandwidthThrottlingMaxCombinedDl": "Max Combined DL",
+  "@bandwidthThrottlingMaxCombinedDl": {
+    "description": "Label for combined maximum download throttle cap"
+  },
+  "bandwidthThrottlingMaxCombinedUl": "Max Combined UL",
+  "@bandwidthThrottlingMaxCombinedUl": {
+    "description": "Label for combined maximum upload throttle cap"
+  },
+  "bandwidthThrottlingThrottledDevices": "Throttled Devices ({count})",
+  "@bandwidthThrottlingThrottledDevices": {
+    "description": "Section header for list of throttled client devices",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "bandwidthThrottlingEditTooltip": "Edit Speed Limit",
+  "@bandwidthThrottlingEditTooltip": {
+    "description": "Tooltip for editing an existing speed limit"
+  },
+  "bandwidthThrottlingRemoveTooltip": "Remove Speed Limit",
+  "@bandwidthThrottlingRemoveTooltip": {
+    "description": "Tooltip for removing a client speed limit"
+  },
+  "bandwidthThrottlingRemoveConfirmTitle": "Remove Speed Limit",
+  "@bandwidthThrottlingRemoveConfirmTitle": {
+    "description": "Title of confirmation dialog to remove speed restriction"
+  },
+  "bandwidthThrottlingRemoveConfirmDesc": "Are you sure you want to remove bandwidth restrictions for {client}?",
+  "@bandwidthThrottlingRemoveConfirmDesc": {
+    "description": "Body message of confirmation dialog to remove speed restriction",
+    "placeholders": {
+      "client": {
+        "type": "String"
+      }
+    }
+  },
+  "bandwidthThrottlingRemoveSuccess": "Speed limit removed for {client}",
+  "@bandwidthThrottlingRemoveSuccess": {
+    "description": "Toast when speed limit is successfully removed",
+    "placeholders": {
+      "client": {
+        "type": "String"
+      }
+    }
+  },
+  "bandwidthThrottlingRemoveFailed": "Failed to remove speed limit",
+  "@bandwidthThrottlingRemoveFailed": {
+    "description": "Toast when speed limit removal fails"
+  },
+  "bandwidthThrottlingResumed": "Speed limit resumed for {client}",
+  "@bandwidthThrottlingResumed": {
+    "description": "Toast when speed limit is resumed/unpaused",
+    "placeholders": {
+      "client": {
+        "type": "String"
+      }
+    }
+  },
+  "bandwidthThrottlingPaused": "Speed limit paused for {client}",
+  "@bandwidthThrottlingPaused": {
+    "description": "Toast when speed limit is paused/disabled",
+    "placeholders": {
+      "client": {
+        "type": "String"
+      }
+    }
+  },
+  "bandwidthThrottlingUpdateFailed": "Failed to update speed limit",
+  "@bandwidthThrottlingUpdateFailed": {
+    "description": "Toast when toggling or updating speed limit fails"
+  },
+  "bandwidthThrottlingEmptyTitle": "No Speed Restrictions Active",
+  "@bandwidthThrottlingEmptyTitle": {
+    "description": "Title when no speed restrictions are active"
+  },
+  "bandwidthThrottlingEmptyDescRouter": "No bandwidth limits are configured for {router}. Cap download and upload speeds for any client connected to this profile.",
+  "@bandwidthThrottlingEmptyDescRouter": {
+    "description": "Description when no limits are set for a specific router",
+    "placeholders": {
+      "router": {
+        "type": "String"
+      }
+    }
+  },
+  "bandwidthThrottlingEmptyDescFallback": "Speed restrictions let you cap maximum download and upload speeds for specific client devices on the active router profile.",
+  "@bandwidthThrottlingEmptyDescFallback": {
+    "description": "Fallback description when no speed restrictions are active"
+  },
+  "bandwidthThrottlingChipThrottled": "Throttled",
+  "@bandwidthThrottlingChipThrottled": {
+    "description": "Badge/chip label indicating a client is currently throttled"
+  },
+  "speedLimitEnableSwitch": "Enable Speed Restriction",
+  "@speedLimitEnableSwitch": {
+    "description": "Title of switch toggle to enable bandwidth restriction"
+  },
+  "speedLimitSubtitleEnabled": "Throttles bandwidth for this specific client.",
+  "@speedLimitSubtitleEnabled": {
+    "description": "Subtitle explaining that speed restriction is currently enabled"
+  },
+  "speedLimitSubtitleDisabled": "Client has full unrestricted access.",
+  "@speedLimitSubtitleDisabled": {
+    "description": "Subtitle explaining that speed restriction is currently disabled"
+  },
+  "speedLimitDownloadLabel": "Download Limit",
+  "@speedLimitDownloadLabel": {
+    "description": "Label for download speed limit field"
+  },
+  "speedLimitUploadLabel": "Upload Limit",
+  "@speedLimitUploadLabel": {
+    "description": "Label for upload speed limit field"
+  },
+  "speedLimitValidationEmpty": "Enter at least one download or upload limit",
+  "@speedLimitValidationEmpty": {
+    "description": "Validation error when both limits are zero or empty"
+  },
+  "speedLimitValidationInvalid": "Invalid value",
+  "@speedLimitValidationInvalid": {
+    "description": "Validation error when an invalid number is entered"
+  },
+  "speedLimitDynamicIpCallout": "Dynamic IP detected. Pinning a static DHCP lease ensures limits remain tied to this device permanently.",
+  "@speedLimitDynamicIpCallout": {
+    "description": "Callout message advising to pin a static DHCP lease for dynamic clients"
+  },
+  "speedLimitPinIpButton": "Pin IP",
+  "@speedLimitPinIpButton": {
+    "description": "Button to pin a static DHCP lease for client"
+  },
+  "speedLimitAppliedToast": "Speed limit applied to {client}",
+  "@speedLimitAppliedToast": {
+    "description": "Toast message on speed limit apply success",
+    "placeholders": {
+      "client": {
+        "type": "String"
+      }
+    }
+  },
+  "speedLimitApplyFailedToast": "Failed to apply speed limit to {client}",
+  "@speedLimitApplyFailedToast": {
+    "description": "Toast message on speed limit apply failure",
+    "placeholders": {
+      "client": {
+        "type": "String"
+      }
+    }
+  },
+  "speedLimitSelfDeviceWarningTitle": "Warning: Self Device",
+  "@speedLimitSelfDeviceWarningTitle": {
+    "description": "Title of dialog warning user about throttling their own device"
+  },
+  "speedLimitSelfDeviceWarningDesc": "This device is running Yala. Throttling its speed may affect your remote connection to the router. Proceed anyway?",
+  "@speedLimitSelfDeviceWarningDesc": {
+    "description": "Warning message when user attempts to throttle the current client device"
+  },
+  "speedLimitBtnProceedAnyway": "Proceed Anyway",
+  "@speedLimitBtnProceedAnyway": {
+    "description": "Confirmation button to throttle self device anyway"
+  },
+  "speedLimitClientAction": "Speed Limit",
+  "@speedLimitClientAction": {
+    "description": "Action button in client card for setting speed limit"
+  },
+  "speedLimitClientActionWithLimit": "Limit: {limit}",
+  "@speedLimitClientActionWithLimit": {
+    "description": "Action button in client card showing existing limit",
+    "placeholders": {
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "localNetworkPermissionTitle": "Local Network Permission",
+  "@localNetworkPermissionTitle": {
+    "description": "Title of local network permission disclosure dialog"
+  },
+  "localNetworkPermissionDesc": "Yet Another LuCI App connects directly to your OpenWrt router gateway (such as 192.168.1.1) to manage Wi-Fi, firewall, and system settings.",
+  "@localNetworkPermissionDesc": {
+    "description": "Educational description explaining why local network access is needed"
+  },
+  "localNetworkPermissionBulletNoExfiltration": "No internet exfiltration — All communication remains strictly between your device and your local router.",
+  "@localNetworkPermissionBulletNoExfiltration": {
+    "description": "Bullet point assuring no data is exfiltrated to the internet"
+  },
+  "localNetworkPermissionBulletPrivacy": "Privacy preserved — Yala never collects, tracks, or shares your local network devices.",
+  "@localNetworkPermissionBulletPrivacy": {
+    "description": "Bullet point assuring local network privacy"
+  },
+  "localNetworkPermissionDeniedTitle": "Local Network Access Denied",
+  "@localNetworkPermissionDeniedTitle": {
+    "description": "Title of sheet shown when local network permission was denied"
+  },
+  "localNetworkPermissionDeniedDesc": "Local network access was denied. Yala requires this permission to communicate with your router gateway over the local network. You can enable it in device Settings.",
+  "@localNetworkPermissionDeniedDesc": {
+    "description": "Description on how to re-enable local network permission in Settings"
+  },
+  "localNetworkPermissionBtnOpenSettings": "Open App Settings",
+  "@localNetworkPermissionBtnOpenSettings": {
+    "description": "Button to open device application settings"
+  },
+  "localNetworkPermissionBtnContinue": "Continue",
+  "@localNetworkPermissionBtnContinue": {
+    "description": "Confirmation button to request local network permission"
+  },
+  "localNetworkPermissionRequiredAndroid": "Local network permission required. Please allow access in Android Settings > Apps > Yet Another LuCI App > Permissions.",
+  "@localNetworkPermissionRequiredAndroid": {
+    "description": "Error message when local network permission is missing on Android"
+  },
+  "localNetworkPermissionRequiredIos": "Local network permission required. Please allow access in iOS Settings > Yet Another LuCI App.",
+  "@localNetworkPermissionRequiredIos": {
+    "description": "Error message when local network permission is missing on iOS"
   }
 }

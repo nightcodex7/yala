@@ -256,7 +256,7 @@ class _ProvisionGuestNetworkDialogState
       if (mounted) {
         context.showToastError(
           'Failed to provision guest network',
-          subtitle: e.toString().replaceAll('Exception: ', ''),
+          subtitle: LuciToastManager.parseErrorReason(e),
         );
       }
     } finally {
@@ -279,7 +279,6 @@ class _ProvisionGuestNetworkDialogState
     return PopScope(
       canPop: !_isSubmitting,
       child: AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Icon(Icons.shield_moon_rounded, color: theme.colorScheme.primary),
@@ -339,10 +338,17 @@ class _ProvisionGuestNetworkDialogState
                 DropdownButtonFormField<WirelessRadio>(
                   initialValue: _selectedRadio,
                   isExpanded: true,
-                  decoration: const InputDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
+                  decoration: InputDecoration(
                     labelText: 'Target Physical Radio',
-                    prefixIcon: Icon(Icons.cell_tower_rounded, size: 20),
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.cell_tower_rounded, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   items: widget.radios.map((r) {
                     return DropdownMenuItem(
@@ -420,10 +426,17 @@ class _ProvisionGuestNetworkDialogState
                 DropdownButtonFormField<String>(
                   initialValue: _selectedNetwork,
                   isExpanded: true,
-                  decoration: const InputDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
+                  decoration: InputDecoration(
                     labelText: 'Network Attachment',
-                    prefixIcon: Icon(Icons.router_rounded, size: 20),
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.router_rounded, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     helperText: 'Logical network bridge interface',
                   ),
                   items: _availableNetworks.map((network) {
@@ -476,10 +489,17 @@ class _ProvisionGuestNetworkDialogState
                 DropdownButtonFormField<String>(
                   initialValue: _selectedEncryption,
                   isExpanded: true,
-                  decoration: const InputDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
+                  decoration: InputDecoration(
                     labelText: 'Security Protocol',
-                    prefixIcon: Icon(Icons.security_rounded, size: 20),
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.security_rounded, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   items: [
                     DropdownMenuItem(
@@ -617,14 +637,21 @@ class _ProvisionGuestNetworkDialogState
                         DropdownButtonFormField<String>(
                           initialValue: _selectedPmf,
                           isExpanded: true,
-                          decoration: const InputDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                          elevation: 4,
+                          menuMaxHeight: 360,
+                          icon: const Icon(Icons.arrow_drop_down_rounded),
+                          decoration: InputDecoration(
                             labelText:
                                 'Protected Management Frames (PMF / 802.11w)',
-                            prefixIcon: Icon(
+                            prefixIcon: const Icon(
                               Icons.verified_user_rounded,
                               size: 20,
                             ),
-                            border: OutlineInputBorder(),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                           items: [
                             DropdownMenuItem(
@@ -885,10 +912,20 @@ class _ProvisionGuestNetworkDialogState
                       DropdownButtonFormField<String>(
                         initialValue: _macfilter,
                         isExpanded: true,
-                        decoration: const InputDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
+                        decoration: InputDecoration(
                           labelText: 'MAC Filter Mode',
-                          prefixIcon: Icon(Icons.shield_outlined, size: 20),
-                          border: OutlineInputBorder(),
+                          prefixIcon: const Icon(
+                            Icons.shield_outlined,
+                            size: 20,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         items: [
                           DropdownMenuItem(

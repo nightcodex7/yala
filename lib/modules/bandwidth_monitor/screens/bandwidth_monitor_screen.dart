@@ -10,6 +10,7 @@ import 'package:yet_another_luci_app/models/client.dart';
 import 'package:yet_another_luci_app/modules/bandwidth_monitor/controllers/bandwidth_monitor_controller.dart';
 import 'package:yet_another_luci_app/modules/bandwidth_monitor/models/bandwidth_data.dart';
 import 'package:yet_another_luci_app/modules/core/luci_module_registry.dart';
+import 'package:yet_another_luci_app/modules/bandwidth_monitor/screens/bandwidth_throttling_summary_screen.dart';
 import 'package:yet_another_luci_app/widgets/luci_app_bar.dart';
 import 'package:yet_another_luci_app/widgets/luci_refresh_components.dart';
 
@@ -55,6 +56,7 @@ class _BandwidthMonitorScreenState extends ConsumerState<BandwidthMonitorScreen>
     return Scaffold(
       appBar: LuciAppBar(
         title: l10n?.modBandwidthMonitorName ?? 'Bandwidth Monitor',
+        showBack: true,
         actions: [
           IconButton(
             icon: Icon(
@@ -67,6 +69,17 @@ class _BandwidthMonitorScreenState extends ConsumerState<BandwidthMonitorScreen>
                 ? (l10n?.bandwidthPauseStream ?? 'Pause Live Stream')
                 : (l10n?.bandwidthResumeStream ?? 'Resume Live Stream'),
             onPressed: () => controller.toggleStreaming(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.traffic_rounded),
+            tooltip: l10n?.bandwidthThrottlingTooltip ?? 'Bandwidth Throttling',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (ctx) => const BandwidthThrottlingSummaryScreen(),
+                ),
+              );
+            },
           ),
           PopupMenuButton<int>(
             icon: const Icon(Icons.timer_outlined),
@@ -917,6 +930,13 @@ class _BandwidthMonitorScreenState extends ConsumerState<BandwidthMonitorScreen>
                     value: periodVal,
                     isDense: true,
                     underline: const SizedBox.shrink(),
+                    borderRadius: BorderRadius.circular(16),
+                    dropdownColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHigh,
+                    elevation: 4,
+                    menuMaxHeight: 360,
+                    icon: const Icon(Icons.arrow_drop_down_rounded),
                     hint: const Text('Current Period'),
                     items: [
                       const DropdownMenuItem<String?>(

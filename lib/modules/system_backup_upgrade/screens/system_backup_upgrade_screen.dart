@@ -10,9 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher_string.dart';
-import '../../../design/luci_design_system.dart';
 import '../../../main.dart';
 import '../../../state/app_state.dart';
+import '../../../design/luci_design_system.dart';
 import '../../../utils/os_platform_integration.dart';
 import '../../../widgets/luci_app_bar.dart';
 import 'package:yet_another_luci_app/widgets/luci_toast.dart';
@@ -1087,6 +1087,7 @@ class _SystemBackupUpgradeScreenState
       } else {
         context.showToastError(
           l10n?.backupWriteFailed ?? 'Failed to write backup file to storage.',
+          subtitle: 'Please check app storage permissions or available space.',
         );
       }
     } catch (e, stack) {
@@ -1094,7 +1095,8 @@ class _SystemBackupUpgradeScreenState
       if (mounted) {
         setState(() => _isProcessing = false);
         context.showToastError(
-          'Backup Generation Failed: ${e.toString().replaceAll('Exception: ', '')}',
+          'Backup Generation Failed',
+          subtitle: LuciToastManager.parseErrorReason(e),
         );
       }
     } finally {
@@ -1320,12 +1322,14 @@ class _SystemBackupUpgradeScreenState
         context.showToastError(
           l10n?.backupRestoreFailed ??
               'Failed to restore backup configuration.',
+          subtitle: 'Check router permissions or archive integrity.',
         );
       }
     } catch (e) {
       if (!mounted) return;
       context.showToastError(
-        'Archive Upload Failed: ${e.toString().replaceAll('Exception: ', '')}',
+        'Archive Upload Failed',
+        subtitle: LuciToastManager.parseErrorReason(e),
       );
     } finally {
       if (mounted) {
@@ -1401,7 +1405,7 @@ class _SystemBackupUpgradeScreenState
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                l10n?.sysUpgradeResetConfirmTitle ?? 'Perform Factory Reset?',
+                l10n?.sysUpgradeResetConfirmTitle ?? 'Reset to Defaults?',
               ),
             ),
           ],
@@ -1409,7 +1413,7 @@ class _SystemBackupUpgradeScreenState
         content: SingleChildScrollView(
           child: Text(
             l10n?.sysUpgradeResetConfirmDesc ??
-                'This operation will permanently erase all custom settings, passwords, installed packages, and restore firmware to factory default state.\n\nThe router will automatically reboot upon completion. Continue?',
+                'Are you sure you want to perform a factory reset? All user configurations, installed packages, and custom passwords will be permanently wiped.\n\nThe router will automatically reboot upon completion. Continue?',
             style: const TextStyle(fontSize: 14),
           ),
         ),
@@ -1429,9 +1433,7 @@ class _SystemBackupUpgradeScreenState
               ),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              l10n?.sysUpgradeBtnResetConfirm ?? 'Perform Factory Reset',
-            ),
+            child: Text(l10n?.sysUpgradeBtnPerformReset ?? 'Perform Reset'),
           ),
         ],
       ),
@@ -1444,14 +1446,14 @@ class _SystemBackupUpgradeScreenState
       _uploadProgress = null;
       _statusMessage =
           l10n?.backupStatusFactoryReset ??
-          'Performing factory reset on router...';
+          'The system is erasing the configuration partition now and will reboot itself when finished.';
     });
 
     final appState = ref.read(appStateProvider);
-    final success = await appState.executeRouterCommand('firstboot', ['-y']);
-    if (success) {
-      await appState.executeRouterCommand('reboot', []);
-    }
+    final success = await appState.executeRouterCommand('firstboot', [
+      '-r',
+      '-y',
+    ]);
 
     if (!mounted) return;
     setState(() => _isProcessing = false);
@@ -1461,11 +1463,12 @@ class _SystemBackupUpgradeScreenState
         l10n?.sysUpgradeFactoryResetInitiated ??
             'Factory reset initiated. Router is now rebooting...',
       );
-      _showRebootCountdownDialog();
+      _showRebootCountdownDialog(isFactoryReset: true);
     } else {
       context.showToastError(
         l10n?.sysUpgradeFactoryResetFailed ??
             'Failed to execute factory reset on router.',
+        subtitle: 'Check router RPC permissions or system state.',
       );
     }
   }
@@ -1736,6 +1739,7 @@ class _SystemBackupUpgradeScreenState
         context.showToastError(
           l10n?.sysUpgradePartitionSaveFailed ??
               'Failed to write partition image file to storage.',
+          subtitle: 'Please check app storage permissions or available space.',
         );
       }
     } catch (e, stack) {
@@ -1743,7 +1747,8 @@ class _SystemBackupUpgradeScreenState
       if (mounted) {
         setState(() => _isProcessing = false);
         context.showToastError(
-          'Failed to save mtdblock: ${e.toString().replaceAll('Exception: ', '')}',
+          'Failed to save mtdblock',
+          subtitle: LuciToastManager.parseErrorReason(e),
         );
       }
     } finally {
@@ -1828,7 +1833,9 @@ class _SystemBackupUpgradeScreenState
         if (!mounted) return;
         unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
         context.showToastError(
-          'Insufficient /tmp space for upload ($fileSizeMbStr MB required, ${_tmpAvailableMb.toStringAsFixed(1)} MB available).',
+          'Insufficient /tmp space for upload',
+          subtitle:
+              '$fileSizeMbStr MB required, ${_tmpAvailableMb.toStringAsFixed(1)} MB available.',
         );
         return;
       }
@@ -1937,211 +1944,218 @@ class _SystemBackupUpgradeScreenState
         context: context,
         barrierDismissible: false,
         builder: (ctx) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.system_update_alt,
-                    color: Colors.blue,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    l10n?.sysUpgradePreFlashTitle ?? 'Firmware Pre-Flash Check',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+          builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+            return AlertDialog(
+              title: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: isVerified
-                          ? Colors.teal.withValues(alpha: 0.1)
-                          : Colors.orange.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isVerified ? Colors.teal : Colors.orange,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isVerified
-                              ? Icons.check_circle_outline
-                              : Icons.warning_amber_rounded,
-                          color: isVerified ? Colors.teal : Colors.orange,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isVerified
-                                    ? (l10n?.sysUpgradeImgVerified ??
-                                          'Image Verification Passed')
-                                    : (l10n?.sysUpgradeImgUnverified ??
-                                          'Pre-Flash Test Unverified'),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: isVerified
-                                      ? Colors.teal
-                                      : Colors.orange.shade900,
-                                ),
-                              ),
-                              Text(
-                                isVerified
-                                    ? (l10n?.sysUpgradeImgVerifiedDesc(
-                                            _romFlavor,
-                                          ) ??
-                                          'Firmware image matches target architecture for $_romFlavor.')
-                                    : (l10n?.sysUpgradeImgUnverifiedDesc ??
-                                          'sysupgrade -t test warning. Verify board compatibility before flashing.'),
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'File: $fileName',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  Text(
-                    'Size: $fileSizeMbStr MB',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  Text(
-                    'Target ROM: $_romFlavor',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const Divider(height: 24),
-                  CheckboxListTile(
-                    title: Text(
-                      l10n?.sysUpgradeKeepSettings ??
-                          'Keep settings and current configuration (-k)',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(
-                      l10n?.sysUpgradeKeepSettingsDialogSubtitle ??
-                          'Retain active network, Wi-Fi, and user credentials.',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    value: _keepSettings,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    onChanged: (val) {
-                      setDialogState(() {
-                        _keepSettings = val ?? true;
-                      });
-                    },
-                  ),
-                  CheckboxListTile(
-                    title: Text(
-                      l10n?.sysUpgradeForceSysupgrade ?? 'Force upgrade (-F)',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(
-                      l10n?.sysUpgradeForceSysupgradeDesc ??
-                          'Bypass board architecture validation (CAUTION!)',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    value: _forceSysupgrade,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    onChanged: (val) {
-                      setDialogState(() {
-                        _forceSysupgrade = val ?? false;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: colorScheme.primary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.bolt, color: Colors.red, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            l10n?.sysUpgradeFlashWarning ??
-                                'WARNING: Do NOT disconnect power or ethernet during the flashing process!',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.red,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: Icon(
+                      Icons.system_update_alt,
+                      color: colorScheme.primary,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n?.sysUpgradePreFlashTitle ??
+                          'Firmware Pre-Flash Check',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            actionsOverflowButtonSpacing: 8,
-            actionsOverflowDirection: VerticalDirection.down,
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(
-                  AppLocalizations.of(context)?.actionCancel ?? 'Cancel',
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isVerified
+                            ? Colors.teal.withValues(alpha: 0.1)
+                            : Colors.orange.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isVerified ? Colors.teal : Colors.orange,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isVerified
+                                ? Icons.check_circle_outline
+                                : Icons.warning_amber_rounded,
+                            color: isVerified ? Colors.teal : Colors.orange,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isVerified
+                                      ? (l10n?.sysUpgradeImgVerified ??
+                                            'Image Verification Passed')
+                                      : (l10n?.sysUpgradeImgUnverified ??
+                                            'Pre-Flash Test Unverified'),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isVerified
+                                        ? Colors.teal
+                                        : Colors.orange.shade900,
+                                  ),
+                                ),
+                                Text(
+                                  isVerified
+                                      ? (l10n?.sysUpgradeImgVerifiedDesc(
+                                              _romFlavor,
+                                            ) ??
+                                            'Firmware image matches target architecture for $_romFlavor.')
+                                      : (l10n?.sysUpgradeImgUnverifiedDesc ??
+                                            'sysupgrade -t test warning. Verify board compatibility before flashing.'),
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'File: $fileName',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      'Size: $fileSizeMbStr MB',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      'Target ROM: $_romFlavor',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    CheckboxListTile(
+                      title: Text(
+                        l10n?.sysUpgradeKeepSettings ??
+                            'Keep settings and current configuration (-k)',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        l10n?.sysUpgradeKeepSettingsDialogSubtitle ??
+                            'Retain active network, Wi-Fi, and user credentials.',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      value: _keepSettings,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      onChanged: (val) {
+                        setDialogState(() {
+                          _keepSettings = val ?? true;
+                        });
+                      },
+                    ),
+                    CheckboxListTile(
+                      title: Text(
+                        l10n?.sysUpgradeForceSysupgrade ?? 'Force upgrade (-F)',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        l10n?.sysUpgradeForceSysupgradeDesc ??
+                            'Bypass board architecture validation (CAUTION!)',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      value: _forceSysupgrade,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      onChanged: (val) {
+                        setDialogState(() {
+                          _forceSysupgrade = val ?? false;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.bolt, color: Colors.red, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              l10n?.sysUpgradeFlashWarning ??
+                                  'WARNING: Do NOT disconnect power or ethernet during the flashing process!',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              actionsOverflowButtonSpacing: 8,
+              actionsOverflowDirection: VerticalDirection.down,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(
+                    AppLocalizations.of(context)?.actionCancel ?? 'Cancel',
                   ),
                 ),
-                onPressed: () => Navigator.of(ctx).pop(true),
-                icon: const Icon(Icons.flash_on),
-                label: Text(
-                  AppLocalizations.of(context)?.backupFlashFirmwareNow ??
-                      'Flash Firmware Now',
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  icon: const Icon(Icons.flash_on),
+                  label: Text(
+                    AppLocalizations.of(context)?.backupFlashFirmwareNow ??
+                        'Flash Firmware Now',
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       );
 
@@ -2252,7 +2266,8 @@ class _SystemBackupUpgradeScreenState
         _showRebootCountdownDialog();
       } else {
         context.showToastError(
-          '${l10n?.sysUpgradeFlashFailed ?? "Firmware Flash Failed"}: ${e.toString().replaceAll('Exception: ', '')}',
+          l10n?.sysUpgradeFlashFailed ?? 'Firmware Flash Failed',
+          subtitle: LuciToastManager.parseErrorReason(e),
         );
       }
     } finally {
@@ -2280,6 +2295,7 @@ class _SystemBackupUpgradeScreenState
     if (router == null || sysauth == null || api == null) {
       context.showToastError(
         l10n?.sysUpgradeRouterNotActive ?? 'Router connection is not active.',
+        subtitle: 'Please re-connect to the router and try again.',
       );
       return;
     }
@@ -2288,6 +2304,7 @@ class _SystemBackupUpgradeScreenState
       context.showToastError(
         l10n?.sysUpgradeUrlNotFound ??
             'Download URL not found for this upgrade.',
+        subtitle: 'The firmware server did not provide a valid image URL.',
       );
       return;
     }
@@ -2300,181 +2317,191 @@ class _SystemBackupUpgradeScreenState
       context: context,
       barrierDismissible: false,
       builder: (dialogCtx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              const Icon(
-                Icons.system_update_rounded,
-                color: Colors.green,
-                size: 26,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  l10n?.sysUpgradeInstallTitle ?? 'Install Firmware Upgrade',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        builder: (ctx, setDialogState) {
+          final dialogTheme = Theme.of(ctx);
+          final dialogColors = dialogTheme.colorScheme;
+          return AlertDialog(
+            title: Row(
               children: [
-                Text(
-                  l10n?.sysUpgradeInstallReadyDesc(avail.latestVersion ?? '') ??
-                      'An official OpenWrt upgrade (${avail.latestVersion}) is ready to be installed directly on your router.',
-                  style: const TextStyle(fontSize: 13),
+                Icon(
+                  Icons.system_update_rounded,
+                  color: LuciStatusColors.connectedColor(ctx),
+                  size: 26,
                 ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(ctx).colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildDetailRow(
-                        ctx,
-                        label:
-                            l10n?.sysUpgradeInstallTargetVersion ??
-                            'Target Version',
-                        value: 'OpenWrt ${avail.latestVersion ?? ""}',
-                      ),
-                      if (avail.currentVersion != null)
-                        _buildDetailRow(
-                          ctx,
-                          label:
-                              l10n?.sysUpgradeInstallCurrentVersion ??
-                              'Current Version',
-                          value: avail.currentVersion!,
-                        ),
-                      if (avail.imageName != null)
-                        _buildDetailRow(
-                          ctx,
-                          label:
-                              l10n?.sysUpgradeInstallImageFile ?? 'Image File',
-                          value: avail.imageName!,
-                          isMonospace: true,
-                        ),
-                      if (avail.formattedImageSize != null)
-                        _buildDetailRow(
-                          ctx,
-                          label:
-                              l10n?.sysUpgradeInstallDownloadSize ??
-                              'Download Size',
-                          value: avail.formattedImageSize!,
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                CheckboxListTile(
-                  title: Text(
-                    l10n?.sysUpgradeKeepSettingsOption ??
-                        'Keep settings and current configuration (-k)',
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    l10n?.sysUpgradeInstallTitle ?? 'Install Firmware Upgrade',
                     style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  subtitle: Text(
-                    l10n?.sysUpgradeKeepSettingsOptionDesc ??
-                        'Retain network interfaces, Wi-Fi keys, and passwords.',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  value: keepSettingsLocal,
-                  onChanged: (val) {
-                    setDialogState(() => keepSettingsLocal = val ?? true);
-                    setState(() => _keepSettings = val ?? true);
-                  },
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                CheckboxListTile(
-                  title: Text(
-                    l10n?.sysUpgradeForceOption ?? 'Force upgrade (--force)',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange,
-                    ),
-                  ),
-                  subtitle: Text(
-                    l10n?.sysUpgradeForceOptionDesc ??
-                        'Bypass architecture safety checks (not recommended).',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  value: forceUpgradeLocal,
-                  onChanged: (val) {
-                    setDialogState(() => forceUpgradeLocal = val ?? false);
-                    setState(() => _forceSysupgrade = val ?? false);
-                  },
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.red.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.warning_amber_rounded,
-                        color: Colors.red,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          l10n?.sysUpgradeDoNotPowerOff ??
-                              'Do NOT power off or disconnect the router during the upgrade.',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.red,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(false),
-              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n?.sysUpgradeInstallReadyDesc(
+                          avail.latestVersion ?? '',
+                        ) ??
+                        'An official OpenWrt upgrade (${avail.latestVersion}) is ready to be installed directly on your router.',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: dialogColors.surfaceContainerHighest.withValues(
+                        alpha: 0.5,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildDetailRow(
+                          ctx,
+                          label:
+                              l10n?.sysUpgradeInstallTargetVersion ??
+                              'Target Version',
+                          value: 'OpenWrt ${avail.latestVersion ?? ""}',
+                        ),
+                        if (avail.currentVersion != null)
+                          _buildDetailRow(
+                            ctx,
+                            label:
+                                l10n?.sysUpgradeInstallCurrentVersion ??
+                                'Current Version',
+                            value: avail.currentVersion!,
+                          ),
+                        if (avail.imageName != null)
+                          _buildDetailRow(
+                            ctx,
+                            label:
+                                l10n?.sysUpgradeInstallImageFile ??
+                                'Image File',
+                            value: avail.imageName!,
+                            isMonospace: true,
+                          ),
+                        if (avail.formattedImageSize != null)
+                          _buildDetailRow(
+                            ctx,
+                            label:
+                                l10n?.sysUpgradeInstallDownloadSize ??
+                                'Download Size',
+                            value: avail.formattedImageSize!,
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    title: Text(
+                      l10n?.sysUpgradeKeepSettingsOption ??
+                          'Keep settings and current configuration (-k)',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n?.sysUpgradeKeepSettingsOptionDesc ??
+                          'Retain network interfaces, Wi-Fi keys, and passwords.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: dialogColors.onSurfaceVariant,
+                      ),
+                    ),
+                    value: keepSettingsLocal,
+                    onChanged: (val) {
+                      setDialogState(() => keepSettingsLocal = val ?? true);
+                      setState(() => _keepSettings = val ?? true);
+                    },
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    title: Text(
+                      l10n?.sysUpgradeForceOption ?? 'Force upgrade (--force)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: LuciStatusColors.warningColor(ctx),
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n?.sysUpgradeForceOptionDesc ??
+                          'Bypass architecture safety checks (not recommended).',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: dialogColors.onSurfaceVariant,
+                      ),
+                    ),
+                    value: forceUpgradeLocal,
+                    onChanged: (val) {
+                      setDialogState(() => forceUpgradeLocal = val ?? false);
+                      setState(() => _forceSysupgrade = val ?? false);
+                    },
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: dialogColors.errorContainer.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: dialogColors.error.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: dialogColors.error,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n?.sysUpgradeDoNotPowerOff ??
+                                'Do NOT power off or disconnect the router during the upgrade.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: dialogColors.error,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(false),
+                child: Text(l10n?.actionCancel ?? 'Cancel'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: LuciStatusColors.connectedColor(ctx),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.of(dialogCtx).pop(true),
+                child: Text(
+                  l10n?.sysUpgradeInstallNow ?? 'Install Upgrade Now',
                 ),
               ),
-              onPressed: () => Navigator.of(dialogCtx).pop(true),
-              child: Text(l10n?.sysUpgradeInstallNow ?? 'Install Upgrade Now'),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
 
@@ -2833,63 +2860,86 @@ class _SystemBackupUpgradeScreenState
           _flashStarted = false;
         });
         Logger.error('Automated upgrade failed: $e');
-        context.showToastError('Upgrade failed: $e');
+        context.showToastError(
+          'Upgrade failed',
+          subtitle: LuciToastManager.parseErrorReason(e),
+        );
       }
     }
   }
 
-  void _showRebootCountdownDialog() {
+  void _showRebootCountdownDialog({bool isFactoryReset = false}) {
     final l10n = AppLocalizations.of(context);
     final appState = ref.read(appStateProvider);
     final router = appState.selectedRouter;
-    final ipAddress = router?.ipAddress ?? '192.168.1.1';
-    final useHttps = router?.useHttps ?? false;
+    final originalIp = router?.ipAddress ?? '192.168.1.1';
+    final originalUseHttps = router?.useHttps ?? false;
 
-    int remainingSeconds = 120;
+    int remainingSeconds = isFactoryReset ? 75 : 120;
     bool isOnline = false;
+    String discoveredHost = isFactoryReset ? '192.168.1.1' : originalIp;
+    bool discoveredHttps = isFactoryReset ? false : originalUseHttps;
     Timer? countdownTimer;
     Timer? probeTimer;
 
-    // After 25s of reboot delay, probe whether the router has come back online
+    // After initial reboot delay, probe whether the router has come back online
     probeTimer = Timer.periodic(const Duration(seconds: 3), (t) async {
-      if (remainingSeconds > 95) return;
+      final probeThreshold = isFactoryReset ? 60 : 95;
+      if (remainingSeconds > probeThreshold) return;
       if (isOnline) {
         t.cancel();
         return;
       }
-      try {
-        final client = HttpClient()
-          ..connectionTimeout = const Duration(seconds: 2)
-          ..badCertificateCallback = ((cert, host, port) => true);
-        final scheme = useHttps ? 'https' : 'http';
-        final uri = Uri.parse('$scheme://$ipAddress/ubus');
-        final request = await client.postUrl(uri);
-        request.headers.contentType = ContentType.json;
-        final payload = jsonEncode({
-          'jsonrpc': '2.0',
-          'id': 1,
-          'method': 'list',
-          'params': [],
-        });
-        request.write(payload);
-        final response = await request.close();
-        if (response.statusCode == 200 ||
-            response.statusCode == 403 ||
-            response.statusCode == 400) {
-          isOnline = true;
-          t.cancel();
-        }
-      } catch (_) {}
+
+      final candidates = <_ProbeTarget>[
+        if (isFactoryReset) ...[
+          const _ProbeTarget('http', '192.168.1.1'),
+          const _ProbeTarget('https', '192.168.1.1'),
+          const _ProbeTarget('http', 'openwrt.lan'),
+          _ProbeTarget(originalUseHttps ? 'https' : 'http', originalIp),
+        ] else ...[
+          _ProbeTarget(originalUseHttps ? 'https' : 'http', originalIp),
+          const _ProbeTarget('http', '192.168.1.1'),
+        ],
+      ];
+
+      for (final target in candidates) {
+        if (isOnline) break;
+        try {
+          final client = HttpClient()
+            ..connectionTimeout = const Duration(seconds: 2)
+            ..badCertificateCallback = ((cert, host, port) => true);
+          final uri = Uri.parse('${target.scheme}://${target.host}/ubus');
+          final request = await client.postUrl(uri);
+          request.headers.contentType = ContentType.json;
+          final payload = jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'list',
+            'params': [],
+          });
+          request.write(payload);
+          final response = await request.close();
+          if (response.statusCode == 200 ||
+              response.statusCode == 403 ||
+              response.statusCode == 400) {
+            isOnline = true;
+            discoveredHost = target.host;
+            discoveredHttps = target.scheme == 'https';
+            t.cancel();
+            break;
+          }
+        } catch (_) {}
+      }
     });
 
     showModalBottomSheet(
       context: context,
       isDismissible: false,
       enableDrag: false,
+      showDragHandle: false,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      useSafeArea: true,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
           countdownTimer ??= Timer.periodic(const Duration(seconds: 1), (t) {
@@ -2924,10 +2974,15 @@ class _SystemBackupUpgradeScreenState
                     const SizedBox(height: 20),
                     Text(
                       isOnline
-                          ? (l10n?.sysUpgradeRebootOnline ??
-                                'Router is back online!')
-                          : (l10n?.sysUpgradeRebooting ??
-                                'Router Rebooting & Flashing...'),
+                          ? (isFactoryReset
+                                ? 'Router Reset & Back Online!'
+                                : (l10n?.sysUpgradeRebootOnline ??
+                                      'Router is back online!'))
+                          : (isFactoryReset
+                                ? (l10n?.sysUpgradeResetDefaults ??
+                                      'Resetting to Defaults & Rebooting...')
+                                : (l10n?.sysUpgradeRebooting ??
+                                      'Router Rebooting & Flashing...')),
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -2936,10 +2991,16 @@ class _SystemBackupUpgradeScreenState
                     const SizedBox(height: 10),
                     Text(
                       isOnline
-                          ? (l10n?.sysUpgradeRebootOnlineDesc ??
-                                'The router has rebooted successfully into the new firmware. You can return to the dashboard now.')
-                          : (l10n?.sysUpgradeRebootWait(remainingSeconds) ??
-                                'Please wait while OpenWrt applies changes and restarts network services.\nEstimated time: ${remainingSeconds}s'),
+                          ? (isFactoryReset
+                                ? 'The router has completed factory reset and is back online at ${discoveredHttps ? "https" : "http"}://$discoveredHost with default settings.\n\nRoot password has been cleared to factory defaults (empty).'
+                                : (l10n?.sysUpgradeRebootOnlineDesc ??
+                                      'The router has rebooted successfully into the new firmware. You can return to the dashboard now.'))
+                          : (isFactoryReset
+                                ? 'The system is erasing the configuration partition now and will reboot itself when finished.\nEstimated time: ${remainingSeconds}s'
+                                : (l10n?.sysUpgradeRebootWait(
+                                        remainingSeconds,
+                                      ) ??
+                                      'Please wait while OpenWrt applies changes and restarts network services.\nEstimated time: ${remainingSeconds}s')),
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
@@ -2953,21 +3014,35 @@ class _SystemBackupUpgradeScreenState
                                 foregroundColor: Colors.white,
                               )
                             : null,
-                        onPressed: () {
+                        onPressed: () async {
                           countdownTimer?.cancel();
                           probeTimer?.cancel();
                           Navigator.of(ctx).pop();
                           if (mounted) {
-                            Navigator.of(this.context).pop();
-                            ref
-                                .read(appStateProvider)
-                                .fetchDashboardData(force: true);
+                            if (isFactoryReset) {
+                              // Factory reset wipes session credentials; return to main login entrypoint
+                              await ref.read(appStateProvider).logout();
+                              if (mounted) {
+                                Navigator.of(
+                                  this.context,
+                                ).popUntil((route) => route.isFirst);
+                              }
+                            } else {
+                              Navigator.of(this.context).pop();
+                              unawaited(
+                                ref
+                                    .read(appStateProvider)
+                                    .fetchDashboardData(force: true),
+                              );
+                            }
                           }
                         },
                         child: Text(
                           isOnline
-                              ? (l10n?.sysUpgradeReturnDashboard ??
-                                    'Return to Dashboard')
+                              ? (isFactoryReset
+                                    ? 'Go to Login ($discoveredHost)'
+                                    : (l10n?.sysUpgradeReturnDashboard ??
+                                          'Return to Dashboard'))
                               : (l10n?.backupDismissReturnDashboard ??
                                     'Dismiss & Return to Dashboard'),
                         ),
@@ -3009,6 +3084,7 @@ class _SystemBackupUpgradeScreenState
     return Scaffold(
       appBar: LuciAppBar(
         title: l10n?.sysUpgradeTitle ?? 'Backup / Flash Firmware',
+        showBack: true,
       ),
       body: Stack(
         children: [
@@ -3060,10 +3136,10 @@ class _SystemBackupUpgradeScreenState
                           indicatorSize: TabBarIndicatorSize.tab,
                           dividerColor: Colors.transparent,
                           indicator: BoxDecoration(
-                            color: LuciColors.primary,
+                            color: theme.colorScheme.primary,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          labelColor: Colors.white,
+                          labelColor: theme.colorScheme.onPrimary,
                           unselectedLabelColor:
                               theme.colorScheme.onSurfaceVariant,
                           tabs: [
@@ -3247,8 +3323,8 @@ class _SystemBackupUpgradeScreenState
           borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
             colors: [
-              LuciColors.primary.withValues(alpha: 0.15),
-              Theme.of(context).cardColor,
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+              Theme.of(context).colorScheme.surfaceContainer,
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -3260,7 +3336,11 @@ class _SystemBackupUpgradeScreenState
           children: [
             Row(
               children: [
-                const Icon(Icons.router, color: LuciColors.primary, size: 24),
+                Icon(
+                  Icons.router,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 24,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -3664,13 +3744,20 @@ class _SystemBackupUpgradeScreenState
                     isExpanded: true,
                     isDense: true,
                     initialValue: _selectedMtdDevice,
+                    borderRadius: BorderRadius.circular(16),
+                    dropdownColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHigh,
+                    elevation: 4,
+                    menuMaxHeight: 360,
+                    icon: const Icon(Icons.arrow_drop_down_rounded),
                     decoration: InputDecoration(
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 10,
                       ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     items: _mtdList.map((m) {
@@ -3754,9 +3841,7 @@ class _SystemBackupUpgradeScreenState
               ),
               onPressed: _isProcessing ? null : _handleFactoryReset,
               icon: const Icon(Icons.delete_forever_rounded),
-              label: Text(
-                l10n?.sysUpgradeBtnPerformReset ?? 'Perform Factory Reset',
-              ),
+              label: Text(l10n?.sysUpgradeBtnPerformReset ?? 'Perform Reset'),
             ),
           ),
         ),
@@ -4136,7 +4221,7 @@ class _SystemBackupUpgradeScreenState
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
+                color: Theme.of(context).colorScheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
@@ -4930,7 +5015,7 @@ class _SystemBackupUpgradeScreenState
             Container(
               constraints: const BoxConstraints(maxHeight: 260),
               decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
+                color: Theme.of(context).colorScheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
@@ -5075,4 +5160,10 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
     return true;
   }
+}
+
+class _ProbeTarget {
+  final String scheme;
+  final String host;
+  const _ProbeTarget(this.scheme, this.host);
 }

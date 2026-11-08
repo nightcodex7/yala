@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import '../controllers/adguard_controller.dart';
 import '../models/adguard_models.dart';
@@ -128,7 +129,7 @@ class AdGuardTopologyCard extends StatelessWidget {
       case Ipv6DnsStatus.unsupportedIpv6Listener:
         ipv6StatusName =
             l10n?.aghIpv6UnsupportedListener ?? 'No IPv6 Listener in AdGuard';
-        ipv6Color = Colors.orange.shade800;
+        ipv6Color = LuciStatusColors.warningColor(context);
         break;
       case Ipv6DnsStatus.unableToVerify:
         ipv6StatusName =

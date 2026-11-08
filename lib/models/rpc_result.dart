@@ -54,6 +54,63 @@ class RpcResult<T> {
         lower.contains('oom-killer');
   }
 
+  /// Extracts a clean, concise, human-readable error reason for any failed action (service toggle,
+  /// SSID change, client ban, backup restore, etc.).
+  ///
+  /// Returns a safe, user-facing subtitle string suitable for passing directly to
+  /// `showToastError(..., subtitle: result.userFriendlyActionError)`.
+  String get userFriendlyActionError {
+    switch (status) {
+      case RpcCallStatus.permissionDenied:
+        return 'Permission denied. Check router ACL/rpcd configuration.';
+      case RpcCallStatus.methodNotFound:
+        // Distinguish binary-not-found (exit 127) from RPC method not found
+        if (errorCode == 127) {
+          return 'Required binary not found on router (command not found).';
+        }
+        return 'RPC method or service not available on this router.';
+      case RpcCallStatus.networkError:
+        return 'Router unreachable. Check your network connection.';
+      case RpcCallStatus.failed:
+        if (isInsufficientStorage)
+          return 'Router storage is full (no space left on device).';
+        if (isMemoryExhausted)
+          return 'Router ran out of memory during operation.';
+        // Check errorCode for known ubus codes
+        if (errorCode == 7) return 'Request timed out. Router may be busy.';
+        if (errorCode == 6)
+          return 'Permission denied. Check router ACL/rpcd configuration.';
+        if (errorCode == 126)
+          return 'Permission denied executing command on router.';
+        // Extract the most useful line from raw errorMessage
+        if (errorMessage != null && errorMessage!.trim().isNotEmpty) {
+          final lines = errorMessage!
+              .split('\n')
+              .map((l) => l.trim())
+              .where((l) => l.isNotEmpty)
+              .toList();
+          for (final line in lines.reversed) {
+            final lower = line.toLowerCase();
+            if (lower.startsWith('error:') ||
+                lower.startsWith('fatal:') ||
+                lower.contains('failed') ||
+                lower.contains('permission denied') ||
+                lower.contains('access denied')) {
+              return line.replaceFirst(
+                RegExp(r'^(ERROR|FATAL|error|fatal):\s*'),
+                '',
+              );
+            }
+          }
+          // Return last non-empty line as a best-effort summary
+          if (lines.isNotEmpty && lines.last.length <= 150) return lines.last;
+        }
+        return 'Operation failed. Please try again.';
+      case RpcCallStatus.success:
+        return '';
+    }
+  }
+
   /// Extracts a clean, concise, human-readable error summary from package manager output.
   String get userFriendlyPackageError {
     if (errorMessage == null || errorMessage!.trim().isEmpty) {

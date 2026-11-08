@@ -8,6 +8,7 @@ import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import 'package:yet_another_luci_app/main.dart';
 import 'package:yet_another_luci_app/widgets/luci_loading_states.dart';
 import '../models/dhcp_dns_info.dart';
+import '../utils/dns_provider_resolver.dart';
 
 class DhcpDnsCard extends ConsumerWidget {
   const DhcpDnsCard({super.key});
@@ -134,6 +135,7 @@ class DhcpDnsCard extends ConsumerWidget {
                   color: Colors.indigo,
                   isLoading: isCardLoading,
                   semanticsLabel:
+                      overview.resolvedDnsSummary ??
                       '${l10n?.dhcpDnsForwarders ?? "DNS Forwarders"}: $forwarderText',
                 );
 
@@ -205,6 +207,19 @@ class DhcpDnsCard extends ConsumerWidget {
         first.toLowerCase().contains('dynamic dns')) {
       return 'ISP Default';
     }
+
+    // When dnsmasq forwards to a local loopback proxy (e.g. 127.0.0.1#5053),
+    // display the real upstream DNS provider (e.g. "Quad9 (DoH)").
+    if (DnsProviderResolver.isLoopback(first)) {
+      if (overview.resolvedDnsProvider != null &&
+          overview.resolvedDnsProvider!.isNotEmpty) {
+        if (servers.length > 1) {
+          return '${overview.resolvedDnsProvider!} (+${servers.length - 1})';
+        }
+        return overview.resolvedDnsProvider!;
+      }
+    }
+
     if (servers.length > 1) {
       return '$first (+${servers.length - 1})';
     }

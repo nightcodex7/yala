@@ -152,20 +152,23 @@ void main() {
         expect(scheduleFridayOnly.isTimeInBlockWindow(dt), isFalse);
       });
 
-      test('Friday morning inside early morning block window (05:15)', () {
-        final dt = DateTime(2026, 11, 13, 5, 15); // Friday
-        expect(scheduleFridayOnly.isTimeInBlockWindow(dt), isTrue);
-      });
+      test(
+        'Friday morning outside block window when Thursday was inactive (05:15)',
+        () {
+          final dt = DateTime(2026, 11, 13, 5, 15); // Friday
+          expect(scheduleFridayOnly.isTimeInBlockWindow(dt), isFalse);
+        },
+      );
 
       test('Friday afternoon outside block window (12:00)', () {
         final dt = DateTime(2026, 11, 13, 12, 0); // Friday
         expect(scheduleFridayOnly.isTimeInBlockWindow(dt), isFalse);
       });
 
-      test('Saturday times NOT blocked when only Friday is active', () {
+      test('Saturday morning inside Friday overnight block window (05:15)', () {
         final satMorning = DateTime(2026, 11, 14, 5, 15); // Saturday
         final satNight = DateTime(2026, 11, 14, 22, 30); // Saturday
-        expect(scheduleFridayOnly.isTimeInBlockWindow(satMorning), isFalse);
+        expect(scheduleFridayOnly.isTimeInBlockWindow(satMorning), isTrue);
         expect(scheduleFridayOnly.isTimeInBlockWindow(satNight), isFalse);
       });
 

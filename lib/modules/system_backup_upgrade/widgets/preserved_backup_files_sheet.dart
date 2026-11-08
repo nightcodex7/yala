@@ -34,7 +34,6 @@ class PreservedBackupFilesSheet extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.85,
@@ -365,37 +364,11 @@ class _PreservedBackupFilesSheetState extends State<PreservedBackupFilesSheet>
           Navigator.of(context).pop();
         }
       },
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 16,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
+      child: Padding(
         padding: EdgeInsets.only(bottom: bottomInset),
         child: Column(
           children: [
-            // Drag Handle
-            const SizedBox(height: 10),
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
             // Modal Title Header
             Padding(
@@ -671,7 +644,7 @@ class _PreservedBackupFilesSheetState extends State<PreservedBackupFilesSheet>
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: SelectableText(
+                            child: Text(
                               path,
                               style: GoogleFonts.geistMono(
                                 fontSize: 12,
@@ -929,7 +902,7 @@ class _PreservedBackupFilesSheetState extends State<PreservedBackupFilesSheet>
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: SelectableText(
+                            child: Text(
                               path,
                               style: GoogleFonts.geistMono(
                                 fontSize: 12,

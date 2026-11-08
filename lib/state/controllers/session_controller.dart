@@ -20,6 +20,7 @@ import 'package:yet_another_luci_app/services/interfaces/api_service_interface.d
 import 'package:yet_another_luci_app/services/interfaces/auth_service_interface.dart';
 import 'package:yet_another_luci_app/services/router_service.dart';
 import 'package:yet_another_luci_app/services/secure_storage_service.dart';
+import 'package:yet_another_luci_app/services/local_network_permission_service.dart';
 import 'package:yet_another_luci_app/services/service_factory.dart';
 import 'package:yet_another_luci_app/state/controllers/dashboard_controller.dart';
 import 'package:yet_another_luci_app/services/operation_queue.dart';
@@ -926,13 +927,34 @@ class SessionController {
       }
     } catch (e) {
       final errStr = e.toString().toLowerCase();
+      final l10n = (context != null && context.mounted)
+          ? AppLocalizations.of(context)
+          : null;
       if (!kIsWeb &&
           Platform.isIOS &&
           (errStr.contains('operation not permitted') ||
               errStr.contains('errno = 1'))) {
         _setErrorState(
-          'Local network permission required. Please allow access in iOS Settings > Yet Another LuCI App.',
+          l10n?.localNetworkPermissionRequiredIos ??
+              'Local network permission required. Please allow access in iOS Settings > Yet Another LuCI App.',
         );
+      } else if (!kIsWeb &&
+          Platform.isAndroid &&
+          (errStr.contains('socketexception') ||
+              errStr.contains('operation not permitted') ||
+              errStr.contains('connection timed out') ||
+              errStr.contains('connection refused') ||
+              errStr.contains('errno = 110') ||
+              errStr.contains('errno = 111'))) {
+        final hasPerm = await LocalNetworkPermissionService.isGranted();
+        if (!hasPerm) {
+          _setErrorState(
+            l10n?.localNetworkPermissionRequiredAndroid ??
+                'Local network permission required. Please allow access in Android Settings > Apps > Yet Another LuCI App > Permissions.',
+          );
+        } else {
+          _setErrorState('An error occurred: $e');
+        }
       } else {
         _setErrorState('An error occurred: $e');
       }
@@ -999,11 +1021,51 @@ class SessionController {
     return success;
   }
 
+  /// Refreshes extracted Material You dynamic color schemes from Android Monet / OS.
+  Future<void> refreshDynamicColors() async {
+    try {
+      final corePalette = await DynamicColorPlugin.getCorePalette();
+      if (corePalette != null) {
+        final newLight = corePalette.toColorScheme(
+          brightness: Brightness.light,
+        );
+        final newDark = corePalette.toColorScheme(brightness: Brightness.dark);
+        if (_preloadedLightDynamic != newLight ||
+            _preloadedDarkDynamic != newDark) {
+          _preloadedLightDynamic = newLight;
+          _preloadedDarkDynamic = newDark;
+          _notifyListeners();
+        }
+        return;
+      }
+      final accentColor = await DynamicColorPlugin.getAccentColor();
+      if (accentColor != null) {
+        final newLight = ColorScheme.fromSeed(
+          seedColor: accentColor,
+          brightness: Brightness.light,
+        );
+        final newDark = ColorScheme.fromSeed(
+          seedColor: accentColor,
+          brightness: Brightness.dark,
+        );
+        if (_preloadedLightDynamic != newLight ||
+            _preloadedDarkDynamic != newDark) {
+          _preloadedLightDynamic = newLight;
+          _preloadedDarkDynamic = newDark;
+          _notifyListeners();
+        }
+      }
+    } catch (_) {}
+  }
+
   /// Handles app resumption when screen turns on or app returns from background.
   Future<void> handleAppResume() async {
     if (!_reviewerModeEnabled) {
       _startThroughputTimer();
     }
+
+    // Refresh dynamic colors from OS Monet on app resume in case the wallpaper was changed
+    unawaited(refreshDynamicColors());
 
     if (_reviewerModeEnabled) {
       return;

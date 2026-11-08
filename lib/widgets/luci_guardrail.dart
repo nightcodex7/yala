@@ -4,6 +4,7 @@
 
 import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/state/app_state.dart';
 import 'package:yet_another_luci_app/widgets/luci_toast.dart';
 import 'package:yet_another_luci_app/utils/os_platform_integration.dart';
@@ -34,15 +35,13 @@ class LuciGuardrail {
 
     unawaited(OsPlatformIntegration.triggerHaptic(OsHapticType.heavy));
 
+    final warningColor = LuciStatusColors.warningColor(context);
+
     final action = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(
-          Icons.warning_amber_rounded,
-          color: Colors.amber,
-          size: 36,
-        ),
+        icon: Icon(Icons.warning_amber_rounded, color: warningColor, size: 36),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(child: Text(message)),
         actionsOverflowButtonSpacing: 8,

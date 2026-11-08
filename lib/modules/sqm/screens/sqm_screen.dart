@@ -145,11 +145,13 @@ class _SqmScreenState extends ConsumerState<SqmScreen> {
         await showDialog<void>(
           context: context,
           builder: (ctx) => AlertDialog(
+            actionsOverflowButtonSpacing: 8,
+            actionsOverflowDirection: VerticalDirection.down,
             title: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.error_outline_rounded,
-                  color: LuciColors.error,
+                  color: Theme.of(ctx).colorScheme.error,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -278,7 +280,10 @@ class _SqmScreenState extends ConsumerState<SqmScreen> {
         actionsOverflowDirection: VerticalDirection.down,
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: LuciColors.error),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Theme.of(ctx).colorScheme.error,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(l10n?.modSqmUninstallDialogTitle ?? 'Uninstall SQM?'),
@@ -331,6 +336,7 @@ class _SqmScreenState extends ConsumerState<SqmScreen> {
       } else {
         context.showToastError(
           l10n?.modSqmUninstallFailedToast ?? 'Failed to remove SQM packages.',
+          subtitle: res.userFriendlyPackageError,
           actionKey: actionKey,
         );
       }
@@ -360,14 +366,16 @@ class _SqmScreenState extends ConsumerState<SqmScreen> {
         final useExisting = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Row(
+            actionsOverflowButtonSpacing: 8,
+            actionsOverflowDirection: VerticalDirection.down,
+            title: Row(
               children: [
-                Icon(Icons.tune_rounded, color: LuciColors.primary),
-                SizedBox(width: 8),
-                Expanded(
+                Icon(
+                  Icons.tune_rounded,
+                  color: Theme.of(ctx).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
                   child: Text(
                     'Existing Template Present',
                     style: TextStyle(fontSize: 16),
@@ -446,6 +454,9 @@ class _SqmScreenState extends ConsumerState<SqmScreen> {
       } else {
         context.showToastError(
           l10n?.modSqmQueueCreateFailedToast ?? 'Failed to create new queue.',
+          subtitle:
+              l10n?.toastErrorCheckPermissionsOrUci ??
+              'Check router permissions or UCI configuration.',
         );
       }
     }
@@ -492,15 +503,17 @@ class _SqmScreenState extends ConsumerState<SqmScreen> {
                   value: 'uninstall',
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.delete_outline_rounded,
-                        color: LuciColors.error,
+                        color: Theme.of(context).colorScheme.error,
                         size: 20,
                       ),
                       const SizedBox(width: 8),
                       Text(
                         l10n?.actionUninstall ?? 'Uninstall SQM',
-                        style: const TextStyle(color: LuciColors.error),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ],
                   ),

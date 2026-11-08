@@ -179,6 +179,17 @@ class LuciTheme {
     }
   }
 
+  /// Helper to build Geist TextTheme with robust international font fallbacks
+  /// (Devanagari, Bengali, Cyrillic, Chinese, Arabic, and system glyphs)
+  /// so non-Latin scripts never render as missing-glyph boxes.
+  static TextTheme _buildGeistTextTheme(Brightness brightness) {
+    const fallbacks = ['Noto Sans', 'Roboto', 'Arial', 'sans-serif'];
+    final base = GoogleFonts.geistTextTheme(
+      ThemeData(brightness: brightness).textTheme,
+    );
+    return base.apply(fontFamilyFallback: fallbacks);
+  }
+
   /// Builds the light [ThemeData].
   ///
   /// If [dynamicColorScheme] is provided, applies a Material You dynamic scheme
@@ -198,9 +209,8 @@ class LuciTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: colorScheme,
-      textTheme: GoogleFonts.geistTextTheme(
-        ThemeData(brightness: Brightness.light).textTheme,
-      ),
+      canvasColor: colorScheme.surfaceContainerHigh,
+      textTheme: _buildGeistTextTheme(Brightness.light),
       scaffoldBackgroundColor: isDynamic
           ? colorScheme.surfaceContainerLowest
           : classicLightScaffold,
@@ -208,7 +218,7 @@ class LuciTheme {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: false,
+        centerTitle: true,
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.dark,
@@ -236,16 +246,33 @@ class LuciTheme {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return colorScheme.onSurface.withValues(alpha: 0.38);
+          }
           if (states.contains(WidgetState.selected)) {
-            return colorScheme.primary;
+            return isDynamic ? colorScheme.onPrimary : Colors.white;
           }
           return colorScheme.outline;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return states.contains(WidgetState.selected)
+                ? colorScheme.onSurface.withValues(alpha: 0.12)
+                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.12);
+          }
           if (states.contains(WidgetState.selected)) {
-            return colorScheme.primaryContainer;
+            return colorScheme.primary;
           }
           return colorScheme.surfaceContainerHighest;
+        }),
+        trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return Colors.transparent;
+          }
+          if (states.contains(WidgetState.disabled)) {
+            return colorScheme.onSurface.withValues(alpha: 0.12);
+          }
+          return colorScheme.outline.withValues(alpha: 0.5);
         }),
       ),
       chipTheme: ChipThemeData(
@@ -258,6 +285,9 @@ class LuciTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: isDynamic
+            ? colorScheme.surfaceContainer
+            : classicLightSurface,
         indicatorColor: colorScheme.primaryContainer,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -265,12 +295,266 @@ class LuciTheme {
           }
           return IconThemeData(color: colorScheme.onSurfaceVariant);
         }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return GoogleFonts.geist(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.primary,
+            );
+          }
+          return GoogleFonts.geist(
+            fontSize: 11,
+            fontWeight: FontWeight.normal,
+            color: colorScheme.onSurfaceVariant,
+          );
+        }),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: isDynamic
+            ? colorScheme.surfaceContainerLowest
+            : classicLightScaffold,
+        indicatorColor: colorScheme.primaryContainer,
+        selectedIconTheme: IconThemeData(color: colorScheme.onPrimaryContainer),
+        unselectedIconTheme: IconThemeData(color: colorScheme.onSurfaceVariant),
+        selectedLabelTextStyle: GoogleFonts.geist(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+        unselectedLabelTextStyle: GoogleFonts.geist(
+          color: colorScheme.onSurfaceVariant,
+          fontSize: 12,
+        ),
+      ),
+      navigationDrawerTheme: NavigationDrawerThemeData(
+        backgroundColor: isDynamic
+            ? colorScheme.surfaceContainerLow
+            : classicLightSurface,
+        indicatorColor: colorScheme.primaryContainer,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: isDynamic
+            ? colorScheme.surfaceContainerLow
+            : classicLightSurfaceContainerLow,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.8),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.error, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.error, width: 2.0),
+        ),
+        hintStyle: TextStyle(
+          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+          fontSize: 14,
+        ),
+        labelStyle: TextStyle(
+          color: colorScheme.onSurfaceVariant,
+          fontSize: 14,
+        ),
+        prefixIconColor: colorScheme.onSurfaceVariant,
+        suffixIconColor: colorScheme.onSurfaceVariant,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 1,
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: GoogleFonts.geist(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: GoogleFonts.geist(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: const StadiumBorder(),
+          side: BorderSide(color: colorScheme.outlineVariant, width: 1.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: GoogleFonts.geist(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: colorScheme.primaryContainer,
+        foregroundColor: colorScheme.onPrimaryContainer,
+        elevation: 3,
+        focusElevation: 3,
+        hoverElevation: 4,
+        highlightElevation: 6,
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          textStyle: GoogleFonts.geist(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: colorScheme.onSurfaceVariant,
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+        thickness: 1.0,
+        space: 1.0,
+      ),
+      tabBarTheme: TabBarThemeData(
+        indicatorColor: colorScheme.primary,
+        labelColor: colorScheme.primary,
+        unselectedLabelColor: colorScheme.onSurfaceVariant,
+        dividerColor: Colors.transparent,
+        labelStyle: GoogleFonts.geist(
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+        unselectedLabelStyle: GoogleFonts.geist(
+          fontWeight: FontWeight.normal,
+          fontSize: 14,
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: colorScheme.onSurfaceVariant,
+        textColor: colorScheme.onSurface,
+        titleTextStyle: GoogleFonts.geist(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: colorScheme.onSurface,
+        ),
+        subtitleTextStyle: GoogleFonts.geist(
+          fontSize: 12,
+          color: colorScheme.onSurfaceVariant,
+        ),
+      ),
+      badgeTheme: BadgeThemeData(
+        backgroundColor: colorScheme.error,
+        textColor: colorScheme.onError,
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: colorScheme.inverseSurface,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: TextStyle(color: colorScheme.onInverseSurface, fontSize: 12),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colorScheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: GoogleFonts.geist(
+          fontSize: 14,
+          color: colorScheme.onSurface,
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(
+            colorScheme.surfaceContainerHigh,
+          ),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          elevation: const WidgetStatePropertyAll(4),
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(
+            colorScheme.surfaceContainerHigh,
+          ),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: colorScheme.inverseSurface,
         contentTextStyle: TextStyle(color: colorScheme.onInverseSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         behavior: SnackBarBehavior.floating,
+      ),
+      searchBarTheme: SearchBarThemeData(
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: WidgetStatePropertyAll(
+          colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+        ),
+        hintStyle: WidgetStatePropertyAll(
+          TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+        ),
+        textStyle: WidgetStatePropertyAll(
+          TextStyle(fontSize: 13, color: colorScheme.onSurface),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return colorScheme.secondaryContainer;
+            }
+            return colorScheme.surfaceContainerLow;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return colorScheme.onSecondaryContainer;
+            }
+            return colorScheme.onSurfaceVariant;
+          }),
+          side: WidgetStatePropertyAll(
+            BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
       ),
       splashFactory: InkRipple.splashFactory,
       pageTransitionsTheme: const PageTransitionsTheme(
@@ -288,12 +572,10 @@ class LuciTheme {
         collapsedShape: Border(),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: isDynamic
-            ? colorScheme.surfaceContainerHigh
-            : classicLightSurface,
+        backgroundColor: colorScheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         elevation: 6,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         titleTextStyle: GoogleFonts.geist(
           fontSize: 18,
           fontWeight: FontWeight.bold,
@@ -304,8 +586,8 @@ class LuciTheme {
           color: colorScheme.onSurfaceVariant,
         ),
         actionsPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
+          horizontal: 24,
+          vertical: 16,
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
@@ -313,10 +595,13 @@ class LuciTheme {
             ? colorScheme.surfaceContainerLow
             : classicLightSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: 8,
+        elevation: 1,
+        showDragHandle: true,
+        dragHandleColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+        dragHandleSize: const Size(32, 4),
         constraints: const BoxConstraints(maxWidth: 640),
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
       ),
     );
@@ -341,9 +626,8 @@ class LuciTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: colorScheme,
-      textTheme: GoogleFonts.geistTextTheme(
-        ThemeData(brightness: Brightness.dark).textTheme,
-      ),
+      canvasColor: colorScheme.surfaceContainerHigh,
+      textTheme: _buildGeistTextTheme(Brightness.dark),
       scaffoldBackgroundColor: isDynamic
           ? colorScheme.surfaceContainerLowest
           : classicDarkScaffold,
@@ -358,7 +642,7 @@ class LuciTheme {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: false,
+        centerTitle: true,
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.light,
@@ -386,16 +670,33 @@ class LuciTheme {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return colorScheme.onSurface.withValues(alpha: 0.38);
+          }
           if (states.contains(WidgetState.selected)) {
-            return colorScheme.primary;
+            return isDynamic ? colorScheme.onPrimary : Colors.white;
           }
           return colorScheme.outline;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return states.contains(WidgetState.selected)
+                ? colorScheme.onSurface.withValues(alpha: 0.12)
+                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.12);
+          }
           if (states.contains(WidgetState.selected)) {
-            return colorScheme.primaryContainer;
+            return colorScheme.primary;
           }
           return colorScheme.surfaceContainerHighest;
+        }),
+        trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return Colors.transparent;
+          }
+          if (states.contains(WidgetState.disabled)) {
+            return colorScheme.onSurface.withValues(alpha: 0.12);
+          }
+          return colorScheme.outline.withValues(alpha: 0.5);
         }),
       ),
       chipTheme: ChipThemeData(
@@ -408,6 +709,9 @@ class LuciTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: isDynamic
+            ? colorScheme.surfaceContainer
+            : classicDarkSurface,
         indicatorColor: colorScheme.primaryContainer,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -415,12 +719,266 @@ class LuciTheme {
           }
           return IconThemeData(color: colorScheme.onSurfaceVariant);
         }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return GoogleFonts.geist(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.primary,
+            );
+          }
+          return GoogleFonts.geist(
+            fontSize: 11,
+            fontWeight: FontWeight.normal,
+            color: colorScheme.onSurfaceVariant,
+          );
+        }),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: isDynamic
+            ? colorScheme.surfaceContainerLowest
+            : classicDarkScaffold,
+        indicatorColor: colorScheme.primaryContainer,
+        selectedIconTheme: IconThemeData(color: colorScheme.onPrimaryContainer),
+        unselectedIconTheme: IconThemeData(color: colorScheme.onSurfaceVariant),
+        selectedLabelTextStyle: GoogleFonts.geist(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+        unselectedLabelTextStyle: GoogleFonts.geist(
+          color: colorScheme.onSurfaceVariant,
+          fontSize: 12,
+        ),
+      ),
+      navigationDrawerTheme: NavigationDrawerThemeData(
+        backgroundColor: isDynamic
+            ? colorScheme.surfaceContainerLow
+            : classicDarkSurface,
+        indicatorColor: colorScheme.primaryContainer,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: isDynamic
+            ? colorScheme.surfaceContainerLow
+            : classicDarkSurfaceContainerLow,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.8),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.error, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.error, width: 2.0),
+        ),
+        hintStyle: TextStyle(
+          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+          fontSize: 14,
+        ),
+        labelStyle: TextStyle(
+          color: colorScheme.onSurfaceVariant,
+          fontSize: 14,
+        ),
+        prefixIconColor: colorScheme.onSurfaceVariant,
+        suffixIconColor: colorScheme.onSurfaceVariant,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 1,
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: GoogleFonts.geist(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: GoogleFonts.geist(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: const StadiumBorder(),
+          side: BorderSide(color: colorScheme.outlineVariant, width: 1.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: GoogleFonts.geist(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: colorScheme.primaryContainer,
+        foregroundColor: colorScheme.onPrimaryContainer,
+        elevation: 3,
+        focusElevation: 3,
+        hoverElevation: 4,
+        highlightElevation: 6,
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          textStyle: GoogleFonts.geist(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: colorScheme.onSurfaceVariant,
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+        thickness: 1.0,
+        space: 1.0,
+      ),
+      tabBarTheme: TabBarThemeData(
+        indicatorColor: colorScheme.primary,
+        labelColor: colorScheme.primary,
+        unselectedLabelColor: colorScheme.onSurfaceVariant,
+        dividerColor: Colors.transparent,
+        labelStyle: GoogleFonts.geist(
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+        unselectedLabelStyle: GoogleFonts.geist(
+          fontWeight: FontWeight.normal,
+          fontSize: 14,
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: colorScheme.onSurfaceVariant,
+        textColor: colorScheme.onSurface,
+        titleTextStyle: GoogleFonts.geist(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: colorScheme.onSurface,
+        ),
+        subtitleTextStyle: GoogleFonts.geist(
+          fontSize: 12,
+          color: colorScheme.onSurfaceVariant,
+        ),
+      ),
+      badgeTheme: BadgeThemeData(
+        backgroundColor: colorScheme.error,
+        textColor: colorScheme.onError,
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: colorScheme.inverseSurface,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: TextStyle(color: colorScheme.onInverseSurface, fontSize: 12),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colorScheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: GoogleFonts.geist(
+          fontSize: 14,
+          color: colorScheme.onSurface,
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(
+            colorScheme.surfaceContainerHigh,
+          ),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          elevation: const WidgetStatePropertyAll(4),
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(
+            colorScheme.surfaceContainerHigh,
+          ),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: colorScheme.inverseSurface,
         contentTextStyle: TextStyle(color: colorScheme.onInverseSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         behavior: SnackBarBehavior.floating,
+      ),
+      searchBarTheme: SearchBarThemeData(
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: WidgetStatePropertyAll(
+          colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+        ),
+        hintStyle: WidgetStatePropertyAll(
+          TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+        ),
+        textStyle: WidgetStatePropertyAll(
+          TextStyle(fontSize: 13, color: colorScheme.onSurface),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return colorScheme.secondaryContainer;
+            }
+            return colorScheme.surfaceContainerLow;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return colorScheme.onSecondaryContainer;
+            }
+            return colorScheme.onSurfaceVariant;
+          }),
+          side: WidgetStatePropertyAll(
+            BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
       ),
       splashFactory: InkRipple.splashFactory,
       pageTransitionsTheme: const PageTransitionsTheme(
@@ -431,12 +989,10 @@ class LuciTheme {
         },
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: isDynamic
-            ? colorScheme.surfaceContainerHigh
-            : classicDarkSurface,
+        backgroundColor: colorScheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
-        elevation: 8,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         titleTextStyle: GoogleFonts.geist(
           fontSize: 18,
           fontWeight: FontWeight.bold,
@@ -447,8 +1003,8 @@ class LuciTheme {
           color: colorScheme.onSurfaceVariant,
         ),
         actionsPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
+          horizontal: 24,
+          vertical: 16,
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
@@ -456,10 +1012,13 @@ class LuciTheme {
             ? colorScheme.surfaceContainer
             : classicDarkSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: 8,
+        elevation: 1,
+        showDragHandle: true,
+        dragHandleColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+        dragHandleSize: const Size(32, 4),
         constraints: const BoxConstraints(maxWidth: 640),
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
       ),
     );

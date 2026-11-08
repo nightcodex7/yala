@@ -94,6 +94,9 @@ class _SqmStatusCardState extends ConsumerState<SqmStatusCard> {
       } else {
         context.showToastError(
           l10n?.modSqmServiceToggleFailed ?? 'Failed to update SQM service.',
+          subtitle:
+              l10n?.toastErrorCheckPermissionsOrService ??
+              'Check router permissions or SQM package installation.',
           actionKey: actionKey,
         );
       }
@@ -139,6 +142,9 @@ class _SqmStatusCardState extends ConsumerState<SqmStatusCard> {
       } else {
         context.showToastError(
           l10n?.modSqmServiceRestartFailed ?? 'Failed to restart SQM.',
+          subtitle:
+              l10n?.toastErrorCheckPermissionsOrService ??
+              'Check router permissions or init script availability.',
           actionKey: actionKey,
         );
       }

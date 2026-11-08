@@ -5,12 +5,15 @@
 import 'package:yet_another_luci_app/services/interfaces/auth_service_interface.dart';
 import 'package:yet_another_luci_app/services/interfaces/api_service_interface.dart';
 import 'package:yet_another_luci_app/services/interfaces/ssh_service_interface.dart';
+import 'package:yet_another_luci_app/services/interfaces/ssh_persistent_session_interface.dart';
 import 'package:yet_another_luci_app/services/auth_service.dart';
 import 'package:yet_another_luci_app/services/api_service.dart';
 import 'package:yet_another_luci_app/services/ssh_service.dart';
+import 'package:yet_another_luci_app/services/ssh_persistent_session.dart';
 import 'package:yet_another_luci_app/services/mock_auth_service.dart';
 import 'package:yet_another_luci_app/services/mock_api_service.dart';
 import 'package:yet_another_luci_app/services/mock_ssh_service.dart';
+import 'package:yet_another_luci_app/services/mock_ssh_persistent_session.dart';
 import 'package:yet_another_luci_app/services/secure_storage_service.dart';
 import 'package:yet_another_luci_app/services/router_service.dart';
 import 'package:yet_another_luci_app/services/throughput_service.dart';
@@ -19,6 +22,7 @@ abstract class ServiceFactory {
   IAuthService createAuthService();
   IApiService createApiService();
   ISshService createSshService();
+  ISshPersistentSession createSshPersistentSession();
   SecureStorageService createSecureStorageService();
   RouterService createRouterService();
   ThroughputService createThroughputService();
@@ -41,6 +45,10 @@ class ProductionServiceFactory implements ServiceFactory {
 
   @override
   ISshService createSshService() => _sshService ??= RealSshService();
+
+  @override
+  ISshPersistentSession createSshPersistentSession() =>
+      RealSshPersistentSession();
 
   @override
   SecureStorageService createSecureStorageService() =>
@@ -70,6 +78,10 @@ class ReviewerModeServiceFactory implements ServiceFactory {
 
   @override
   ISshService createSshService() => _sshService ??= MockSshService();
+
+  @override
+  ISshPersistentSession createSshPersistentSession() =>
+      MockSshPersistentSession();
 
   @override
   SecureStorageService createSecureStorageService() =>

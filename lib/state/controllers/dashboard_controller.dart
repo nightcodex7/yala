@@ -155,6 +155,13 @@ class DashboardController {
     }
   }
 
+  /// Updates network devices in cached dashboard data (e.g. from throughput ticks).
+  void updateNetworkDevices(Map<String, dynamic> networkData) {
+    if (_dashboardData != null && _dashboardData!.containsKey('boardInfo')) {
+      _dashboardData!['networkDevices'] = networkData;
+    }
+  }
+
   /// Action to re-detect capabilities for the active router
   Future<void> redetectCapabilities() async {
     await probeRouterCapabilities(forceRefresh: true);
@@ -210,6 +217,7 @@ class DashboardController {
     final ubusObjects = <String>{};
     final ubusMethods = <String, List<String>>{};
     final uciPermissions = <String, List<String>>{};
+    final filePermissions = <String, List<String>>{};
     PackageManagerEngine pkgEngine = PackageManagerEngine.opkg;
     FirewallBackend fwBackend = FirewallBackend.fw4;
     NetworkModel netModel = NetworkModel.dsa;
@@ -255,6 +263,17 @@ class DashboardController {
                 final configName = entry.key.toString();
                 if (entry.value is List) {
                   uciPermissions[configName] = (entry.value as List)
+                      .map((e) => e.toString())
+                      .toList();
+                }
+              }
+            }
+            final fileMap = data['file'];
+            if (fileMap is Map) {
+              for (final entry in fileMap.entries) {
+                final filePath = entry.key.toString();
+                if (entry.value is List) {
+                  filePermissions[filePath] = (entry.value as List)
                       .map((e) => e.toString())
                       .toList();
                 }
@@ -625,6 +644,7 @@ class DashboardController {
       ubusObjects: ubusObjects,
       ubusMethods: ubusMethods,
       uciPermissions: uciPermissions,
+      filePermissions: filePermissions,
       packageEngine: pkgEngine,
       firewallBackend: fwBackend,
       networkModel: netModel,
@@ -800,6 +820,9 @@ class DashboardController {
           'tailscale': getResData(results[13]),
           'nextdns': getResData(results[14]),
           'cloudflared': getResData(results[15]),
+          'https-dns-proxy': null,
+          'stubby': null,
+          'smartdns': null,
           'wireguard': wireguardData,
           'cronJobs': cronJobs,
           'packageManager': PackageManagerEngine.opkg,
@@ -1097,6 +1120,24 @@ class DashboardController {
         object: 'uci',
         method: 'get',
         params: {'config': 'sqm'},
+      );
+
+      final uciHttpsDnsProxyFuture = callOptionalRpc(
+        object: 'uci',
+        method: 'get',
+        params: {'config': 'https-dns-proxy'},
+      );
+
+      final uciStubbyFuture = callOptionalRpc(
+        object: 'uci',
+        method: 'get',
+        params: {'config': 'stubby'},
+      );
+
+      final uciSmartdnsFuture = callOptionalRpc(
+        object: 'uci',
+        method: 'get',
+        params: {'config': 'smartdns'},
       );
 
       Future<dynamic> fetchCronData() async {
@@ -1670,6 +1711,9 @@ class DashboardController {
         deviceStatusFuture,
         swconfigFuture,
         uciSqmFuture,
+        uciHttpsDnsProxyFuture,
+        uciStubbyFuture,
+        uciSmartdnsFuture,
       ]);
       final wirelessRaw = optionalResults[0];
       final uciWirelessRaw = optionalResults[1];
@@ -1691,6 +1735,9 @@ class DashboardController {
       final deviceStatusRaw = optionalResults[17];
       final swconfigRaw = optionalResults[18];
       final uciSqmRaw = optionalResults[19];
+      final uciHttpsDnsProxyRaw = optionalResults[20];
+      final uciStubbyRaw = optionalResults[21];
+      final uciSmartdnsRaw = optionalResults[22];
 
       dynamic parsedNextdns = getOptionalData(uciNextdnsRaw, 'uci.get nextdns');
       dynamic parsedCloudflared = getOptionalData(
@@ -1698,6 +1745,15 @@ class DashboardController {
         'uci.get cloudflared',
       );
       dynamic parsedOpenvpn = getOptionalData(uciOpenvpnRaw, 'uci.get openvpn');
+      dynamic parsedHttpsDnsProxy = getOptionalData(
+        uciHttpsDnsProxyRaw,
+        'uci.get https-dns-proxy',
+      );
+      dynamic parsedStubby = getOptionalData(uciStubbyRaw, 'uci.get stubby');
+      dynamic parsedSmartdns = getOptionalData(
+        uciSmartdnsRaw,
+        'uci.get smartdns',
+      );
       dynamic effectiveTailscaleExec = tailscaleExecRaw;
       dynamic effectiveUciTailscale = uciTailscaleRaw;
 
@@ -1705,19 +1761,53 @@ class DashboardController {
       final hasCloudflaredMap =
           parsedCloudflared is Map && parsedCloudflared.isNotEmpty;
       final hasOpenvpnMap = parsedOpenvpn is Map && parsedOpenvpn.isNotEmpty;
+      final hasHttpsDnsProxyMap =
+          parsedHttpsDnsProxy is Map && parsedHttpsDnsProxy.isNotEmpty;
+      final hasStubbyMap = parsedStubby is Map && parsedStubby.isNotEmpty;
       final hasTailscaleExec =
           effectiveTailscaleExec != null &&
           (effectiveTailscaleExec is Map &&
               effectiveTailscaleExec['stdout'] is String &&
               (effectiveTailscaleExec['stdout'] as String).trim().isNotEmpty);
 
+      bool hasLoopbackDnsForwarder = false;
+      if (uciDhcpRaw != null) {
+        final rawDhcp = getOptionalData(uciDhcpRaw, 'uci.get dhcp');
+        final dhcpVals = (rawDhcp is Map && rawDhcp['values'] is Map)
+            ? rawDhcp['values'] as Map
+            : (rawDhcp is Map ? rawDhcp : null);
+        if (dhcpVals != null) {
+          for (final sec in dhcpVals.values) {
+            if (sec is Map &&
+                (sec['.type'] == 'dnsmasq' || sec['type'] == 'dnsmasq')) {
+              final serverVal = sec['server'];
+              final servers = serverVal is List ? serverVal : [serverVal];
+              if (servers.any(
+                (s) =>
+                    s != null &&
+                    (s.toString().contains('127.0.0.1') ||
+                        s.toString().contains('localhost') ||
+                        s.toString().contains('::1')),
+              )) {
+                hasLoopbackDnsForwarder = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
       // If any of NextDNS, Cloudflared, OpenVPN, or Tailscale queries were rejected/denied (e.g. OpenWrt
       // RPCD ACL restrictions where these services are not in the LuCI session ACL),
+      // or if dnsmasq uses a loopback proxy but LuCI ubus blocked reading DoH/DoT configs,
       // seamlessly fall back to a single fast SSH query if SSH credentials and service are available.
       if ((!hasNextdnsMap ||
               !hasCloudflaredMap ||
               !hasOpenvpnMap ||
-              !hasTailscaleExec) &&
+              !hasTailscaleExec ||
+              (hasLoopbackDnsForwarder &&
+                  !hasHttpsDnsProxyMap &&
+                  !hasStubbyMap)) &&
           _sshService != null &&
           !_isReviewerMode) {
         final sshFallbackData = await _fetchUciConfigsViaSsh(ip, force: force);
@@ -1729,6 +1819,16 @@ class DashboardController {
         }
         if (!hasOpenvpnMap && sshFallbackData.containsKey('openvpn')) {
           parsedOpenvpn = sshFallbackData['openvpn'];
+        }
+        if (!hasHttpsDnsProxyMap &&
+            sshFallbackData.containsKey('https-dns-proxy')) {
+          parsedHttpsDnsProxy = sshFallbackData['https-dns-proxy'];
+        }
+        if (!hasStubbyMap && sshFallbackData.containsKey('stubby')) {
+          parsedStubby = sshFallbackData['stubby'];
+        }
+        if (sshFallbackData.containsKey('smartdns')) {
+          parsedSmartdns = sshFallbackData['smartdns'];
         }
         if (!hasTailscaleExec &&
             sshFallbackData.containsKey('tailscale_exec')) {
@@ -2371,6 +2471,9 @@ class DashboardController {
         'tailscale': tailscaleData,
         'nextdns': nextdnsData,
         'cloudflared': cloudflaredData,
+        'https-dns-proxy': parsedHttpsDnsProxy,
+        'stubby': parsedStubby,
+        'smartdns': parsedSmartdns,
         'ddns': ddnsData,
         'sqm': sqmData,
         'temperature': temperatureData,
@@ -3034,6 +3137,12 @@ class DashboardController {
           'echo \'$delimiter\'; '
           'ubus call uci get \'{"config":"openvpn"}\' 2>/dev/null || cat /etc/config/openvpn 2>/dev/null; '
           'echo \'$delimiter\'; '
+          'ubus call uci get \'{"config":"https-dns-proxy"}\' 2>/dev/null || cat /etc/config/https-dns-proxy 2>/dev/null; '
+          'echo \'$delimiter\'; '
+          'ubus call uci get \'{"config":"stubby"}\' 2>/dev/null || cat /etc/config/stubby 2>/dev/null; '
+          'echo \'$delimiter\'; '
+          'ubus call uci get \'{"config":"smartdns"}\' 2>/dev/null || cat /etc/config/smartdns 2>/dev/null; '
+          'echo \'$delimiter\'; '
           'if [ -x /usr/sbin/tailscale ]; then /usr/sbin/tailscale status --json 2>/dev/null; '
           'elif command -v tailscale >/dev/null 2>&1; then tailscale status --json 2>/dev/null; '
           'elif [ -f /etc/config/tailscale ]; then cat /etc/config/tailscale 2>/dev/null; fi';
@@ -3070,7 +3179,28 @@ class DashboardController {
           }
         }
         if (parts.length > 3) {
-          final tsChunk = parts[3].trim();
+          final hdpChunk = parts[3].trim();
+          final hdpMap = _parseUciChunk(hdpChunk);
+          if (hdpMap != null) {
+            result['https-dns-proxy'] = hdpMap;
+          }
+        }
+        if (parts.length > 4) {
+          final stubbyChunk = parts[4].trim();
+          final stubbyMap = _parseUciChunk(stubbyChunk);
+          if (stubbyMap != null) {
+            result['stubby'] = stubbyMap;
+          }
+        }
+        if (parts.length > 5) {
+          final smartdnsChunk = parts[5].trim();
+          final smartdnsMap = _parseUciChunk(smartdnsChunk);
+          if (smartdnsMap != null) {
+            result['smartdns'] = smartdnsMap;
+          }
+        }
+        if (parts.length > 6) {
+          final tsChunk = parts[6].trim();
           if (tsChunk.isNotEmpty) {
             if (tsChunk.startsWith('{')) {
               final tsMap = _parseUciChunk(tsChunk);

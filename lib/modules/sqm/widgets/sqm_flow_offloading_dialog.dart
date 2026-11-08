@@ -25,7 +25,6 @@ Future<bool> showFlowOffloadingWarningDialog(
   final result = await showDialog<dynamic>(
     context: context,
     builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       actionsOverflowButtonSpacing: 8,
       actionsOverflowDirection: VerticalDirection.down,
       title: Row(

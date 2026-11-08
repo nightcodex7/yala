@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import '../models/adguard_models.dart';
 
@@ -49,10 +50,10 @@ class AdGuardStatsCard extends StatelessWidget {
 
     final hasActivity = totalQueries > 0;
     final blockedColor = blockedQueries > 0
-        ? Colors.red.shade700
+        ? colorScheme.error
         : colorScheme.onSurfaceVariant;
     final blockRateColor = (hasActivity && blockRate > 0)
-        ? Colors.orange.shade800
+        ? LuciStatusColors.warningColor(context)
         : colorScheme.onSurfaceVariant;
 
     return Card(

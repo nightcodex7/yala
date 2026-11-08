@@ -129,7 +129,6 @@ class _AdGuardCustomRulesDialogState extends State<AdGuardCustomRulesDialog> {
 
     return AlertDialog(
       key: const Key('agh_custom_rules_dialog'),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),

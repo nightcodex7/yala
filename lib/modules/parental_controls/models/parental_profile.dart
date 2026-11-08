@@ -74,7 +74,69 @@ extension ScheduleDayExtension on ScheduleDay {
     }
   }
 
+  /// UCI firewall weekday string (e.g. 'Mon', 'Tue').
+  String get uciWeekday {
+    switch (this) {
+      case ScheduleDay.monday:
+        return 'Mon';
+      case ScheduleDay.tuesday:
+        return 'Tue';
+      case ScheduleDay.wednesday:
+        return 'Wed';
+      case ScheduleDay.thursday:
+        return 'Thu';
+      case ScheduleDay.friday:
+        return 'Fri';
+      case ScheduleDay.saturday:
+        return 'Sat';
+      case ScheduleDay.sunday:
+        return 'Sun';
+    }
+  }
+
+  /// Next calendar day (used to split overnight schedules across midnight).
+  ScheduleDay get nextDay => ScheduleDay.values[(index + 1) % 7];
+
   static ScheduleDay fromIndex(int index) => ScheduleDay.values[index];
+
+  /// Parses a day from string, integer, or enum.
+  static ScheduleDay? parse(dynamic value) {
+    if (value == null) return null;
+    if (value is ScheduleDay) return value;
+    if (value is int && value >= 0 && value < ScheduleDay.values.length) {
+      return ScheduleDay.values[value];
+    }
+    final s = value.toString().trim().toLowerCase();
+    final asInt = int.tryParse(s);
+    if (asInt != null && asInt >= 0 && asInt < ScheduleDay.values.length) {
+      return ScheduleDay.values[asInt];
+    }
+    switch (s) {
+      case 'mon':
+      case 'monday':
+        return ScheduleDay.monday;
+      case 'tue':
+      case 'tuesday':
+        return ScheduleDay.tuesday;
+      case 'wed':
+      case 'wednesday':
+        return ScheduleDay.wednesday;
+      case 'thu':
+      case 'thursday':
+        return ScheduleDay.thursday;
+      case 'fri':
+      case 'friday':
+        return ScheduleDay.friday;
+      case 'sat':
+      case 'saturday':
+        return ScheduleDay.saturday;
+      case 'sun':
+      case 'sunday':
+        return ScheduleDay.sunday;
+      default:
+        return null;
+    }
+  }
 }
 
 /// Preset family-safe DNS upstream options.
@@ -212,22 +274,32 @@ class TimeSchedule {
     if (!enabled || activeDays.isEmpty) return false;
     final dt = (now ?? DateTime.now()).toLocal();
     final dayOfWeek = dt.weekday; // 1=Mon, ..., 7=Sun
-    final scheduleDay = ScheduleDay.values[(dayOfWeek - 1) % 7];
-    if (!activeDays.contains(scheduleDay)) return false;
+    final today = ScheduleDay.values[(dayOfWeek - 1) % 7];
+    final yesterday = ScheduleDay.values[(dayOfWeek - 2 + 7) % 7];
 
     final currentMin = dt.hour * 60 + dt.minute;
     final blockMin = blockHour * 60 + blockMinute;
     final resumeMin = resumeHour * 60 + resumeMinute;
 
     if (blockMin < resumeMin) {
-      // Daytime block schedule (e.g. 14:00 to 17:00)
+      // Daytime block schedule (e.g. 14:00 to 17:00 on active days)
+      if (!activeDays.contains(today)) return false;
       return currentMin >= blockMin && currentMin < resumeMin;
     } else if (blockMin > resumeMin) {
       // Overnight block schedule (e.g. 22:00 to 07:00)
-      return currentMin >= blockMin || currentMin < resumeMin;
+      if (currentMin >= blockMin) {
+        // Evening portion (22:00 to 23:59) belongs to today's active schedule
+        return activeDays.contains(today);
+      } else if (currentMin < resumeMin) {
+        // Morning portion (00:00 to 07:00) belongs to yesterday's overnight schedule
+        return activeDays.contains(yesterday);
+      } else {
+        // Daytime outside the block window
+        return false;
+      }
     } else {
       // Equal times = 24-hour block on active days
-      return true;
+      return activeDays.contains(today);
     }
   }
 
@@ -259,22 +331,68 @@ class TimeSchedule {
   };
 
   factory TimeSchedule.fromJson(Map<String, dynamic> json) {
-    final rawDays =
-        (json['active_days'] as List?)
-            ?.map((e) => int.tryParse(e.toString()))
-            .whereType<int>()
-            .toList() ??
-        [];
+    Set<ScheduleDay> days = {};
+    final rawDays = json['active_days'] ?? json['schedule_days'];
+    if (rawDays is List) {
+      days = rawDays
+          .map((e) => ScheduleDayExtension.parse(e))
+          .whereType<ScheduleDay>()
+          .toSet();
+    } else if (rawDays is String && rawDays.isNotEmpty) {
+      days = rawDays
+          .split(RegExp(r'\s+'))
+          .map((e) => ScheduleDayExtension.parse(e))
+          .whereType<ScheduleDay>()
+          .toSet();
+    }
+
+    final rawBlockH = json['block_hour'] ?? json['schedule_block_hour'];
+    final blockH = rawBlockH is num
+        ? rawBlockH.toInt()
+        : (int.tryParse(rawBlockH?.toString() ?? '') ?? 22);
+
+    final rawBlockM =
+        json['block_minute'] ??
+        json['schedule_block_min'] ??
+        json['schedule_block_minute'];
+    final blockM = rawBlockM is num
+        ? rawBlockM.toInt()
+        : (int.tryParse(rawBlockM?.toString() ?? '') ?? 0);
+
+    final rawResumeH = json['resume_hour'] ?? json['schedule_resume_hour'];
+    final resumeH = rawResumeH is num
+        ? rawResumeH.toInt()
+        : (int.tryParse(rawResumeH?.toString() ?? '') ?? 7);
+
+    final rawResumeM =
+        json['resume_minute'] ??
+        json['schedule_resume_min'] ??
+        json['schedule_resume_minute'];
+    final resumeM = rawResumeM is num
+        ? rawResumeM.toInt()
+        : (int.tryParse(rawResumeM?.toString() ?? '') ?? 0);
+
+    final rawEnabled = json['enabled'] ?? json['schedule_enabled'];
+    final bool isEnabled =
+        rawEnabled == null ||
+        rawEnabled == true ||
+        rawEnabled == '1' ||
+        rawEnabled == 'true';
+
+    if (days.isEmpty &&
+        (isEnabled ||
+            rawBlockH != null ||
+            json['schedule_block_hour'] != null)) {
+      days = ScheduleDay.values.toSet();
+    }
+
     return TimeSchedule(
-      activeDays: rawDays
-          .where((d) => d >= 0 && d < ScheduleDay.values.length)
-          .map((d) => ScheduleDay.values[d])
-          .toSet(),
-      blockHour: (json['block_hour'] as num?)?.toInt() ?? 22,
-      blockMinute: (json['block_minute'] as num?)?.toInt() ?? 0,
-      resumeHour: (json['resume_hour'] as num?)?.toInt() ?? 7,
-      resumeMinute: (json['resume_minute'] as num?)?.toInt() ?? 0,
-      enabled: json['enabled'] as bool? ?? true,
+      activeDays: days,
+      blockHour: blockH,
+      blockMinute: blockM,
+      resumeHour: resumeH,
+      resumeMinute: resumeM,
+      enabled: isEnabled,
     );
   }
 }
@@ -395,7 +513,11 @@ class ParentalProfile {
   bool get hasSchedule =>
       schedule != null && schedule!.enabled && schedule!.activeDays.isNotEmpty;
   bool get isScheduleBlocked => hasSchedule && schedule!.isTimeInBlockWindow();
-  bool get isCurrentlyBlocked => isEnabled && (isPaused || isScheduleBlocked);
+  bool isDailyLimitReached([int? minutesUsed]) =>
+      hasTimeLimit && (minutesUsed ?? 0) >= dailyTimeLimitMinutes!;
+  bool isCurrentlyBlocked([int? minutesUsed]) =>
+      isEnabled &&
+      (isPaused || isScheduleBlocked || isDailyLimitReached(minutesUsed));
   bool get hasTimeLimit =>
       dailyTimeLimitMinutes != null && dailyTimeLimitMinutes! > 0;
   bool get hasContentFilter => contentFilter != ContentFilterDns.none;
@@ -457,7 +579,10 @@ class ParentalProfile {
     'is_enabled': isEnabled,
     'pause_expires_at': pauseExpiresAt?.toUtc().toIso8601String(),
     'schedule': schedule?.toJson(),
-    'daily_time_limit_minutes': dailyTimeLimitMinutes,
+    'daily_time_limit_minutes':
+        (dailyTimeLimitMinutes != null && dailyTimeLimitMinutes! > 0)
+        ? dailyTimeLimitMinutes
+        : null,
     'content_filter': contentFilter.toStorageString(),
     'custom_dns_servers': customDnsServers,
   };
@@ -470,7 +595,13 @@ class ParentalProfile {
     final rawExpiry = (json['pause_expires_at'] ?? json['pauseExpiresAt'])
         ?.toString();
     if (rawExpiry != null && rawExpiry.isNotEmpty) {
-      expiresAt = DateTime.tryParse(rawExpiry)?.toUtc();
+      final asInt = int.tryParse(rawExpiry);
+      if (asInt != null && asInt > 1000000000) {
+        final ms = asInt > 100000000000 ? asInt : asInt * 1000;
+        expiresAt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+      } else {
+        expiresAt = DateTime.tryParse(rawExpiry)?.toUtc();
+      }
     }
 
     final List<String> macs = [];
@@ -497,6 +628,25 @@ class ParentalProfile {
     final bool isEnabled =
         rawEnabled != false && rawEnabled != '0' && rawEnabled != 'false';
 
+    TimeSchedule? schedule;
+    if (json['schedule'] is Map) {
+      schedule = TimeSchedule.fromJson(
+        Map<String, dynamic>.from(json['schedule'] as Map),
+      );
+    } else if (json['schedule_enabled'] != null ||
+        json['schedule_days'] != null ||
+        json['schedule_block_hour'] != null) {
+      schedule = TimeSchedule.fromJson(json);
+    }
+
+    final rawDaily = json['daily_time_limit_minutes'] ?? json['daily_limit'];
+    final int? parsedDaily = rawDaily is num
+        ? rawDaily.toInt()
+        : (int.tryParse(rawDaily?.toString() ?? ''));
+    final int? dailyLimit = (parsedDaily != null && parsedDaily > 0)
+        ? parsedDaily
+        : null;
+
     return ParentalProfile(
       id:
           json['id']?.toString() ??
@@ -510,14 +660,8 @@ class ParentalProfile {
       isPaused: isPaused,
       isEnabled: isEnabled,
       pauseExpiresAt: expiresAt,
-      schedule: json['schedule'] != null
-          ? TimeSchedule.fromJson(
-              Map<String, dynamic>.from(json['schedule'] as Map),
-            )
-          : null,
-      dailyTimeLimitMinutes:
-          (json['daily_time_limit_minutes'] as num?)?.toInt() ??
-          int.tryParse(json['daily_time_limit_minutes']?.toString() ?? ''),
+      schedule: schedule,
+      dailyTimeLimitMinutes: dailyLimit,
       contentFilter: contentFilterDnsFromString(
         json['content_filter']?.toString(),
       ),

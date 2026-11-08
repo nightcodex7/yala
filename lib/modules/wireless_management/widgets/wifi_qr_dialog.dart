@@ -93,7 +93,6 @@ class _WifiQrDialogState extends ConsumerState<WifiQrDialog> {
         _passphrase!.isNotEmpty;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
         child: Padding(

@@ -23,7 +23,9 @@ import 'package:yet_another_luci_app/state/controllers/client_controller.dart';
 import 'package:yet_another_luci_app/state/controllers/session_controller.dart';
 import 'package:yet_another_luci_app/models/rpc_result.dart';
 import 'package:yet_another_luci_app/models/client.dart';
+import 'package:yet_another_luci_app/models/client_speed_limit.dart';
 import 'package:yet_another_luci_app/modules/parental_controls/models/parental_profile.dart';
+import 'package:yet_another_luci_app/modules/parental_controls/models/parental_controls_store.dart';
 import 'package:yet_another_luci_app/modules/parental_controls/controllers/parental_controls_controller.dart';
 import 'package:yet_another_luci_app/models/router.dart' as model;
 import 'package:yet_another_luci_app/models/dashboard_preferences.dart';
@@ -205,8 +207,17 @@ class AppState extends ChangeNotifier {
   DashboardPreferences get dashboardPreferences =>
       _sessionController?.dashboardPreferences ?? DashboardPreferences();
 
+  model.Router? _selectedRouterForTesting;
+
+  @visibleForTesting
+  void setSelectedRouterForTesting(model.Router? router) {
+    _selectedRouterForTesting = router;
+    notifyListeners();
+  }
+
   List<model.Router> get routers => _sessionController?.routers ?? [];
-  model.Router? get selectedRouter => _sessionController?.selectedRouter;
+  model.Router? get selectedRouter =>
+      _selectedRouterForTesting ?? _sessionController?.selectedRouter;
   String? get currentRouterIp => _sessionController?.currentRouterIp;
   RouterService? get routerService => _routerService;
 
@@ -419,6 +430,7 @@ class AppState extends ChangeNotifier {
       setErrorState: setError,
       notifyListeners: notifyListeners,
       onSessionReset: () {
+        _markSessionDataLoading();
         _customGuestSections.clear();
         _excludedGuestSections.clear();
         ParentalControlsController.instance.reset();
@@ -485,6 +497,11 @@ class AppState extends ChangeNotifier {
     _throughputController?.cancelAndClear();
     invalidateStaticLeasesCache();
     await _sessionController?.setReviewerMode(enabled, context: context);
+    if (enabled) {
+      _markSessionDataReady();
+    } else {
+      _markSessionDataLoading();
+    }
   }
 
   /// Generic secure storage read — used by feature modules (e.g. Parental Controls).
@@ -698,6 +715,7 @@ class AppState extends ChangeNotifier {
     _throughputController?.cancelAndClear();
     invalidateStaticLeasesCache();
     await _sessionController!.selectRouter(id, context: context);
+    await loadSpeedLimitsForRouter(id);
   }
 
   Future<void> updateRouter(model.Router router, {String? oldId}) =>
@@ -742,6 +760,7 @@ class AppState extends ChangeNotifier {
     _throughputController?.cancelAndClear();
     invalidateStaticLeasesCache();
     await _sessionController!.logout();
+    _markSessionDataReady();
   }
 
   /// Action to re-detect capabilities for the active router
@@ -764,9 +783,56 @@ class AppState extends ChangeNotifier {
         RouterCapabilities.conservative('unknown');
   }
 
+  Completer<void>? _activeSessionDataCompleter;
+  bool _isActiveSessionDataReady = false;
+
+  /// Whether the initial core session data (dashboard vitals, network interfaces,
+  /// and selected router clients) has completed loading for the currently active router profile.
+  bool get isActiveSessionDataReady => _isActiveSessionDataReady;
+
+  /// Ensures that the active router's core session data and clients have finished loading
+  /// before triggering any secondary or Dumb AP background queries.
+  Future<void> ensureActiveSessionDataReady() {
+    if (_isActiveSessionDataReady) {
+      return Future.value();
+    }
+    if (_activeSessionDataCompleter != null) {
+      return _activeSessionDataCompleter!.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          _markSessionDataReady();
+        },
+      );
+    }
+    return fetchDashboardData();
+  }
+
+  void _markSessionDataLoading() {
+    _isActiveSessionDataReady = false;
+    if (_activeSessionDataCompleter == null ||
+        _activeSessionDataCompleter!.isCompleted) {
+      _activeSessionDataCompleter = Completer<void>();
+    }
+  }
+
+  void _markSessionDataReady() {
+    _isActiveSessionDataReady = true;
+    if (_activeSessionDataCompleter != null &&
+        !_activeSessionDataCompleter!.isCompleted) {
+      _activeSessionDataCompleter!.complete();
+    }
+    _activeSessionDataCompleter = null;
+  }
+
   Future<void> fetchDashboardData({bool force = false}) async {
-    await _dashboardController?.fetchDashboardData(force: force);
-    await fetchClientsForSelectedRouter();
+    final completer = _activeSessionDataCompleter ?? Completer<void>();
+    _activeSessionDataCompleter = completer;
+    try {
+      await _dashboardController?.fetchDashboardData(force: force);
+      await fetchClientsForSelectedRouter();
+    } finally {
+      _markSessionDataReady();
+    }
   }
 
   /// Lazy capability-aware fetch returning a list of installed OpenWrtPackage objects
@@ -1034,9 +1100,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<bool> executeRouterCommand(String command, List<String> args) async {
-    final ip = _routerService?.selectedRouter?.ipAddress;
-    if (ip == null || _authService?.sysauth == null) return false;
-    final useHttps = _routerService?.selectedRouter?.useHttps ?? false;
+    final router = selectedRouter ?? _routerService?.selectedRouter;
+    final ip = router?.ipAddress;
+    final auth = _authService?.sysauth ?? sysauth;
+    if (ip == null || auth == null) return false;
+    final useHttps = router?.useHttps ?? false;
 
     final normalized = _normalizeRouterCommand(command, args);
     final execCommand = normalized.command;
@@ -1067,19 +1135,26 @@ class AppState extends ChangeNotifier {
     try {
       final res = await _apiService!.call(
         ip,
-        _authService!.sysauth!,
+        auth,
         useHttps,
         object: 'file',
         method: 'exec',
         params: {'command': execCommand, 'params': execArgs, 'args': execArgs},
       );
       if (_isSuccessResponse(res)) return true;
-    } catch (_) {}
+    } catch (e) {
+      if (execCommand == '/sbin/firstboot' || execCommand == '/sbin/reboot') {
+        Logger.info(
+          'Router command $execCommand initiated reboot; connection terminated: $e',
+        );
+        return true;
+      }
+    }
 
     try {
       final res = await _apiService!.call(
         ip,
-        _authService!.sysauth!,
+        auth,
         useHttps,
         object: 'file',
         method: 'exec',
@@ -1090,12 +1165,16 @@ class AppState extends ChangeNotifier {
         },
       );
       if (_isSuccessResponse(res)) return true;
-    } catch (_) {}
+    } catch (e) {
+      if (execCommand == '/sbin/firstboot' || execCommand == '/sbin/reboot') {
+        return true;
+      }
+    }
 
     try {
       final res = await _apiService!.call(
         ip,
-        _authService!.sysauth!,
+        auth,
         useHttps,
         object: 'file',
         method: 'exec',
@@ -1106,7 +1185,38 @@ class AppState extends ChangeNotifier {
         },
       );
       if (_isSuccessResponse(res)) return true;
-    } catch (_) {}
+    } catch (e) {
+      if (execCommand == '/sbin/firstboot' || execCommand == '/sbin/reboot') {
+        return true;
+      }
+    }
+
+    if (_sshService != null &&
+        (execCommand == '/sbin/firstboot' || execCommand == '/sbin/reboot')) {
+      final ip = selectedRouter?.ipAddress;
+      final username = selectedRouter?.username ?? 'root';
+      String? password = selectedRouter?.password;
+      if (password == null || password.isEmpty) {
+        try {
+          final creds = await _secureStorageService.getCredentials();
+          password = creds['password'];
+        } catch (_) {}
+      }
+      if (ip != null && password != null && password.isNotEmpty) {
+        try {
+          final sshCmd = '$execCommand ${execArgs.join(' ')}'.trim();
+          final sshRes = await _sshService!.executeCommand(
+            host: ip,
+            username: username,
+            password: password,
+            command: sshCmd,
+          );
+          if (sshRes.success) return true;
+        } catch (_) {
+          return true;
+        }
+      }
+    }
 
     return false;
   }
@@ -1277,11 +1387,11 @@ class AppState extends ChangeNotifier {
     if (command == 'wifi') {
       return _RouterCommand('/sbin/wifi', args);
     }
-    if (command == 'reboot') {
-      return _RouterCommand('/sbin/reboot', args);
+    if (command == 'reboot' || command == '/sbin/reboot') {
+      return const _RouterCommand('/sbin/reboot', []);
     }
-    if (command == 'firstboot') {
-      return _RouterCommand('/sbin/firstboot', args);
+    if (command == 'firstboot' || command == '/sbin/firstboot') {
+      return const _RouterCommand('/sbin/firstboot', ['-r', '-y']);
     }
     return _RouterCommand(command, args);
   }
@@ -1331,38 +1441,88 @@ class AppState extends ChangeNotifier {
       interfaceName;
 
   void setThroughputInterval(int seconds) {
-    if (_throughputController?.setInterval(
-          seconds,
-          isRebooting: _isRebooting,
-          onTick: _updateThroughputOnly,
-        ) ??
-        false) {
-      notifyListeners();
+    final shouldRun = isThroughputPollingActive && hasActiveSession;
+    _throughputController?.setInterval(
+      seconds,
+      isRebooting: _isRebooting || !shouldRun,
+      onTick: _updateThroughputOnly,
+      immediateTick: shouldRun,
+    );
+    if (!shouldRun) {
+      _throughputController?.pauseTimer();
     }
+    notifyListeners();
   }
 
   bool _isDashboardTabActive = true;
+  int _realtimeTelemetryConsumers = 0;
 
   /// Returns true if the dashboard tab is currently active.
   bool get isDashboardTabActive => _isDashboardTabActive;
+
+  /// Whether real-time throughput & system telemetry polling is actively required
+  /// (either the Dashboard tab is active or a real-time monitor such as ChartingScreen is open).
+  bool get isThroughputPollingActive =>
+      _isDashboardTabActive || _realtimeTelemetryConsumers > 0;
+
+  /// Increments active real-time telemetry consumer count and starts polling if not already running.
+  void acquireRealtimeTelemetry() {
+    _realtimeTelemetryConsumers++;
+    if (_realtimeTelemetryConsumers == 1) {
+      if (_throughputController?.isPaused ?? false) {
+        resumeThroughputTimer(immediateTick: true);
+      } else {
+        _startThroughputTimer(immediateTick: true);
+      }
+    }
+  }
+
+  /// Decrements active real-time telemetry consumer count and pauses polling if no consumers remain.
+  void releaseRealtimeTelemetry() {
+    if (_realtimeTelemetryConsumers > 0) {
+      _realtimeTelemetryConsumers--;
+      if (_realtimeTelemetryConsumers == 0) {
+        if (!_isDashboardTabActive) {
+          pauseThroughputTimer();
+        } else {
+          // Returning to Dashboard tab: enforce the 2-second dashboard chart update interval
+          setThroughputInterval(2);
+        }
+      }
+    }
+  }
 
   /// Updates whether the dashboard tab is active. Automatically pauses or resumes throughput polling.
   void setDashboardTabActive(bool active) {
     if (_isDashboardTabActive == active) return;
     _isDashboardTabActive = active;
     if (active) {
-      resumeThroughputTimer(immediateTick: true);
-    } else {
+      if (_realtimeTelemetryConsumers == 0) {
+        // Enforce the 2-second dashboard real-time network metric chart update interval
+        setThroughputInterval(2);
+      } else {
+        resumeThroughputTimer(immediateTick: true);
+      }
+    } else if (_realtimeTelemetryConsumers == 0) {
       pauseThroughputTimer();
     }
   }
 
   void _startThroughputTimer({bool immediateTick = true}) {
-    if (!_isDashboardTabActive || !hasActiveSession) return;
-    _throughputController?.startTimer(
-      isRebooting: _isRebooting,
-      onTick: _updateThroughputOnly,
-    );
+    if (!isThroughputPollingActive || !hasActiveSession) return;
+    if (_isDashboardTabActive && _realtimeTelemetryConsumers == 0) {
+      _throughputController?.setInterval(
+        2,
+        isRebooting: _isRebooting,
+        onTick: _updateThroughputOnly,
+        immediateTick: false,
+      );
+    } else {
+      _throughputController?.startTimer(
+        isRebooting: _isRebooting,
+        onTick: _updateThroughputOnly,
+      );
+    }
     if (immediateTick && !_isRebooting) {
       Future.microtask(_updateThroughputOnly);
     }
@@ -1389,11 +1549,11 @@ class AppState extends ChangeNotifier {
   }
 
   /// Deferrable listener notification: avoids triggering frame rebuilds mid-scrolling to eliminate jitters
-  /// and suppresses background throughput rebuilds when not viewing the Dashboard tab.
+  /// and suppresses background throughput rebuilds when neither Dashboard tab nor Real-Time Metrics is viewing.
   void notifyListenersDeferrable() {
     if (_isUserScrolling) {
       _pendingNotificationWhileScrolling = true;
-    } else if (_isDashboardTabActive) {
+    } else if (isThroughputPollingActive) {
       _pendingNotificationWhileScrolling = false;
       notifyListeners();
     }
@@ -1513,13 +1673,22 @@ class AppState extends ChangeNotifier {
           } catch (_) {}
         }
 
-        if (netDataResult is List &&
+        final bool hadNetUpdate =
+            netDataResult is List &&
             netDataResult.length > 1 &&
-            netDataResult[0] == 0) {
+            netDataResult[0] == 0;
+        final bool hadSysUpdate =
+            sysResult is List && sysResult.length > 1 && sysResult[0] == 0;
+
+        if (hadNetUpdate) {
           final rawNet = netDataResult[1];
           final networkData = rawNet is Map
               ? Map<String, dynamic>.from(rawNet)
               : null;
+
+          if (networkData != null) {
+            _dashboardController?.updateNetworkDevices(networkData);
+          }
 
           final rawDump = dashboardData?['interfaceDump'];
           final interfaceDump = rawDump is Map
@@ -1540,6 +1709,9 @@ class AppState extends ChangeNotifier {
             wanDeviceNames,
             specificInterface: specificInterface,
           );
+        }
+
+        if (hadNetUpdate || hadSysUpdate) {
           notifyListenersDeferrable();
         }
       } catch (e) {
@@ -1563,14 +1735,23 @@ class AppState extends ChangeNotifier {
     _throughputController?.pauseTimer();
   }
 
-  /// Resumes periodic throughput polling if the dashboard tab is active, a session is active, and not rebooting.
+  /// Resumes periodic throughput polling if telemetry is active, a session is active, and not rebooting.
   void resumeThroughputTimer({bool immediateTick = false}) {
-    if (_isDashboardTabActive && hasActiveSession && !_isRebooting) {
-      _throughputController?.resumeTimer(
-        isRebooting: _isRebooting,
-        onTick: _updateThroughputOnly,
-        immediateTick: immediateTick,
-      );
+    if (isThroughputPollingActive && hasActiveSession && !_isRebooting) {
+      if (_isDashboardTabActive && _realtimeTelemetryConsumers == 0) {
+        _throughputController?.setInterval(
+          2,
+          isRebooting: _isRebooting,
+          onTick: _updateThroughputOnly,
+          immediateTick: immediateTick,
+        );
+      } else {
+        _throughputController?.resumeTimer(
+          isRebooting: _isRebooting,
+          onTick: _updateThroughputOnly,
+          immediateTick: immediateTick,
+        );
+      }
     }
   }
 
@@ -1787,6 +1968,16 @@ class AppState extends ChangeNotifier {
           continue;
         }
         for (final m in rule.srcMac) {
+          final norm = ClientNamingHelper.normalizeMac(m);
+          if (norm.isNotEmpty) {
+            result.add(norm);
+          }
+        }
+      }
+    }
+    for (final profile in ParentalControlsStore.instance.profiles) {
+      if (ParentalControlsStore.instance.isProfileCurrentlyBlocked(profile)) {
+        for (final m in profile.macAddresses) {
           final norm = ClientNamingHelper.normalizeMac(m);
           if (norm.isNotEmpty) {
             result.add(norm);
@@ -2370,6 +2561,7 @@ class AppState extends ChangeNotifier {
         username: username,
         password: password,
         command: fixScript,
+        timeout: const Duration(seconds: 60),
       );
 
       if (res.success) {
@@ -3049,6 +3241,10 @@ class AppState extends ChangeNotifier {
       return NetworkAccessPolicy.blocked(normMac, scheduleExpiry: expiry);
     }
 
+    if (ParentalControlsStore.instance.isMacPaused(normMac)) {
+      return NetworkAccessPolicy.blocked(normMac, scheduleExpiry: expiry);
+    }
+
     return NetworkAccessPolicy.unrestricted(normMac);
   }
 
@@ -3096,6 +3292,29 @@ class AppState extends ChangeNotifier {
         normMac,
         normalizedPolicy.isEffectivelyBlocked,
       );
+
+      if (!normalizedPolicy.isEffectivelyBlocked) {
+        final parentalProfiles = ParentalControlsStore.instance.profilesForMac(
+          normMac,
+        );
+        for (final p in parentalProfiles) {
+          if (p.isPaused) {
+            await ParentalControlsController.instance.resumeProfile(
+              p,
+              appState: this,
+            );
+          } else if (ParentalControlsStore.instance.isProfileCurrentlyBlocked(
+            p,
+          )) {
+            ParentalControlsStore.instance.toggleProfileEnabled(
+              p.id,
+              enabled: false,
+            );
+            await saveParentalProfile(profile: p.copyWith(isEnabled: false));
+          }
+        }
+      }
+
       notifyListeners();
     }
     return success;
@@ -3122,6 +3341,240 @@ class AppState extends ChangeNotifier {
       await ClientPolicyScheduleService.instance.clearSchedule(normMac);
     }
     notifyListeners();
+  }
+
+  final Map<String, Map<String, ClientSpeedLimit>> _speedLimitsByRouter = {};
+
+  String _getEffectiveSpeedLimitRouterKey(String? routerId) {
+    return routerId ?? selectedRouter?.id ?? 'default';
+  }
+
+  ClientSpeedLimit? getClientSpeedLimit(String mac, {String? routerId}) {
+    final rKey = _getEffectiveSpeedLimitRouterKey(routerId);
+    final normMac = ClientNamingHelper.normalizeMac(mac);
+
+    if (_speedLimitsByRouter.containsKey(rKey)) {
+      return _speedLimitsByRouter[rKey]?[normMac];
+    }
+
+    if (reviewerModeEnabled || _apiService is MockApiService) {
+      final mock = MockApiService.getMockSpeedLimit(normMac, routerId: rKey);
+      if (mock != null) return mock;
+    }
+
+    return null;
+  }
+
+  List<ClientSpeedLimit> getActiveSpeedLimitsForRouter({String? routerId}) {
+    final rKey = _getEffectiveSpeedLimitRouterKey(routerId);
+
+    if (_speedLimitsByRouter.containsKey(rKey)) {
+      final limits = _speedLimitsByRouter[rKey]?.values.toList() ?? [];
+      return limits.where((l) => l.isEffectivelyRestricted).toList();
+    }
+
+    if (reviewerModeEnabled || _apiService is MockApiService) {
+      final mockLimits = MockApiService.getMockSpeedLimitsForRouter(rKey);
+      if (mockLimits.isNotEmpty) {
+        return mockLimits.values
+            .where((l) => l.isEffectivelyRestricted)
+            .toList();
+      }
+      return MockApiService.allMockSpeedLimits.values
+          .where((l) => l.isEffectivelyRestricted)
+          .toList();
+    }
+
+    return [];
+  }
+
+  Future<void> loadSpeedLimitsForRouter(String routerId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('router_${routerId}_speed_limits');
+      final map = <String, ClientSpeedLimit>{};
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        decoded.forEach((key, val) {
+          if (val is Map<String, dynamic>) {
+            map[ClientNamingHelper.normalizeMac(key)] =
+                ClientSpeedLimit.fromJson(val);
+          }
+        });
+      }
+      _speedLimitsByRouter[routerId] = map;
+      notifyListeners();
+    } catch (e) {
+      Logger.warning('loadSpeedLimitsForRouter error: $e');
+    }
+  }
+
+  Future<void> _persistSpeedLimitsForRouter(String routerId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = _speedLimitsByRouter[routerId] ?? {};
+      final jsonMap = <String, dynamic>{};
+      map.forEach((k, v) => jsonMap[k] = v.toJson());
+      await prefs.setString(
+        'router_${routerId}_speed_limits',
+        jsonEncode(jsonMap),
+      );
+    } catch (e) {
+      Logger.warning('_persistSpeedLimitsForRouter error: $e');
+    }
+  }
+
+  Future<bool> setClientSpeedLimit({
+    required ClientSpeedLimit speedLimit,
+    String? routerId,
+    BuildContext? context,
+  }) async {
+    final rKey = _getEffectiveSpeedLimitRouterKey(routerId);
+    final normMac = ClientNamingHelper.normalizeMac(speedLimit.targetMac);
+    final normalizedLimit = speedLimit.copyWith(targetMac: normMac);
+
+    if (!_speedLimitsByRouter.containsKey(rKey)) {
+      _speedLimitsByRouter[rKey] = {};
+    }
+
+    if (normalizedLimit.isEffectivelyRestricted) {
+      _speedLimitsByRouter[rKey]![normMac] = normalizedLimit;
+    } else {
+      _speedLimitsByRouter[rKey]!.remove(normMac);
+    }
+
+    final allLimits = _speedLimitsByRouter[rKey]!.values.toList();
+
+    final ip =
+        _routerService?.selectedRouter?.ipAddress ??
+        (reviewerModeEnabled || _apiService is MockApiService
+            ? '192.168.1.1'
+            : null);
+    final token =
+        _authService?.sysauth ??
+        (reviewerModeEnabled || _apiService is MockApiService
+            ? 'mock_sysauth'
+            : null);
+    final caps =
+        capabilities ??
+        (reviewerModeEnabled || _apiService is MockApiService
+            ? RouterCapabilities.mock()
+            : null);
+    final useHttps = _routerService?.selectedRouter?.useHttps ?? false;
+
+    if (_apiService != null && ip != null && token != null && caps != null) {
+      final success = await _apiService!.applyClientSpeedLimits(
+        ip,
+        token,
+        useHttps,
+        limits: allLimits,
+        capabilities: caps,
+        context: context,
+      );
+
+      if (!success) {
+        return false;
+      }
+    }
+
+    await _persistSpeedLimitsForRouter(rKey);
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> removeClientSpeedLimit(
+    String mac, {
+    String? routerId,
+    BuildContext? context,
+  }) async {
+    final rKey = _getEffectiveSpeedLimitRouterKey(routerId);
+    final normMac = ClientNamingHelper.normalizeMac(mac);
+
+    if (!_speedLimitsByRouter.containsKey(rKey) ||
+        !_speedLimitsByRouter[rKey]!.containsKey(normMac)) {
+      return true;
+    }
+
+    _speedLimitsByRouter[rKey]!.remove(normMac);
+    final allLimits = _speedLimitsByRouter[rKey]!.values.toList();
+
+    final ip =
+        _routerService?.selectedRouter?.ipAddress ??
+        (reviewerModeEnabled || _apiService is MockApiService
+            ? '192.168.1.1'
+            : null);
+    final token =
+        _authService?.sysauth ??
+        (reviewerModeEnabled || _apiService is MockApiService
+            ? 'mock_sysauth'
+            : null);
+    final caps =
+        capabilities ??
+        (reviewerModeEnabled || _apiService is MockApiService
+            ? RouterCapabilities.mock()
+            : null);
+    final useHttps = _routerService?.selectedRouter?.useHttps ?? false;
+
+    if (_apiService != null && ip != null && token != null && caps != null) {
+      final success = await _apiService!.applyClientSpeedLimits(
+        ip,
+        token,
+        useHttps,
+        limits: allLimits,
+        capabilities: caps,
+        context: context,
+      );
+
+      if (!success) {
+        return false;
+      }
+    }
+
+    await _persistSpeedLimitsForRouter(rKey);
+    notifyListeners();
+    return true;
+  }
+
+  /// Dynamically fetches and matches throttled clients for the specified router profile.
+  Future<List<Map<String, dynamic>>> fetchThrottledClients({
+    String? routerId,
+  }) async {
+    final rKey = _getEffectiveSpeedLimitRouterKey(routerId);
+    if (!_speedLimitsByRouter.containsKey(rKey)) {
+      await loadSpeedLimitsForRouter(rKey);
+    }
+
+    final activeLimits = getActiveSpeedLimitsForRouter(routerId: rKey);
+    if (activeLimits.isEmpty) return [];
+
+    List<Client> currentClients = [];
+    try {
+      currentClients = await fetchClientsForSelectedRouter();
+    } catch (_) {
+      currentClients = List<Client>.from(clients);
+    }
+
+    final clientByMac = <String, Client>{};
+    for (final c in currentClients) {
+      clientByMac[ClientNamingHelper.normalizeMac(c.macAddress)] = c;
+    }
+
+    final result = <Map<String, dynamic>>[];
+    for (final limit in activeLimits) {
+      final mac = ClientNamingHelper.normalizeMac(limit.targetMac);
+      final client = clientByMac[mac];
+      result.add({
+        'limit': limit,
+        'client': client,
+        'targetMac': mac,
+        'displayName': client?.displayName ?? limit.hostname ?? mac,
+        'ipAddress': client?.ipAddress ?? limit.ipAddress,
+        'isConnected': client?.isConnected ?? false,
+        'connectionType': client?.connectionType ?? ConnectionType.unknown,
+      });
+    }
+
+    return result;
   }
 
   Future<bool> updateWiredInterfaceStatus(
@@ -3588,6 +4041,11 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Refreshes extracted Material You dynamic color schemes from Android Monet / OS.
+  Future<void> refreshDynamicColors() async {
+    await _sessionController?.refreshDynamicColors();
+  }
+
   /// Fetch all associated wireless MAC addresses from all wireless interfaces
   Future<Set<String>> fetchAllAssociatedWirelessMacs() async {
     if (reviewerModeEnabled) {
@@ -3658,11 +4116,21 @@ class AppState extends ChangeNotifier {
 
   /// Aggregates DHCP leases across all configured routers and classifies clients
   /// as wireless if their MAC appears in any router's associated stations list.
+  ///
+  /// Guarantees top priority to the currently logged in router session:
+  /// if the active router session data is still loading, it awaits its completion
+  /// before initiating secondary router / Dumb AP queries.
   Future<List<Client>> fetchAggregatedClients({
     void Function(List<Client> clients)? onIncrementalUpdate,
-  }) => _clientController!.fetchAggregatedClients(
-    onIncrementalUpdate: onIncrementalUpdate,
-  );
+  }) async {
+    if (!_isActiveSessionDataReady) {
+      await ensureActiveSessionDataReady();
+    }
+    return _clientController?.fetchAggregatedClients(
+          onIncrementalUpdate: onIncrementalUpdate,
+        ) ??
+        Future.value(<Client>[]);
+  }
 
   bool get isClientsLoading => _clientController?.isFetchingClients ?? false;
   bool get hasFetchedClients => _clientController?.hasFetchedClients ?? false;
@@ -3936,6 +4404,7 @@ class AppState extends ChangeNotifier {
     required String sectionName,
     required Map<String, String> newValues,
     required Map<String, String> priorValuesSnapshot,
+    List<String>? deleteOptions,
     dynamic targetRadio,
     dynamic targetInterface,
     BuildContext? context,
@@ -3943,6 +4412,7 @@ class AppState extends ChangeNotifier {
     sectionName: sectionName,
     newValues: newValues,
     priorValuesSnapshot: priorValuesSnapshot,
+    deleteOptions: deleteOptions,
     targetRadio: targetRadio,
     targetInterface: targetInterface,
     context: context,
@@ -3953,12 +4423,14 @@ class AppState extends ChangeNotifier {
     required String sectionName,
     required Map<String, String> newValues,
     required Map<String, String> priorValuesSnapshot,
+    List<String>? deleteOptions,
     dynamic targetRadio,
     BuildContext? context,
   }) => _networkActionsController!.applyWirelessRadioConfig(
     sectionName: sectionName,
     newValues: newValues,
     priorValuesSnapshot: priorValuesSnapshot,
+    deleteOptions: deleteOptions,
     targetRadio: targetRadio,
     context: context,
   );

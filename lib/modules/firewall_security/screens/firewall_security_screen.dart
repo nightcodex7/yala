@@ -197,7 +197,7 @@ class _FirewallSecurityScreenState
       if (mounted) {
         context.showToastError(
           'Firewall Save Error',
-          subtitle: e.toString().replaceAll('Exception: ', ''),
+          subtitle: LuciToastManager.parseErrorReason(e),
           actionKey: actionKey,
         );
       }
@@ -1182,12 +1182,12 @@ class _FirewallSecurityScreenState
                 title: Text(
                   pf.name,
                   style: const TextStyle(fontWeight: FontWeight.bold),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
                   '${pf.srcZone.toUpperCase()}:${pf.srcPort} ➔ $destDisplay (${pf.proto.toUpperCase()})',
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 trailing: canModify
@@ -1733,6 +1733,7 @@ class _FirewallSecurityScreenState
   }
 
   Future<void> _confirmDeleteCustomRule(FirewallCustomRule r) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1760,11 +1761,21 @@ class _FirewallSecurityScreenState
         r.sectionKey,
         context: context,
       );
-      if (success && mounted) {
-        LuciToastManager.showSuccess(
-          context,
-          'Security rule "${r.name}" deleted successfully.',
-        );
+      if (mounted) {
+        if (success) {
+          LuciToastManager.showSuccess(
+            context,
+            'Security rule "${r.name}" deleted successfully.',
+          );
+        } else {
+          LuciToastManager.showError(
+            context,
+            'Failed to delete "${r.name}"',
+            subtitle:
+                l10n?.toastErrorCheckPermissionsOrFirewall ??
+                'Check router permissions or firewall configuration.',
+          );
+        }
       }
     }
   }

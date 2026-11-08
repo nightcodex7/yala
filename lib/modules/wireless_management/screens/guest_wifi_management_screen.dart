@@ -81,7 +81,7 @@ class GuestWifiManagementScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text(l10n?.guestWifiTitle ?? 'Guest Wi-Fi Dashboard'),
-          centerTitle: false,
+          centerTitle: true,
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
@@ -1062,62 +1062,61 @@ class GuestWifiManagementScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.redAccent,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                l10n?.dialogRemoveStaticLeaseTitle ?? 'Remove Static Lease',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
                 ),
+                child: Icon(
+                  Icons.delete_outline,
+                  color: theme.colorScheme.error,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n?.dialogRemoveStaticLeaseTitle ?? 'Remove Static Lease',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              l10n?.dialogRemoveStaticLeaseMessage(displayName, macAddress) ??
+                  'Are you sure you want to remove the static IP reservation for "$displayName" ($macAddress)?',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.error,
+                foregroundColor: theme.colorScheme.onError,
+              ),
+              child: Text(
+                l10n?.guestWifiRemoveReservation ?? 'Remove Reservation',
               ),
             ),
           ],
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            l10n?.dialogRemoveStaticLeaseMessage(displayName, macAddress) ??
-                'Are you sure you want to remove the static IP reservation for "$displayName" ($macAddress)?',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(
-              l10n?.guestWifiRemoveReservation ?? 'Remove Reservation',
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (confirmed == true && context.mounted) {
@@ -1305,7 +1304,7 @@ class _GuestMasterControlSwitchState
                           enable
                               ? 'Failed to enable guest networks'
                               : 'Failed to disable guest networks',
-                          subtitle: e.toString().replaceAll('Exception: ', ''),
+                          subtitle: LuciToastManager.parseErrorReason(e),
                           actionKey: actionKey,
                         );
                       }

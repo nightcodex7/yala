@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 cogwheel0
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,13 +11,14 @@ import 'package:yet_another_luci_app/main.dart';
 import 'package:yet_another_luci_app/models/client.dart';
 import '../models/parental_profile.dart';
 import '../models/parental_controls_store.dart';
+import 'parental_profile_avatar.dart';
 
 /// Dialog for creating or editing a parental control profile.
 /// Covers: name, icon, color, device MACs, schedule, time limit, content filter.
 class AddEditProfileDialog extends ConsumerStatefulWidget {
   final ParentalProfile? existing;
   final List<ParentalProfile> allProfiles;
-  final void Function(ParentalProfile) onSave;
+  final FutureOr<void> Function(ParentalProfile) onSave;
 
   const AddEditProfileDialog({
     super.key,
@@ -36,6 +38,8 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
   late final TextEditingController _macCtrl;
   late final TextEditingController _customDns1Ctrl;
   late final TextEditingController _customDns2Ctrl;
+  late final TextEditingController _limitHoursCtrl;
+  late final TextEditingController _limitMinsCtrl;
 
   late String _selectedIcon;
   late String _selectedColor;
@@ -46,6 +50,7 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
   bool _hasTimeLimit = false;
   bool _hasSchedule = false;
   late bool _isEnabled;
+  bool _isSaving = false;
 
   static const List<String> _colorOptions = [
     '#F97316',
@@ -89,9 +94,16 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
     _macAddresses = List.from(e?.macAddresses ?? []);
     _contentFilter = e?.contentFilter ?? ContentFilterDns.none;
     _schedule = e?.schedule;
-    _dailyLimitMinutes = e?.dailyTimeLimitMinutes;
+    if (_schedule != null && _schedule!.activeDays.isEmpty) {
+      _schedule = _schedule!.copyWith(activeDays: ScheduleDay.values.toSet());
+    }
+    final existingDaily =
+        (e?.dailyTimeLimitMinutes != null && e!.dailyTimeLimitMinutes! > 0)
+        ? e.dailyTimeLimitMinutes
+        : null;
+    _dailyLimitMinutes = existingDaily;
     _hasSchedule = e?.schedule != null && (e?.schedule?.enabled ?? false);
-    _hasTimeLimit = e?.dailyTimeLimitMinutes != null;
+    _hasTimeLimit = e?.hasTimeLimit ?? false;
     _isEnabled = e?.isEnabled ?? true;
     _macCtrl = TextEditingController();
     _customDns1Ctrl = TextEditingController(
@@ -102,20 +114,20 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
     _customDns2Ctrl = TextEditingController(
       text: (e?.customDnsServers.length ?? 0) > 1 ? e!.customDnsServers[1] : '',
     );
-    _schedule ??= const TimeSchedule(
-      activeDays: {
-        ScheduleDay.monday,
-        ScheduleDay.tuesday,
-        ScheduleDay.wednesday,
-        ScheduleDay.thursday,
-        ScheduleDay.friday,
-      },
+    _schedule ??= TimeSchedule(
+      activeDays: ScheduleDay.values.toSet(),
       blockHour: 22,
       blockMinute: 0,
       resumeHour: 7,
       resumeMinute: 0,
       enabled: false,
     );
+
+    final initialMinutes = _dailyLimitMinutes ?? 120;
+    _limitHoursCtrl = TextEditingController(text: '${initialMinutes ~/ 60}');
+    _limitMinsCtrl = TextEditingController(text: '${initialMinutes % 60}');
+    _limitHoursCtrl.addListener(_onLimitFieldChanged);
+    _limitMinsCtrl.addListener(_onLimitFieldChanged);
 
     _nameCtrl.addListener(_onFieldChanged);
     _customDns1Ctrl.addListener(_onFieldChanged);
@@ -135,19 +147,71 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
 
   void _onFieldChanged() => setState(() {});
 
+  void _onLimitFieldChanged() {
+    final rawH = _limitHoursCtrl.text.trim();
+    final rawM = _limitMinsCtrl.text.trim();
+    final h = int.tryParse(rawH.isEmpty ? '0' : rawH) ?? 0;
+    final m = int.tryParse(rawM.isEmpty ? '0' : rawM) ?? 0;
+    final total = (h * 60) + m;
+    setState(() {
+      _dailyLimitMinutes = total;
+    });
+  }
+
+  void _setPresetLimit(int totalMinutes) {
+    final h = totalMinutes ~/ 60;
+    final m = totalMinutes % 60;
+    _limitHoursCtrl.text = '$h';
+    _limitMinsCtrl.text = '$m';
+    setState(() {
+      _dailyLimitMinutes = totalMinutes;
+    });
+  }
+
+  String? get _dailyLimitError {
+    if (!_hasTimeLimit) return null;
+    final rawH = _limitHoursCtrl.text.trim();
+    final rawM = _limitMinsCtrl.text.trim();
+    if (rawH.isEmpty && rawM.isEmpty) {
+      return 'Please enter hours or minutes';
+    }
+    final h = int.tryParse(rawH.isEmpty ? '0' : rawH);
+    final m = int.tryParse(rawM.isEmpty ? '0' : rawM);
+    if (h == null || h < 0) {
+      return 'Hours must be a non-negative number';
+    }
+    if (m == null || m < 0 || m >= 60) {
+      return 'Minutes must be between 0 and 59';
+    }
+    final total = (h * 60) + m;
+    if (total <= 0) {
+      return 'Daily limit must be at least 1 minute';
+    }
+    if (total >= 1440) {
+      return 'Daily limit must be less than 24 hours (< 24h)';
+    }
+    return null;
+  }
+
   @override
   void dispose() {
     _nameCtrl.removeListener(_onFieldChanged);
     _customDns1Ctrl.removeListener(_onFieldChanged);
     _customDns2Ctrl.removeListener(_onFieldChanged);
+    _limitHoursCtrl.removeListener(_onLimitFieldChanged);
+    _limitMinsCtrl.removeListener(_onLimitFieldChanged);
     _nameCtrl.dispose();
     _macCtrl.dispose();
     _customDns1Ctrl.dispose();
     _customDns2Ctrl.dispose();
+    _limitHoursCtrl.dispose();
+    _limitMinsCtrl.dispose();
     super.dispose();
   }
 
-  bool get _isValid => _nameCtrl.text.trim().isNotEmpty;
+  bool get _isValid =>
+      _nameCtrl.text.trim().isNotEmpty &&
+      (!_hasTimeLimit || _dailyLimitError == null);
 
   bool get _isDirty {
     final e = widget.existing;
@@ -178,7 +242,7 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
     }
 
     // Daily time limit comparison
-    final existingHasTimeLimit = e.dailyTimeLimitMinutes != null;
+    final existingHasTimeLimit = e.hasTimeLimit;
     if (_hasTimeLimit != existingHasTimeLimit) return true;
     if (_hasTimeLimit && _dailyLimitMinutes != e.dailyTimeLimitMinutes) {
       return true;
@@ -196,7 +260,7 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
     return false;
   }
 
-  bool get _canSave => _isValid && (_isEditing ? _isDirty : true);
+  bool get _canSave => !_isSaving && _isValid && (_isEditing ? _isDirty : true);
 
   /// Formats a minute count into a human-readable label like "1h 30m" or "45m".
   static String _formatMinutes(int minutes) {
@@ -242,34 +306,96 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
 
   void _removeMac(String mac) => setState(() => _macAddresses.remove(mac));
 
-  void _save() {
-    if (!_isValid) return;
-    final customDns = <String>[];
-    if (_contentFilter == ContentFilterDns.custom) {
-      if (_customDns1Ctrl.text.trim().isNotEmpty) {
-        customDns.add(_customDns1Ctrl.text.trim());
+  void _onDnsSelected(ContentFilterDns opt) {
+    if (_contentFilter == opt) return;
+    setState(() => _contentFilter = opt);
+    if (opt != ContentFilterDns.none) {
+      _showDnsReconnectInfoDialog();
+    }
+  }
+
+  Future<void> _showDnsReconnectInfoDialog() async {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(
+          Icons.wifi_rounded,
+          size: 32,
+          color: theme.colorScheme.primary,
+        ),
+        title: Text(
+          l10n?.parentalDnsReconnectDialogTitle ?? 'Wi-Fi Reconnection Notice',
+          textAlign: TextAlign.center,
+        ),
+        content: Text(
+          l10n?.parentalDnsReconnectDialogMessage ??
+              'For the new DNS settings to take immediate effect, connected devices need to disconnect and reconnect to Wi-Fi once (to renew their DHCP lease and flush DNS cache). Otherwise, the new settings will take effect automatically the next time the devices reconnect.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(l10n?.parentalDnsReconnectDialogGotIt ?? 'Got It'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    if (!_canSave) return;
+    setState(() => _isSaving = true);
+    try {
+      final customDns = <String>[];
+      if (_contentFilter == ContentFilterDns.custom) {
+        if (_customDns1Ctrl.text.trim().isNotEmpty) {
+          customDns.add(_customDns1Ctrl.text.trim());
+        }
+        if (_customDns2Ctrl.text.trim().isNotEmpty) {
+          customDns.add(_customDns2Ctrl.text.trim());
+        }
       }
-      if (_customDns2Ctrl.text.trim().isNotEmpty) {
-        customDns.add(_customDns2Ctrl.text.trim());
+
+      final profile = ParentalProfile(
+        id: widget.existing?.id ?? ParentalControlsStore.generateId(),
+        name: _nameCtrl.text.trim(),
+        icon: _selectedIcon,
+        color: _selectedColor,
+        macAddresses: _macAddresses,
+        isPaused: widget.existing?.isPaused ?? false,
+        isEnabled: _isEnabled,
+        pauseExpiresAt: widget.existing?.pauseExpiresAt,
+        schedule: _hasSchedule && _schedule != null
+            ? _schedule!.copyWith(
+                activeDays: _schedule!.activeDays.isEmpty
+                    ? ScheduleDay.values.toSet()
+                    : _schedule!.activeDays,
+                enabled: true,
+              )
+            : null,
+        dailyTimeLimitMinutes:
+            (_hasTimeLimit &&
+                _dailyLimitMinutes != null &&
+                _dailyLimitMinutes! > 0)
+            ? _dailyLimitMinutes
+            : null,
+        contentFilter: _contentFilter,
+        customDnsServers: customDns,
+      );
+      await widget.onSave(profile);
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isSaving = false);
       }
     }
-
-    final profile = ParentalProfile(
-      id: widget.existing?.id ?? ParentalControlsStore.generateId(),
-      name: _nameCtrl.text.trim(),
-      icon: _selectedIcon,
-      color: _selectedColor,
-      macAddresses: _macAddresses,
-      isPaused: widget.existing?.isPaused ?? false,
-      isEnabled: _isEnabled,
-      pauseExpiresAt: widget.existing?.pauseExpiresAt,
-      schedule: _hasSchedule ? _schedule?.copyWith(enabled: true) : null,
-      dailyTimeLimitMinutes: _hasTimeLimit ? _dailyLimitMinutes : null,
-      contentFilter: _contentFilter,
-      customDnsServers: customDns,
-    );
-    widget.onSave(profile);
-    Navigator.pop(context);
   }
 
   @override
@@ -389,7 +515,6 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                               value: _isEnabled,
                               onChanged: (val) =>
                                   setState(() => _isEnabled = val),
-                              activeThumbColor: theme.colorScheme.primary,
                               title: Text(
                                 _isEnabled
                                     ? (l10n?.parentalGuardrailsActive ??
@@ -427,6 +552,21 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                           ),
                         ),
                         const SizedBox(height: 16),
+
+                        // ── Avatar Preview ───────────────────────────────
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: ParentalProfileAvatar(
+                              icon: _selectedIcon,
+                              colorHex: _selectedColor,
+                              size: 64,
+                              isPaused: widget.existing?.isPaused ?? false,
+                              isBedtime: false,
+                              isEnabled: _isEnabled,
+                            ),
+                          ),
+                        ),
 
                         // ── Name ──────────────────────────────────────────
                         TextFormField(
@@ -517,6 +657,12 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                                 ),
                                 initialValue: null,
                                 isExpanded: true,
+                                menuMaxHeight: 360,
+                                borderRadius: BorderRadius.circular(16),
+                                dropdownColor:
+                                    theme.colorScheme.surfaceContainerHigh,
+                                elevation: 4,
+                                icon: const Icon(Icons.arrow_drop_down_rounded),
                                 decoration: InputDecoration(
                                   labelText:
                                       l10n?.parentalPickConnectedDevices ??
@@ -527,9 +673,61 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                                   prefixIcon: const Icon(
                                     Icons.phonelink_setup_rounded,
                                   ),
-                                  border: const OutlineInputBorder(),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: theme.colorScheme.outlineVariant
+                                          .withValues(alpha: 0.5),
+                                    ),
+                                  ),
                                   isDense: true,
                                 ),
+                                selectedItemBuilder: (context) {
+                                  return uniqueClients.map((client) {
+                                    final macNorm = client.macAddress
+                                        .toUpperCase()
+                                        .replaceAll('-', ':');
+                                    final nameLabel =
+                                        client.displayName.isNotEmpty
+                                        ? client.displayName
+                                        : (client.hostname.isNotEmpty
+                                              ? client.hostname
+                                              : 'Device');
+                                    final isWifi =
+                                        client.connectionType ==
+                                        ConnectionType.wireless;
+                                    return Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            isWifi
+                                                ? Icons.wifi_rounded
+                                                : Icons.lan_outlined,
+                                            size: 16,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              '$nameLabel ($macNorm)',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList();
+                                },
                                 items: uniqueClients.map((client) {
                                   final macNorm = client.macAddress
                                       .toUpperCase()
@@ -543,23 +741,170 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                                       : (client.hostname.isNotEmpty
                                             ? client.hostname
                                             : 'Device');
-                                  final typeIcon =
+                                  final isWifi =
                                       client.connectionType ==
-                                          ConnectionType.wireless
-                                      ? '📶'
-                                      : '🔌';
+                                      ConnectionType.wireless;
                                   return DropdownMenuItem<String>(
                                     value: macNorm,
                                     enabled: !isAlreadyAdded,
-                                    child: Text(
-                                      '$typeIcon $nameLabel ($macNorm)${isAlreadyAdded ? ' ✓ Added' : ''}',
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: isAlreadyAdded
-                                            ? theme.colorScheme.onSurface
-                                                  .withValues(alpha: 0.38)
-                                            : null,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 4.0,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 28,
+                                            height: 28,
+                                            decoration: BoxDecoration(
+                                              color: isAlreadyAdded
+                                                  ? theme
+                                                        .colorScheme
+                                                        .surfaceContainerHighest
+                                                        .withValues(alpha: 0.5)
+                                                  : (isWifi
+                                                        ? theme
+                                                              .colorScheme
+                                                              .primaryContainer
+                                                              .withValues(
+                                                                alpha: 0.6,
+                                                              )
+                                                        : theme
+                                                              .colorScheme
+                                                              .secondaryContainer
+                                                              .withValues(
+                                                                alpha: 0.6,
+                                                              )),
+                                              borderRadius:
+                                                  BorderRadius.circular(7),
+                                            ),
+                                            child: Icon(
+                                              isWifi
+                                                  ? Icons.wifi_rounded
+                                                  : Icons.lan_outlined,
+                                              size: 16,
+                                              color: isAlreadyAdded
+                                                  ? theme.colorScheme.onSurface
+                                                        .withValues(alpha: 0.38)
+                                                  : (isWifi
+                                                        ? theme
+                                                              .colorScheme
+                                                              .primary
+                                                        : theme
+                                                              .colorScheme
+                                                              .secondary),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  nameLabel,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        fontSize: 13,
+                                                        color: isAlreadyAdded
+                                                            ? theme
+                                                                  .colorScheme
+                                                                  .onSurface
+                                                                  .withValues(
+                                                                    alpha: 0.38,
+                                                                  )
+                                                            : theme
+                                                                  .colorScheme
+                                                                  .onSurface,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 1),
+                                                Text(
+                                                  client.ipAddress.isNotEmpty &&
+                                                          client.ipAddress !=
+                                                              'N/A'
+                                                      ? '${client.ipAddress} • $macNorm'
+                                                      : macNorm,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        fontFamily: 'monospace',
+                                                        fontSize: 10.5,
+                                                        color: isAlreadyAdded
+                                                            ? theme
+                                                                  .colorScheme
+                                                                  .onSurface
+                                                                  .withValues(
+                                                                    alpha: 0.3,
+                                                                  )
+                                                            : theme
+                                                                  .colorScheme
+                                                                  .onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          if (isAlreadyAdded)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: theme
+                                                    .colorScheme
+                                                    .surfaceContainerHighest,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.check_rounded,
+                                                    size: 12,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .primary,
+                                                  ),
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    'Added',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: theme
+                                                          .colorScheme
+                                                          .primary,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                          else
+                                            Icon(
+                                              Icons.add_circle_outline_rounded,
+                                              size: 18,
+                                              color: theme.colorScheme.primary
+                                                  .withValues(alpha: 0.7),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                   );
@@ -702,7 +1047,28 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                         // ── Time Schedule ─────────────────────────────────
                         SwitchListTile.adaptive(
                           value: _hasSchedule,
-                          onChanged: (v) => setState(() => _hasSchedule = v),
+                          onChanged: (v) {
+                            setState(() {
+                              _hasSchedule = v;
+                              if (v) {
+                                if (_schedule == null) {
+                                  _schedule = TimeSchedule(
+                                    activeDays: ScheduleDay.values.toSet(),
+                                    blockHour: 22,
+                                    blockMinute: 0,
+                                    resumeHour: 7,
+                                    resumeMinute: 0,
+                                    enabled: true,
+                                  );
+                                } else if (_schedule!.activeDays.isEmpty) {
+                                  _schedule = _schedule!.copyWith(
+                                    activeDays: ScheduleDay.values.toSet(),
+                                    enabled: true,
+                                  );
+                                }
+                              }
+                            });
+                          },
                           title: Text(
                             l10n?.parentalProfileBedtimeLabel ??
                                 'Block Schedule',
@@ -730,8 +1096,13 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                           onChanged: (v) {
                             setState(() {
                               _hasTimeLimit = v;
-                              if (v && _dailyLimitMinutes == null) {
-                                _dailyLimitMinutes = 120;
+                              if (!v) {
+                                _dailyLimitMinutes = null;
+                              } else {
+                                if (_dailyLimitMinutes == null ||
+                                    _dailyLimitMinutes! <= 0) {
+                                  _setPresetLimit(120);
+                                }
                               }
                             });
                           },
@@ -739,33 +1110,165 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                             l10n?.parentalDailyTimeLimit ?? 'Daily Time Limit',
                           ),
                           subtitle: Text(
-                            _hasTimeLimit && _dailyLimitMinutes != null
+                            _hasTimeLimit &&
+                                    _dailyLimitMinutes != null &&
+                                    _dailyLimitMinutes! > 0 &&
+                                    _dailyLimitError == null
                                 ? (l10n?.parentalDailyTimeLimitMinutes(
                                         _dailyLimitMinutes!,
                                       ) ??
-                                      '$_dailyLimitMinutes minutes per day')
+                                      '${_formatMinutes(_dailyLimitMinutes!)} per day')
                                 : (l10n?.parentalDailyTimeLimitSubtitle ??
-                                      'Limit total daily internet time'),
+                                      'Limit total daily internet time (< 24 hr)'),
                           ),
                           secondary: const Icon(Icons.timer_outlined),
                           contentPadding: EdgeInsets.zero,
                         ),
                         if (_hasTimeLimit) ...[
-                          Slider(
-                            min: 15,
-                            max: 480,
-                            divisions: 31,
-                            value: (_dailyLimitMinutes ?? 120).toDouble(),
-                            label: _formatMinutes(_dailyLimitMinutes ?? 120),
-                            onChanged: (v) =>
-                                setState(() => _dailyLimitMinutes = v.round()),
-                          ),
-                          Center(
-                            child: Text(
-                              _formatMinutes(_dailyLimitMinutes ?? 120),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _dailyLimitError != null
+                                    ? theme.colorScheme.error.withValues(
+                                        alpha: 0.6,
+                                      )
+                                    : theme.colorScheme.outlineVariant
+                                          .withValues(alpha: 0.4),
                               ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Quick Presets Row
+                                Text(
+                                  'Quick Presets',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children:
+                                      [
+                                        30,
+                                        60,
+                                        90,
+                                        120,
+                                        180,
+                                        240,
+                                        360,
+                                        480,
+                                      ].map((mins) {
+                                        final isSelected =
+                                            _dailyLimitMinutes == mins;
+                                        return ChoiceChip(
+                                          label: Text(
+                                            _formatMinutes(mins),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                          selected: isSelected,
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              _setPresetLimit(mins);
+                                            } else {
+                                              setState(() {
+                                                _hasTimeLimit = false;
+                                                _dailyLimitMinutes = null;
+                                              });
+                                            }
+                                          },
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero,
+                                        );
+                                      }).toList(),
+                                ),
+                                const SizedBox(height: 12),
+                                // Custom Input Row
+                                Text(
+                                  'Custom Limit (< 24 hr)',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    // Hours
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _limitHoursCtrl,
+                                        keyboardType: TextInputType.number,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Hours',
+                                          hintText: '0-23',
+                                          suffixText: 'hr',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    // Minutes
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _limitMinsCtrl,
+                                        keyboardType: TextInputType.number,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Minutes',
+                                          hintText: '0-59',
+                                          suffixText: 'min',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (_dailyLimitError != null) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline_rounded,
+                                        size: 14,
+                                        color: theme.colorScheme.error,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          _dailyLimitError!,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: theme.colorScheme.error,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 11.5,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ] else if (_dailyLimitMinutes != null &&
+                                    _dailyLimitMinutes! > 0) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Enforces ${_formatMinutes(_dailyLimitMinutes!)} total connection quota per day',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -830,7 +1333,7 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            onTap: () => setState(() => _contentFilter = opt),
+                            onTap: () => _onDnsSelected(opt),
                           );
                         }),
                         if (_contentFilter == ContentFilterDns.custom) ...[
@@ -857,6 +1360,43 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                             ),
                           ),
                         ],
+                        if (_contentFilter != ContentFilterDns.none) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant
+                                    .withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 16,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    l10n?.parentalDnsReconnectDialogMessage ??
+                                        'For the new DNS settings to take immediate effect, connected devices need to disconnect and reconnect to Wi-Fi once (to renew their DHCP lease and flush DNS cache). Otherwise, the new settings will take effect automatically the next time the devices reconnect.',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontSize: 11,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -869,19 +1409,33 @@ class _AddEditProfileDialogState extends ConsumerState<AddEditProfileDialog> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     TextButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _isSaving
+                          ? null
+                          : () => Navigator.pop(context),
                       child: Text(l10n?.actionCancel ?? 'Cancel'),
                     ),
                     const SizedBox(width: 8),
                     Flexible(
                       child: FilledButton.icon(
                         onPressed: _canSave ? _save : null,
-                        icon: const Icon(Icons.check_rounded, size: 18),
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 18),
                         label: Text(
-                          _isEditing
-                              ? (l10n?.parentalProfileBtnSave ?? 'Save Changes')
-                              : (l10n?.parentalBtnCreateProfile ??
-                                    'Create Profile'),
+                          _isSaving
+                              ? (_isEditing ? 'Saving…' : 'Creating…')
+                              : (_isEditing
+                                    ? (l10n?.parentalProfileBtnSave ??
+                                          'Save Changes')
+                                    : (l10n?.parentalBtnCreateProfile ??
+                                          'Create Profile')),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -931,10 +1485,10 @@ class _IconPicker extends StatelessWidget {
         return GestureDetector(
           onTap: () => onSelect(icon),
           child: Container(
-            width: 40,
-            height: 40,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
@@ -942,7 +1496,9 @@ class _IconPicker extends StatelessWidget {
                 width: 2,
               ),
               color: isSelected
-                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                  ? Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.15)
                   : Theme.of(context).colorScheme.surfaceContainerHighest,
             ),
             child: Center(
@@ -984,10 +1540,10 @@ class _ColorPicker extends StatelessWidget {
         return GestureDetector(
           onTap: () => onSelect(c),
           child: Container(
-            width: 32,
-            height: 32,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(8),
               color: color,
               border: Border.all(
                 color: isSelected

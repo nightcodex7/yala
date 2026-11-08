@@ -317,11 +317,19 @@ class _AddPortForwardDialogState extends ConsumerState<AddPortForwardDialog> {
                 // Presets Dropdown
                 DropdownButtonFormField<PortForwardPreset>(
                   initialValue: _selectedPreset,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
                     ),
                   ),
                   items: [
@@ -469,9 +477,21 @@ class _AddPortForwardDialogState extends ConsumerState<AddPortForwardDialog> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _customProto,
+                    isExpanded: true,
+                    borderRadius: BorderRadius.circular(16),
+                    dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                    elevation: 4,
+                    menuMaxHeight: 360,
+                    icon: const Icon(Icons.arrow_drop_down_rounded),
                     decoration: InputDecoration(
                       labelText: loc?.firewallWizardProtocol ?? 'Protocol',
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(value: 'tcp', child: Text('TCP')),
@@ -551,21 +571,62 @@ class _AddPortForwardDialogState extends ConsumerState<AddPortForwardDialog> {
                               validClients.contains(_selectedClient)
                           ? _selectedClient
                           : validClients.first,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: 'Select Connected Device',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
                       isExpanded: true,
+                      borderRadius: BorderRadius.circular(16),
+                      dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                      elevation: 4,
+                      menuMaxHeight: 360,
+                      icon: const Icon(Icons.arrow_drop_down_rounded),
                       items: validClients.map((c) {
                         final name = ClientNamingHelper.getDisplayName(
                           c.macAddress,
                           appState: appState,
                           client: c,
                         );
+                        final isWifi =
+                            c.connectionType == ConnectionType.wireless;
                         return DropdownMenuItem(
                           value: c,
-                          child: Text(
-                            '$name (${c.ipAddress})',
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            children: [
+                              Icon(
+                                isWifi
+                                    ? Icons.wifi_rounded
+                                    : Icons.lan_outlined,
+                                size: 18,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                c.ipAddress,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       }).toList(),

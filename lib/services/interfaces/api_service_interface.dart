@@ -13,8 +13,11 @@ import 'package:yet_another_luci_app/modules/diagnostics/models/dns_lookup_resul
 import 'package:yet_another_luci_app/modules/diagnostics/models/routing_neighbor_info.dart';
 import 'package:yet_another_luci_app/modules/diagnostics/models/diagnostic_report.dart';
 import 'package:yet_another_luci_app/modules/diagnostics/models/flush_dns_result.dart';
+import 'package:yet_another_luci_app/modules/dhcp_dns/models/dnsmasq_service_result.dart';
+import 'package:yet_another_luci_app/modules/log_viewer/models/log_fetch_result.dart';
 import 'package:yet_another_luci_app/modules/bandwidth_monitor/models/bandwidth_data.dart';
 import 'package:yet_another_luci_app/models/network_access_policy.dart';
+import 'package:yet_another_luci_app/models/client_speed_limit.dart';
 import 'package:yet_another_luci_app/models/router_capabilities.dart';
 import 'package:yet_another_luci_app/modules/firewall_security/models/firewall_info.dart';
 
@@ -242,6 +245,7 @@ abstract class IApiService {
     bool useHttps, {
     required String sectionName,
     required Map<String, String> values,
+    List<String>? deleteOptions,
     BuildContext? context,
   });
   Future<bool> revertWirelessInterfaceConfig(
@@ -258,6 +262,7 @@ abstract class IApiService {
     bool useHttps, {
     required String sectionName,
     required Map<String, String> values,
+    List<String>? deleteOptions,
     BuildContext? context,
   });
   Future<bool> revertWirelessRadioConfig(
@@ -431,6 +436,14 @@ abstract class IApiService {
     String sysauth,
     bool useHttps, {
     required NetworkAccessPolicy policy,
+    required RouterCapabilities capabilities,
+    BuildContext? context,
+  });
+  Future<bool> applyClientSpeedLimits(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required List<ClientSpeedLimit> limits,
     required RouterCapabilities capabilities,
     BuildContext? context,
   });
@@ -715,6 +728,32 @@ abstract class IApiService {
     String ipAddress,
     String sysauth,
     bool useHttps, {
+    BuildContext? context,
+  });
+
+  /// Reloads the dnsmasq service (DHCP & DNS) to apply configuration changes and refresh service state.
+  Future<DnsmasqServiceResult> reloadDnsmasq(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  });
+
+  /// Fetches system log entries (logread / syslog) from the router.
+  Future<LogFetchResult> fetchSyslog(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    int lines = 200,
+    BuildContext? context,
+  });
+
+  /// Fetches kernel log entries (dmesg ring buffer) from the router.
+  Future<LogFetchResult> fetchKernelLog(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    int lines = 200,
     BuildContext? context,
   });
 

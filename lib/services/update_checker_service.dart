@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:yet_another_luci_app/config/app_config.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 
 /// Manages manual update checks against GitHub Releases.
@@ -298,7 +299,8 @@ class UpdateCheckerService {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actionsOverflowButtonSpacing: 8,
+        actionsOverflowDirection: VerticalDirection.down,
         title: Row(
           children: [
             Icon(Icons.system_update_rounded, color: theme.colorScheme.primary),
@@ -360,8 +362,6 @@ class UpdateCheckerService {
             ],
           ),
         ),
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -403,7 +403,6 @@ class UpdateCheckerService {
       builder: (context) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Icon(Icons.check_circle_outline, color: theme.colorScheme.primary),
@@ -441,7 +440,6 @@ class UpdateCheckerService {
       builder: (context) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Icon(Icons.verified_rounded, color: theme.colorScheme.primary),
@@ -487,10 +485,12 @@ class UpdateCheckerService {
       builder: (context) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.orange),
+            Icon(
+              Icons.error_outline,
+              color: LuciStatusColors.warningColor(context),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(l10n?.updateCheckFailedTitle ?? 'Check Failed'),

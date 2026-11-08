@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import 'package:yet_another_luci_app/models/router_capabilities.dart';
 import 'package:yet_another_luci_app/state/app_state.dart';
@@ -49,24 +50,25 @@ class RpcPermissionsDialog extends StatelessWidget {
         ? 'apk update && apk add luci-mod-rpc rpcd-mod-luci rpcd-mod-iwinfo luci-mod-status && /etc/init.d/rpcd restart'
         : 'opkg update && opkg install luci-mod-rpc rpcd-mod-luci rpcd-mod-iwinfo luci-mod-status && /etc/init.d/rpcd restart';
 
+    final okColor = LuciStatusColors.connectedColor(context);
+    final warnColor = LuciStatusColors.warningColor(context);
+
     return AlertDialog(
       actionsOverflowButtonSpacing: 8,
       actionsOverflowDirection: VerticalDirection.down,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: (isComplete ? Colors.teal : Colors.amber.shade700)
-                  .withValues(alpha: 0.15),
+              color: (isComplete ? okColor : warnColor).withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               isComplete
                   ? Icons.verified_user_rounded
                   : Icons.lock_outline_rounded,
-              color: isComplete ? Colors.teal : Colors.amber.shade800,
+              color: isComplete ? okColor : warnColor,
               size: 24,
             ),
           ),
@@ -229,7 +231,7 @@ class RpcPermissionsDialog extends StatelessWidget {
                     l10n?.rpcToastVerifying ??
                     'Verifying RPC modules and permissions...',
                 actionKey: actionKey,
-                timeout: const Duration(seconds: 30),
+                timeout: const Duration(seconds: 90),
               );
               final success = await appState.autoFixPermissions(
                 context: parentContext.mounted ? parentContext : null,
@@ -271,7 +273,7 @@ class RpcPermissionsDialog extends StatelessWidget {
                     l10n?.rpcToastInstallingAcls ??
                     'Installing RPC packages & updating ACLs...',
                 actionKey: actionKey,
-                timeout: const Duration(seconds: 45),
+                timeout: const Duration(seconds: 90),
               );
               final success = await appState.autoFixPermissions(
                 context: parentContext.mounted ? parentContext : null,
@@ -314,7 +316,9 @@ class RpcPermissionsDialog extends StatelessWidget {
       children: [
         Icon(
           isOk ? Icons.check_circle_rounded : Icons.cancel_rounded,
-          color: isOk ? Colors.teal : Colors.amber.shade800,
+          color: isOk
+              ? LuciStatusColors.connectedColor(context)
+              : LuciStatusColors.warningColor(context),
           size: 16,
         ),
         const SizedBox(width: 8),

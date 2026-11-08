@@ -130,6 +130,7 @@ class NetworkDiagnosticScreen extends ConsumerWidget {
     return Scaffold(
       appBar: LuciAppBar(
         title: l10n?.netDiagTitle ?? 'Network Diagnostic',
+        showBack: true,
         actions: [
           if (state.report != null && !state.isAnalyzing)
             IconButton(
@@ -190,18 +191,18 @@ class NetworkDiagnosticScreen extends ConsumerWidget {
     } else {
       switch (report.overallStatus) {
         case DiagnosticStatus.healthy:
-          headerBg = LuciStatusColors.connected.withValues(alpha: 0.12);
-          headerBorder = LuciStatusColors.connected.withValues(alpha: 0.35);
-          iconColor = LuciStatusColors.connected;
+          headerBg = LuciStatusColors.successBg(context);
+          headerBorder = LuciStatusColors.successBorder(context);
+          iconColor = LuciStatusColors.connectedColor(context);
           statusIcon = Icons.check_circle_rounded;
           statusTitle = l10n?.netDiagHealthyTitle ?? 'Network Healthy';
           statusSummary = _getLocalizedSummary(report.overallSummary, l10n);
           break;
         case DiagnosticStatus.degraded:
         case DiagnosticStatus.suspected:
-          headerBg = LuciStatusColors.warning.withValues(alpha: 0.12);
-          headerBorder = LuciStatusColors.warning.withValues(alpha: 0.35);
-          iconColor = LuciStatusColors.warning;
+          headerBg = LuciStatusColors.warningBg(context);
+          headerBorder = LuciStatusColors.warningBorder(context);
+          iconColor = LuciStatusColors.warningColor(context);
           statusIcon = Icons.warning_amber_rounded;
           statusTitle = report.overallStatus == DiagnosticStatus.degraded
               ? (l10n?.netDiagDegradedTitle ?? 'Connectivity Degraded')
@@ -209,9 +210,9 @@ class NetworkDiagnosticScreen extends ConsumerWidget {
           statusSummary = _getLocalizedSummary(report.overallSummary, l10n);
           break;
         case DiagnosticStatus.failureConfirmed:
-          headerBg = LuciStatusColors.error.withValues(alpha: 0.12);
-          headerBorder = LuciStatusColors.error.withValues(alpha: 0.35);
-          iconColor = LuciStatusColors.error;
+          headerBg = LuciStatusColors.errorBg(context);
+          headerBorder = LuciStatusColors.errorBorder(context);
+          iconColor = theme.colorScheme.error;
           statusIcon = Icons.error_outline_rounded;
           statusTitle =
               l10n?.netDiagIssueDetectedTitle ?? 'Connectivity Issue Detected';
@@ -221,9 +222,11 @@ class NetworkDiagnosticScreen extends ConsumerWidget {
         case DiagnosticStatus.notTested:
         case DiagnosticStatus.unsupported:
         case DiagnosticStatus.notApplicable:
-          headerBg = LuciStatusColors.inactive.withValues(alpha: 0.12);
-          headerBorder = LuciStatusColors.inactive.withValues(alpha: 0.35);
-          iconColor = LuciStatusColors.inactive;
+          headerBg = theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.5,
+          );
+          headerBorder = theme.colorScheme.outlineVariant;
+          iconColor = theme.colorScheme.outline;
           statusIcon = Icons.help_outline_rounded;
           statusTitle = _getLocalizedStatusLabel(report.overallStatus, l10n);
           statusSummary = _getLocalizedSummary(report.overallSummary, l10n);
@@ -351,20 +354,20 @@ class NetworkDiagnosticScreen extends ConsumerWidget {
     IconData findingIcon;
     switch (finding.status) {
       case DiagnosticStatus.healthy:
-        badgeColor = LuciStatusColors.connected;
+        badgeColor = LuciStatusColors.connectedColor(context);
         findingIcon = Icons.check_circle_outline_rounded;
         break;
       case DiagnosticStatus.degraded:
       case DiagnosticStatus.suspected:
-        badgeColor = LuciStatusColors.warning;
+        badgeColor = LuciStatusColors.warningColor(context);
         findingIcon = Icons.warning_amber_rounded;
         break;
       case DiagnosticStatus.failureConfirmed:
-        badgeColor = LuciStatusColors.error;
+        badgeColor = theme.colorScheme.error;
         findingIcon = Icons.error_outline_rounded;
         break;
       default:
-        badgeColor = LuciStatusColors.inactive;
+        badgeColor = theme.colorScheme.outline;
         findingIcon = Icons.info_outline_rounded;
         break;
     }
@@ -461,7 +464,7 @@ class NetworkDiagnosticScreen extends ConsumerWidget {
                     'Conflicting / Mitigating Observations:',
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: LuciStatusColors.warning,
+                  color: LuciStatusColors.warningColor(context),
                 ),
               ),
               const SizedBox(height: 4),
@@ -551,29 +554,29 @@ class NetworkDiagnosticScreen extends ConsumerWidget {
 
     switch (test.status) {
       case DiagnosticStatus.healthy:
-        statusColor = LuciStatusColors.connected;
+        statusColor = LuciStatusColors.connectedColor(context);
         statusIcon = Icons.check_circle_rounded;
         break;
       case DiagnosticStatus.degraded:
       case DiagnosticStatus.suspected:
-        statusColor = LuciStatusColors.warning;
+        statusColor = LuciStatusColors.warningColor(context);
         statusIcon = Icons.warning_amber_rounded;
         break;
       case DiagnosticStatus.failureConfirmed:
-        statusColor = LuciStatusColors.error;
+        statusColor = theme.colorScheme.error;
         statusIcon = Icons.cancel_rounded;
         break;
       case DiagnosticStatus.unsupported:
-        statusColor = Colors.purple.shade400;
+        statusColor = theme.colorScheme.tertiary;
         statusIcon = Icons.block_flipped;
         break;
       case DiagnosticStatus.notApplicable:
-        statusColor = LuciStatusColors.inactive;
+        statusColor = theme.colorScheme.outline;
         statusIcon = Icons.remove_circle_outline_rounded;
         break;
       case DiagnosticStatus.inconclusive:
       case DiagnosticStatus.notTested:
-        statusColor = LuciStatusColors.inactive;
+        statusColor = theme.colorScheme.outline;
         statusIcon = Icons.help_outline_rounded;
         break;
     }

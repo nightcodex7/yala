@@ -377,11 +377,23 @@ class _AdvancedCustomRuleDialogState
                       flex: 4,
                       child: DropdownButtonFormField<String>(
                         initialValue: _target,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           labelText:
                               l10n?.firewallRuleActionLabel ??
                               'Action / Target',
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                         ),
                         items: const [
                           DropdownMenuItem(
@@ -431,10 +443,22 @@ class _AdvancedCustomRuleDialogState
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _srcZone,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           labelText:
                               l10n?.firewallSourceZoneLabel ?? 'Source Zone',
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                         ),
                         items: zoneOptions.map((z) {
                           return DropdownMenuItem(
@@ -455,11 +479,23 @@ class _AdvancedCustomRuleDialogState
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _destZone,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           labelText:
                               l10n?.firewallDestinationZoneLabel ??
                               'Destination Zone',
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                         ),
                         items: zoneOptions.map((z) {
                           return DropdownMenuItem(
@@ -587,9 +623,21 @@ class _AdvancedCustomRuleDialogState
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _proto,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           labelText: l10n?.firewallProtocolLabel ?? 'Protocol',
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                         ),
                         items: const [
                           DropdownMenuItem(value: 'any', child: Text('Any')),
@@ -610,9 +658,21 @@ class _AdvancedCustomRuleDialogState
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _family,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           labelText: l10n?.firewallIpFamilyLabel ?? 'IP Family',
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                           helperText: !supportsIpv6
                               ? (l10n?.firewallIpv6NotSupported ??
                                     'IPv6 not supported')

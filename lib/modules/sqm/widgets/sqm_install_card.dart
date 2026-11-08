@@ -47,12 +47,12 @@ class SqmInstallCard extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: LuciColors.primary.withValues(alpha: 0.12),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.speed_rounded,
-                    color: LuciColors.primary,
+                    color: theme.colorScheme.primary,
                     size: 32,
                   ),
                 ),
@@ -237,7 +237,7 @@ class SqmInstallCard extends ConsumerWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: LuciColors.primary),
+        Icon(icon, size: 18, color: theme.colorScheme.primary),
         const SizedBox(width: LuciSpacing.sm),
         Expanded(
           child: Column(

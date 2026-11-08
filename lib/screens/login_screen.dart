@@ -389,8 +389,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
     if (!mounted) return;
     final appState = ref.read(appStateProvider);
+    if (appState.hasActiveSession) {
+      _navigateToMainScreen(context);
+      return;
+    }
     await appState.loadRouters();
     if (!mounted) return;
+    if (appState.hasActiveSession) {
+      _navigateToMainScreen(context);
+      return;
+    }
     final activeRouter =
         appState.selectedRouter != null &&
             !RouterService.isMockRouter(appState.selectedRouter)
@@ -599,13 +607,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Future<void> _connect() async {
     if (_formKey.currentState!.validate()) {
       final hasPermission =
-          await LocalNetworkPermissionService.ensurePermissionGranted();
+          await LocalNetworkPermissionService.requestWithRationale(context);
       if (!hasPermission) {
-        ref
-            .read(appStateProvider)
-            .setError(
-              'Local Network Access permission is required to connect to your router.',
-            );
         return;
       }
 
@@ -718,147 +721,122 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.help_outline_rounded,
-                      color: colorScheme.primary,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n?.loginHelpTitle ?? 'Login Troubleshooting Guide',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+      useSafeArea: true,
+      builder: (ctx) => SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.help_outline_rounded, color: colorScheme.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      l10n?.loginHelpTitle ?? 'Login Troubleshooting Guide',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildHelpItem(
-                  context,
-                  icon: Icons.wifi_find_rounded,
-                  title:
-                      l10n?.loginHelpStep1Title ??
-                      'Connect to Router Wi-Fi / Network',
-                  description:
-                      l10n?.loginHelpStep1Desc ??
-                      'Ensure your device is directly connected to your router\'s Wi-Fi network or local subnet.',
-                ),
-                const SizedBox(height: 12),
-                _buildHelpItem(
-                  context,
-                  icon: Icons.lan_rounded,
-                  title:
-                      l10n?.loginHelpStep2Title ?? 'Verify Gateway IP Address',
-                  description:
-                      l10n?.loginHelpStep2Desc ??
-                      'Most OpenWrt routers use 192.168.1.1 or 192.168.0.1. Check your network settings if custom subnets are used.',
-                ),
-                const SizedBox(height: 12),
-                _buildHelpItem(
-                  context,
-                  icon: Icons.lock_person_rounded,
-                  title: l10n?.loginHelpStep3Title ?? 'LuCI Admin Credentials',
-                  description:
-                      l10n?.loginHelpStep3Desc ??
-                      'Use the same username (default: root) and password as your standard LuCI browser web interface.',
-                ),
-                const SizedBox(height: 12),
-                _buildHelpItem(
-                  context,
-                  icon: Icons.https_rounded,
-                  title:
-                      l10n?.loginHelpStep4Title ??
-                      'Self-Signed SSL / HTTPS Settings',
-                  description:
-                      l10n?.loginHelpStep4Desc ??
-                      'If your router uses HTTPS with self-signed SSL certificates, open Advanced Options and toggle "Use HTTPS".',
-                ),
-                const SizedBox(height: 20),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final textScale = MediaQuery.textScalerOf(context).scale(1);
-                    final shouldStack =
-                        constraints.maxWidth < 320 || textScale > 1.15;
-                    if (shouldStack) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _openGitHubIssues();
-                            },
-                            icon: const Icon(
-                              Icons.bug_report_rounded,
-                              size: 18,
-                            ),
-                            label: Text(
-                              l10n?.loginHelpGithubIssues ?? 'GitHub Issues',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: Text(l10n?.loginHelpGotIt ?? 'Got It'),
-                          ),
-                        ],
-                      );
-                    }
-                    return Row(
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildHelpItem(
+                context,
+                icon: Icons.wifi_find_rounded,
+                title:
+                    l10n?.loginHelpStep1Title ??
+                    'Connect to Router Wi-Fi / Network',
+                description:
+                    l10n?.loginHelpStep1Desc ??
+                    'Ensure your device is directly connected to your router\'s Wi-Fi network or local subnet.',
+              ),
+              const SizedBox(height: 12),
+              _buildHelpItem(
+                context,
+                icon: Icons.lan_rounded,
+                title: l10n?.loginHelpStep2Title ?? 'Verify Gateway IP Address',
+                description:
+                    l10n?.loginHelpStep2Desc ??
+                    'Most OpenWrt routers use 192.168.1.1 or 192.168.0.1. Check your network settings if custom subnets are used.',
+              ),
+              const SizedBox(height: 12),
+              _buildHelpItem(
+                context,
+                icon: Icons.lock_person_rounded,
+                title: l10n?.loginHelpStep3Title ?? 'LuCI Admin Credentials',
+                description:
+                    l10n?.loginHelpStep3Desc ??
+                    'Use the same username (default: root) and password as your standard LuCI browser web interface.',
+              ),
+              const SizedBox(height: 12),
+              _buildHelpItem(
+                context,
+                icon: Icons.https_rounded,
+                title:
+                    l10n?.loginHelpStep4Title ??
+                    'Self-Signed SSL / HTTPS Settings',
+                description:
+                    l10n?.loginHelpStep4Desc ??
+                    'If your router uses HTTPS with self-signed SSL certificates, open Advanced Options and toggle "Use HTTPS".',
+              ),
+              const SizedBox(height: 20),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final textScale = MediaQuery.textScalerOf(context).scale(1);
+                  final shouldStack =
+                      constraints.maxWidth < 320 || textScale > 1.15;
+                  if (shouldStack) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _openGitHubIssues();
-                            },
-                            icon: const Icon(
-                              Icons.bug_report_rounded,
-                              size: 18,
-                            ),
-                            label: Text(
-                              l10n?.loginHelpGithubIssues ?? 'GitHub Issues',
-                            ),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _openGitHubIssues();
+                          },
+                          icon: const Icon(Icons.bug_report_rounded, size: 18),
+                          label: Text(
+                            l10n?.loginHelpGithubIssues ?? 'GitHub Issues',
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: Text(l10n?.loginHelpGotIt ?? 'Got It'),
-                          ),
+                        const SizedBox(height: 8),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text(l10n?.loginHelpGotIt ?? 'Got It'),
                         ),
                       ],
                     );
-                  },
-                ),
-              ],
-            ),
+                  }
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _openGitHubIssues();
+                          },
+                          icon: const Icon(Icons.bug_report_rounded, size: 18),
+                          label: Text(
+                            l10n?.loginHelpGithubIssues ?? 'GitHub Issues',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text(l10n?.loginHelpGotIt ?? 'Got It'),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -918,37 +896,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       builder: (ctx) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.exit_to_app_rounded,
-                color: colorScheme.primary,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                l10n?.exitDialogTitle ?? 'Exit Yala?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
+        icon: Icon(
+          Icons.exit_to_app_rounded,
+          color: colorScheme.primary,
+          size: 28,
+        ),
+        title: Text(
+          l10n?.exitDialogTitle ?? 'Exit Yala?',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: SingleChildScrollView(
           child: Text(
             l10n?.exitDialogMessage ??
                 'Are you sure you want to exit the application?',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         actions: [
@@ -958,11 +923,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
             child: Text(l10n?.actionExit ?? 'Exit'),
           ),
         ],
@@ -972,6 +932,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<bool>(appStateProvider.select((s) => s.hasActiveSession), (
+      previous,
+      next,
+    ) {
+      if (next && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _navigateToMainScreen(context);
+          }
+        });
+      }
+    });
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 

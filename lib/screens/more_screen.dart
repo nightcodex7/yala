@@ -20,6 +20,7 @@ import 'package:yet_another_luci_app/utils/http_client_manager.dart';
 import 'package:yet_another_luci_app/utils/gateway_utils.dart';
 import 'package:yet_another_luci_app/services/secure_storage_service.dart';
 import 'package:yet_another_luci_app/modules/core/luci_module_registry.dart';
+import 'package:yet_another_luci_app/modules/advanced_reboot/screens/advanced_reboot_screen.dart';
 import 'package:yet_another_luci_app/widgets/theme_router_logo.dart';
 import 'package:yet_another_luci_app/widgets/rpc_permissions_dialog.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
@@ -200,9 +201,6 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
           return AlertDialog(
             actionsOverflowButtonSpacing: 8,
             actionsOverflowDirection: VerticalDirection.down,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
             title: const Row(
               children: [
                 ThemeRouterLogo(width: 28, height: 28, showShadow: false),
@@ -541,6 +539,36 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                       restrictionBadgeText: isRpcMissing
                           ? 'Permissions Required'
                           : null,
+                      trailing: FilledButton.tonalIcon(
+                        onPressed: isRebooting
+                            ? null
+                            : () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const AdvancedRebootScreen(),
+                                  ),
+                                );
+                              },
+                        icon: const Icon(Icons.alt_route_rounded, size: 14),
+                        label: Text(
+                          l10n?.advRebootBtnAdvanced ?? 'Advanced',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 0,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 );
@@ -551,7 +579,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             ),
             _MoreScreenSection(
               tiles: LuciModuleRegistry.instance.enabledModules
-                  .where((m) => !m.showInBottomNav)
+                  .where((m) => !m.showInBottomNav && m.id != 'advanced_reboot')
                   .map((module) {
                     final isRpcMissing = ref
                         .watch(appStateProvider)
@@ -703,6 +731,12 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
         return (l10n.modBandwidthMonitorName, l10n.modBandwidthMonitorDesc);
       case 'adguard_home':
         return (l10n.modAdGuardHomeName, l10n.modAdGuardHomeDesc);
+      case 'advanced_reboot':
+        return (l10n.advRebootTitle, l10n.advRebootDesc);
+      case 'log_viewer':
+        return (l10n.logViewerTitle, l10n.logViewerDescription);
+      case 'ssh_console':
+        return (l10n.sshTerminalTitle, l10n.sshTerminalDescription);
       default:
         return (defaultName, defaultDesc);
     }

@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import 'package:yet_another_luci_app/modules/storage_monitoring/models/storage_info.dart';
+import 'package:yet_another_luci_app/services/local_network_permission_service.dart';
 import 'package:yet_another_luci_app/widgets/luci_toast.dart';
 
 /// Semantic haptic feedback intensity types.
@@ -93,9 +94,12 @@ class OsPlatformIntegration {
 
     try {
       if (Platform.isAndroid) {
-        final intentUri = Uri.parse('package:yet_another_luci_app');
-        if (await canLaunchUrl(intentUri)) {
-          launched = await launchUrl(intentUri);
+        launched = await LocalNetworkPermissionService.openAppSettings();
+        if (!launched) {
+          final intentUri = Uri.parse('package:com.nightcode.luci');
+          if (await canLaunchUrl(intentUri)) {
+            launched = await launchUrl(intentUri);
+          }
         }
       } else if (Platform.isIOS) {
         final intentUri = Uri.parse('app-settings:');
@@ -349,7 +353,6 @@ class OsPlatformIntegration {
       builder: (ctx) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         icon: Icon(icon, color: accentColor, size: 40),
         title: Text(
           resolvedTitle,

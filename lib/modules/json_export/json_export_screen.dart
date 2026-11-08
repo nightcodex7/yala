@@ -144,6 +144,16 @@ class _JsonExportScreenState extends ConsumerState<JsonExportScreen> {
       icon: Icons.dashboard_customize_rounded,
       fetch: _fetchDashboardSettings,
     ),
+    _ExportCategory(
+      key: 'sshSavedCommands',
+      getTitle: (l10n) =>
+          l10n?.jsonExportCatSshSavedCommands ?? 'SSH Saved Commands',
+      getSubtitle: (l10n) =>
+          l10n?.jsonExportCatSshSavedCommandsSubtitle ??
+          'Saved SSH console commands and shortcuts',
+      icon: Icons.terminal_rounded,
+      fetch: _fetchSshSavedCommands,
+    ),
   ];
 
   // ── Static fetch wrappers (top-level so they are const-compatible) ──────────
@@ -179,6 +189,10 @@ class _JsonExportScreenState extends ConsumerState<JsonExportScreen> {
   static Future<ExportCategoryResult> _fetchDashboardSettings(
     AppState a,
   ) async => ConfigExportService.exportDashboardSettings(a);
+
+  static Future<ExportCategoryResult> _fetchSshSavedCommands(
+    AppState a,
+  ) async => ConfigExportService.exportSshSavedCommands(a);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 

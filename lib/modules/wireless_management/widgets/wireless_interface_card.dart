@@ -211,7 +211,7 @@ class _WirelessInterfaceCardState extends ConsumerState<WirelessInterfaceCard> {
                                 height: 1.2,
                               ),
                               overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
+                              maxLines: 3,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -313,163 +313,157 @@ class _WirelessInterfaceCardState extends ConsumerState<WirelessInterfaceCard> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                   overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+                  maxLines: 2,
                 ),
                 const SizedBox(height: 8),
 
-                // Responsive Badges & Actions Bar (Compact Row)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Left Badges Group
-                    Expanded(
-                      child: Wrap(
-                        spacing: 5,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (!iface.isEnabled)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
+                // Responsive Badges & Actions Bar (Adapts on narrow viewports)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 360;
+                    final badgesGroup = Wrap(
+                      spacing: 5,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (!iface.isEnabled)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(
+                                color: Colors.red.withValues(alpha: 0.4),
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(5),
-                                border: Border.all(
-                                  color: Colors.red.withValues(alpha: 0.4),
-                                ),
+                            ),
+                            child: Text(
+                              l10n?.statusDisabled ?? 'DISABLED',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
                               ),
-                              child: Text(
-                                l10n?.statusDisabled ?? 'DISABLED',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red,
+                            ),
+                          ),
+                        if (isGuest)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.tertiaryContainer,
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(
+                                color: theme.colorScheme.tertiary.withValues(
+                                  alpha: 0.4,
                                 ),
                               ),
                             ),
-                          if (isGuest)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.tertiaryContainer,
-                                borderRadius: BorderRadius.circular(5),
-                                border: Border.all(
-                                  color: theme.colorScheme.tertiary.withValues(
-                                    alpha: 0.4,
-                                  ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.shield_moon_rounded,
+                                  size: 10,
+                                  color: theme.colorScheme.onTertiaryContainer,
                                 ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.shield_moon_rounded,
-                                    size: 10,
+                                const SizedBox(width: 3),
+                                Text(
+                                  l10n?.pillGuestNetwork ?? 'Guest Network',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                     color:
                                         theme.colorScheme.onTertiaryContainer,
                                   ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    l10n?.pillGuestNetwork ?? 'Guest Network',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color:
-                                          theme.colorScheme.onTertiaryContainer,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
+                          ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: iface.securityMode.badgeColor.withValues(
+                              alpha: 0.15,
                             ),
-                            decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(
                               color: iface.securityMode.badgeColor.withValues(
-                                alpha: 0.15,
-                              ),
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                color: iface.securityMode.badgeColor.withValues(
-                                  alpha: 0.3,
-                                ),
-                              ),
-                            ),
-                            child: Text(
-                              iface.securityMode.shortBadgeLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: iface.securityMode.badgeColor,
+                                alpha: 0.3,
                               ),
                             ),
                           ),
+                          child: Text(
+                            iface.securityMode.shortBadgeLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: iface.securityMode.badgeColor,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.secondaryContainer,
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(
+                              color: theme.colorScheme.secondary.withValues(
+                                alpha: 0.3,
+                              ),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            iface.mode,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSecondaryContainer,
+                            ),
+                          ),
+                        ),
+                        if (iface.isHidden)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
+                              horizontal: 5,
+                              vertical: 1.5,
                             ),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.secondaryContainer,
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                color: theme.colorScheme.secondary.withValues(
-                                  alpha: 0.3,
-                                ),
-                                width: 0.8,
-                              ),
+                              color: Colors.grey.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              iface.mode,
+                              l10n?.statusHidden ?? 'HIDDEN',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSecondaryContainer,
+                                color: Colors.grey,
                               ),
                             ),
                           ),
-                          if (iface.isHidden)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                l10n?.statusHidden ?? 'HIDDEN',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                      ],
+                    );
 
-                    // Right Action Buttons Row (Ultra-Compact)
-                    Row(
+                    final actionsGroup = Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // Edit Security Button
@@ -656,8 +650,31 @@ class _WirelessInterfaceCardState extends ConsumerState<WirelessInterfaceCard> {
                               setState(() => _isExpanded = !_isExpanded),
                         ),
                       ],
-                    ),
-                  ],
+                    );
+
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          badgesGroup,
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: actionsGroup,
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(child: badgesGroup),
+                        actionsGroup,
+                      ],
+                    );
+                  },
                 ),
               ],
             ),

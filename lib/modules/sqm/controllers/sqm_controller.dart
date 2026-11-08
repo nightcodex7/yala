@@ -374,6 +374,60 @@ class SqmController extends StateNotifier<SqmState> {
         opState = SqmOperatingState.active;
       }
 
+      // 6. Kernel-level running detection override.
+      //
+      // sqm-scripts is not a procd daemon — its init script configures tc
+      // qdiscs and exits without ever calling procd_open_instance.  As a
+      // result, `ubus call service list '{"name":"sqm"}'` always returns
+      // {"sqm": {}} with no "running" key, making serviceRunning perpetually
+      // false regardless of whether the shaper is actively delaying packets.
+      //
+      // Fix: when UCI shows at least one enabled queue but procd says
+      // not-running, probe the kernel directly via
+      // `tc -s qdisc show dev <iface>`.  A root qdisc other than the kernel
+      // defaults (noqueue / pfifo_fast) can only exist if sqm-scripts has
+      // already applied its tc configuration, proving the shaper is live.
+      //
+      // This probe reuses _telemetryService.fetchQueueTelemetry so we also
+      // populate telemetryByInterface for free — no extra RPC categories.
+      if (!serviceRunning &&
+          opState == SqmOperatingState.inactive &&
+          isInstalled &&
+          parsedQueues.any((q) => q.enabled)) {
+        final enabledQueues = parsedQueues.where((q) => q.enabled).toList();
+        for (final q in enabledQueues) {
+          if (_disposed || currentEpoch != _fetchEpoch) break;
+          try {
+            final telem = await _telemetryService.fetchQueueTelemetry(
+              apiService: _apiService,
+              ipAddress: ip,
+              sysauth: sysauth,
+              useHttps: useHttps,
+              interfaceName: q.interface,
+              isReviewerMode: _isReviewerMode,
+            );
+            // A root qdisc that is not the kernel placeholder proves sqm has
+            // applied its configuration.  pfifo_fast and noqueue are the
+            // kernel defaults; anything else (cake, fq_codel, htb …) means
+            // sqm-scripts is running.
+            final tcIndicatesRunning =
+                telem != null &&
+                telem.root &&
+                telem.qdisc != 'unknown' &&
+                telem.qdisc != 'none' &&
+                telem.qdisc != 'noqueue' &&
+                telem.qdisc != 'pfifo_fast';
+            if (tcIndicatesRunning) {
+              serviceRunning = true;
+              opState = SqmOperatingState.active;
+              break;
+            }
+          } catch (_) {
+            // Probe failure is non-fatal; keep opState as inactive.
+          }
+        }
+      }
+
       if (_disposed || currentEpoch != _fetchEpoch) return;
 
       // Stage 1: Publish configuration immediately

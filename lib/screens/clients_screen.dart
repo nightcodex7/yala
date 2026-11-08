@@ -25,6 +25,7 @@ import 'package:yet_another_luci_app/modules/dhcp_dns/models/dhcp_dns_info.dart'
 import 'package:yet_another_luci_app/modules/wireless_management/models/wireless_info.dart';
 import 'package:yet_another_luci_app/widgets/rpc_permissions_dialog.dart';
 import 'package:yet_another_luci_app/widgets/device_network_access_card.dart';
+import 'package:yet_another_luci_app/widgets/client_speed_limit_dialog.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 
 class ClientsScreen extends ConsumerStatefulWidget {
@@ -49,6 +50,7 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen>
   bool _aggregateAllRouters = true;
   List<Client> _cachedClients = [];
   Future<List<Client>>? _clientsFuture;
+  int _clientFetchEpoch = 0;
   String? _lastSelectedRouterId;
   String? _cachedClientsRouterId;
   dynamic _lastDashboardUpdated;
@@ -133,54 +135,91 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen>
     _lastFetchTime = DateTime.now();
     final appState = ref.read(appStateProvider);
     final targetRouterId = forRouterId ?? appState.selectedRouter?.id;
-    final future = _aggregateAllRouters
-        ? appState.fetchAggregatedClients(
-            onIncrementalUpdate: (incrementalList) {
-              if (mounted) {
-                final currentRouterId = ref
-                    .read(appStateProvider)
-                    .selectedRouter
-                    ?.id;
-                if (targetRouterId != null &&
-                    currentRouterId != targetRouterId) {
-                  return;
-                }
-                setState(() {
-                  _cachedClientsRouterId = currentRouterId;
-                  if (incrementalList.isNotEmpty || _cachedClients.isEmpty) {
-                    _cachedClients = incrementalList;
-                  }
-                });
-              }
-            },
-          )
-        : appState.fetchClientsForSelectedRouter();
-    _clientsFuture = future;
-    future
-        .then((list) {
-          if (mounted) {
+    final currentEpoch = ++_clientFetchEpoch;
+
+    // Stage 1: Priority to current logged-in router session data.
+    // Fetch and display the active router's clients first so the screen resolves immediately.
+    final future = appState
+        .fetchClientsForSelectedRouter()
+        .then((currentClients) {
+          if (mounted && currentEpoch == _clientFetchEpoch) {
             final currentRouterId = ref
                 .read(appStateProvider)
                 .selectedRouter
                 ?.id;
-            // Discard stale in-flight results if selected router changed
-            if (targetRouterId != null && currentRouterId != targetRouterId) {
-              return;
+            if (targetRouterId == null || currentRouterId == targetRouterId) {
+              setState(() {
+                _cachedClientsRouterId = currentRouterId;
+                if (currentClients.isNotEmpty || _cachedClients.isEmpty) {
+                  _cachedClients = currentClients;
+                }
+              });
             }
-            setState(() {
-              _cachedClientsRouterId = currentRouterId;
-              if (list.isNotEmpty || _cachedClients.isEmpty) {
-                _cachedClients = list;
-              }
-            });
           }
+
+          // Stage 2: After current router data is loaded, check for other secondary or Dumb AP clients.
+          if (_aggregateAllRouters &&
+              (appState.hasDumbAp || appState.routers.length > 1)) {
+            unawaited(
+              appState
+                  .fetchAggregatedClients(
+                    onIncrementalUpdate: (incrementalList) {
+                      if (!mounted || currentEpoch != _clientFetchEpoch) return;
+                      final activeId = ref
+                          .read(appStateProvider)
+                          .selectedRouter
+                          ?.id;
+                      if (targetRouterId != null && activeId != targetRouterId)
+                        return;
+
+                      setState(() {
+                        _cachedClientsRouterId = activeId;
+                        if (incrementalList.isNotEmpty ||
+                            _cachedClients.isEmpty) {
+                          _cachedClients = incrementalList;
+                        }
+                      });
+                    },
+                  )
+                  .then((aggregatedList) {
+                    if (!mounted || currentEpoch != _clientFetchEpoch) return;
+                    final activeId = ref
+                        .read(appStateProvider)
+                        .selectedRouter
+                        ?.id;
+                    if (targetRouterId != null && activeId != targetRouterId)
+                      return;
+
+                    setState(() {
+                      _cachedClientsRouterId = activeId;
+                      if (aggregatedList.isNotEmpty || _cachedClients.isEmpty) {
+                        _cachedClients = aggregatedList;
+                      }
+                    });
+                  })
+                  .catchError((_) {
+                    // Retain active router clients if secondary AP query fails or times out
+                  }),
+            );
+          }
+
+          return currentClients;
         })
         .catchError((error) {
-          if (mounted) {
+          if (mounted && currentEpoch == _clientFetchEpoch) {
             setState(() {});
           }
+          return appState.clients;
         });
+
+    _clientsFuture = future;
     return future;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _lastRenderedScaffold = null;
   }
 
   @override
@@ -342,9 +381,11 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen>
                 onRefresh: () async {
                   // Trigger a refresh by re-fetching dashboard data for selected router
                   await ref.read(appStateProvider).fetchDashboardData();
-                  setState(() {
-                    _computeClientsFuture(forRouterId: currentId);
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _computeClientsFuture(forRouterId: currentId);
+                    });
+                  }
                 },
                 child: Builder(
                   builder: (context) {
@@ -994,7 +1035,10 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen>
           side: BorderSide(color: borderColor, width: 1),
         ),
         child: InkWell(
-          onTap: onTap,
+          onTap: () {
+            unawaited(HapticFeedback.selectionClick());
+            onTap();
+          },
           borderRadius: BorderRadius.circular(10),
           child: Container(
             height: 32,
@@ -1387,18 +1431,20 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
 
   /// Status dot color: green (reachable), amber (stale/idle), grey (offline).
   Color _statusDotColor(Client client) {
-    if (!client.isConnected) return Colors.grey.shade400;
+    if (!client.isConnected) {
+      return Theme.of(context).colorScheme.outlineVariant;
+    }
     switch (client.neighState) {
       case NeighborReachability.reachable:
-        return LuciStatusColors.connected;
+        return LuciStatusColors.connectedColor(context);
       case NeighborReachability.stale:
-        return LuciStatusColors.warning;
+        return LuciStatusColors.warningColor(context);
       case NeighborReachability.failed:
-        return Colors.grey.shade400;
+        return Theme.of(context).colorScheme.outlineVariant;
       case NeighborReachability.unknown:
         return client.isConnected
-            ? LuciStatusColors.connected
-            : Colors.grey.shade400;
+            ? LuciStatusColors.connectedColor(context)
+            : Theme.of(context).colorScheme.outlineVariant;
     }
   }
 
@@ -1525,7 +1571,7 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
                               style: LuciTextStyles.cardTitle(context),
                               semanticsLabel:
                                   'Client name: ${widget.client.displayName}',
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
@@ -1752,6 +1798,25 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
           fg: theme.brightness == Brightness.dark
               ? Colors.orange.shade300
               : Colors.orange.shade900,
+        ),
+      );
+    }
+
+    // 5. Bandwidth Throttled Pill
+    final speedLimit = appState.getClientSpeedLimit(
+      client.macAddress,
+      routerId: appState.selectedRouter?.id,
+    );
+    if (speedLimit != null && speedLimit.isEffectivelyRestricted) {
+      pills.add(
+        buildPill(
+          label: speedLimit.compactSummary,
+          icon: Icons.traffic_rounded,
+          bg: Colors.blue.shade700.withValues(alpha: 0.15),
+          border: Colors.blue.shade700.withValues(alpha: 0.4),
+          fg: theme.brightness == Brightness.dark
+              ? Colors.blue.shade300
+              : Colors.blue.shade900,
         ),
       );
     }
@@ -2124,17 +2189,17 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
                       actionName: l10n?.btnEditBan ?? 'Edit Ban',
                       child: OutlinedButton.icon(
                         onPressed: () => _banWirelessClient(context, client),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.timer_outlined,
                           size: 14,
-                          color: LuciStatusColors.warning,
+                          color: LuciStatusColors.warningColor(context),
                         ),
                         label: Text(
                           l10n?.btnEditBan ?? 'Edit Ban',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: LuciStatusColors.warning,
+                            color: LuciStatusColors.warningColor(context),
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
@@ -2145,9 +2210,9 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
                           minimumSize: const Size(0, 32),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           side: BorderSide(
-                            color: LuciStatusColors.warning.withValues(
-                              alpha: isDarkMode ? 0.6 : 0.4,
-                            ),
+                            color: LuciStatusColors.warningColor(
+                              context,
+                            ).withValues(alpha: isDarkMode ? 0.6 : 0.4),
                             width: 0.9,
                           ),
                           shape: RoundedRectangleBorder(
@@ -2167,11 +2232,11 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
                   String? badgeText;
 
                   if (policy.isEffectivelyBlocked) {
-                    buttonColor = LuciStatusColors.connected;
+                    buttonColor = LuciStatusColors.connectedColor(context);
                     buttonIcon = Icons.play_arrow_rounded;
                     buttonLabel = l10n?.btnResumeAccess ?? 'Resume Access';
                   } else if (policy.hasAnyRestriction) {
-                    buttonColor = LuciStatusColors.warning;
+                    buttonColor = LuciStatusColors.warningColor(context);
                     buttonIcon = Icons.shield_outlined;
                     buttonLabel = 'Manage Access';
                     if (policy.isIpv4OnlyBlocked) {
@@ -2264,17 +2329,17 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
                       actionName: l10n?.btnBanClient ?? 'Ban Client',
                       child: OutlinedButton.icon(
                         onPressed: () => _banWirelessClient(context, client),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.block_rounded,
                           size: 14,
-                          color: LuciStatusColors.warning,
+                          color: LuciStatusColors.warningColor(context),
                         ),
                         label: Text(
                           l10n?.btnBanClient ?? 'Ban Client',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: LuciStatusColors.warning,
+                            color: LuciStatusColors.warningColor(context),
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
@@ -2285,9 +2350,9 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
                           minimumSize: const Size(0, 32),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           side: BorderSide(
-                            color: LuciStatusColors.warning.withValues(
-                              alpha: isDarkMode ? 0.6 : 0.4,
-                            ),
+                            color: LuciStatusColors.warningColor(
+                              context,
+                            ).withValues(alpha: isDarkMode ? 0.6 : 0.4),
                             width: 0.9,
                           ),
                           shape: RoundedRectangleBorder(
@@ -2441,6 +2506,82 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
                   }
                 }
 
+                // 4. Bandwidth Speed Limit
+                if (!client.isDumbApClient) {
+                  final activeLimit = appState.getClientSpeedLimit(
+                    client.macAddress,
+                    routerId: appState.selectedRouter?.id,
+                  );
+                  final isRestricted =
+                      activeLimit != null &&
+                      activeLimit.isEffectivelyRestricted;
+
+                  final Color speedBtnColor = isRestricted
+                      ? (isDarkMode
+                            ? Colors.amberAccent
+                            : Colors.orange.shade800)
+                      : colorScheme.primary;
+                  final String speedLabel = isRestricted
+                      ? (l10n?.speedLimitClientActionWithLimit(
+                              activeLimit.compactSummary,
+                            ) ??
+                            'Limit: ${activeLimit.compactSummary}')
+                      : (l10n?.speedLimitClientAction ?? 'Speed Limit');
+
+                  actionButtons.add(
+                    _buildRestrictedClientActionButton(
+                      context: context,
+                      isRestricted: isRpcMissing,
+                      actionName: speedLabel,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final changed = await ClientSpeedLimitDialog.show(
+                            context,
+                            client: client,
+                            initialLimit: activeLimit,
+                            routerId: appState.selectedRouter?.id,
+                          );
+                          if (changed == true && mounted) {
+                            setState(() {});
+                          }
+                        },
+                        icon: Icon(
+                          Icons.traffic_rounded,
+                          size: 14,
+                          color: speedBtnColor,
+                        ),
+                        label: Text(
+                          speedLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: speedBtnColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          minimumSize: const Size(0, 32),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          side: BorderSide(
+                            color: speedBtnColor.withValues(
+                              alpha: isDarkMode ? 0.6 : 0.4,
+                            ),
+                            width: 0.9,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
                 return _buildJustifiedActionButtons(actionButtons);
               },
             ),
@@ -2512,63 +2653,62 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.redAccent,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                l10n?.dialogRemoveStaticLeaseTitle ?? 'Remove Static Lease',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.delete_outline,
+                  color: theme.colorScheme.error,
+                  size: 24,
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n?.dialogRemoveStaticLeaseTitle ?? 'Remove Static Lease',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              l10n?.dialogRemoveStaticLeaseMessage(
+                    client.displayName,
+                    client.macAddress,
+                  ) ??
+                  'Are you sure you want to remove the static IP reservation for "${client.displayName}" (${client.macAddress})?',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.error,
+                foregroundColor: theme.colorScheme.onError,
+              ),
+              child: Text(l10n?.btnRemoveReservation ?? 'Remove Reservation'),
             ),
           ],
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            l10n?.dialogRemoveStaticLeaseMessage(
-                  client.displayName,
-                  client.macAddress,
-                ) ??
-                'Are you sure you want to remove the static IP reservation for "${client.displayName}" (${client.macAddress})?',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(l10n?.btnRemoveReservation ?? 'Remove Reservation'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (confirmed == true) {
@@ -2647,6 +2787,9 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
         if (parentContext.mounted) {
           parentContext.showToastError(
             'Failed to remove static lease for ${client.displayName}.',
+            subtitle:
+                l10n?.toastErrorCheckPermissionsOrDhcp ??
+                'Check router permissions or UCI DHCP configuration.',
             actionKey: actionKey,
           );
         }
@@ -2663,6 +2806,7 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
   }
 
   Future<void> _banWirelessClient(BuildContext context, Client client) async {
+    final l10n = AppLocalizations.of(context);
     final isBanned = AppState.instance.isWirelessBanned(client.macAddress);
 
     await showDialog<void>(
@@ -2728,7 +2872,8 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
               LuciToastManager.safeShowError(
                 context,
                 'Failed to ban ${client.displayName}',
-                subtitle: 'Target MAC: ${client.macAddress}',
+                subtitle:
+                    '${l10n?.toastErrorCheckPermissionsOrWireless ?? "Check router permissions or hostapd configuration"} (${client.macAddress}).',
                 actionKey: actionKey,
               );
             }
@@ -2760,64 +2905,59 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_circle_outline_rounded,
-                color: Colors.blue,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                l10n?.dialogUnbanDeviceTitle ?? 'Unban Wireless Device?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.check_circle_outline_rounded,
+                  color: theme.colorScheme.primary,
+                  size: 24,
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n?.dialogUnbanDeviceTitle ?? 'Unban Wireless Device?',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              l10n?.dialogUnbanDeviceMessage(
+                    client.displayName,
+                    client.macAddress,
+                  ) ??
+                  'Are you sure you want to unban "${client.displayName}" (${client.macAddress})? This will restore Wi-Fi association and remove firewall blocking rules.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+              label: Text(l10n?.btnUnbanDevice ?? 'Unban Device'),
             ),
           ],
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            l10n?.dialogUnbanDeviceMessage(
-                  client.displayName,
-                  client.macAddress,
-                ) ??
-                'Are you sure you want to unban "${client.displayName}" (${client.macAddress})? This will restore Wi-Fi association and remove firewall blocking rules.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
-            label: Text(l10n?.btnUnbanDevice ?? 'Unban Device'),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.blue.shade700,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (confirmed != true) return;
@@ -2852,6 +2992,8 @@ class _UnifiedClientCardState extends State<_UnifiedClientCard> {
         LuciToastManager.safeShowError(
           context,
           'Failed to unban ${client.displayName}.',
+          subtitle:
+              '${l10n?.toastErrorCheckPermissionsOrFirewall ?? "Check router permissions or firewall configuration"} (${client.macAddress}).',
           actionKey: actionKey,
         );
       }

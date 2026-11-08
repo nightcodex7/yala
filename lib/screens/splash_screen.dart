@@ -6,7 +6,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:yet_another_luci_app/state/app_state.dart';
 import 'package:yet_another_luci_app/services/secure_storage_service.dart';
-import 'package:yet_another_luci_app/services/local_network_permission_service.dart';
 import 'package:yet_another_luci_app/config/app_config.dart';
 import 'package:yet_another_luci_app/widgets/theme_router_logo.dart';
 import 'package:yet_another_luci_app/screens/main_screen.dart';
@@ -93,14 +92,6 @@ class _SplashScreenState extends State<SplashScreen>
       final savedIp = creds['ipAddress'] ?? appState.selectedRouter?.ipAddress;
       final savedUser = creds['username'] ?? appState.selectedRouter?.username;
       final savedPass = creds['password'] ?? appState.selectedRouter?.password;
-
-      final hasSavedCreds =
-          savedIp != null && savedIp.isNotEmpty && savedPass != null;
-
-      if (hasSavedCreds) {
-        await LocalNetworkPermissionService.ensurePermissionGranted();
-        if (!mounted) return;
-      }
 
       _navigateToLoginScreen(
         initialIp: savedIp,

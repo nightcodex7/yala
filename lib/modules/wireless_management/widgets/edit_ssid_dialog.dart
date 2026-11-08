@@ -523,6 +523,7 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
           .trim();
     }
 
+    final deleteOptions = <String>[];
     if (_macfilter != 'disable') {
       newValues['macfilter'] = _macfilter;
       if (_maclistController.text.trim().isNotEmpty) {
@@ -534,7 +535,20 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
         newValues['maclist'] = macs;
       }
     } else {
-      newValues['macfilter'] = 'none';
+      // In OpenWrt 21+, validate.uc validates macfilter enum: ['allow', 'deny'].
+      // Writing 'none' causes validate.uc to die and crashes netifd/wifi.
+      // To disable MAC filtering, delete only the 'macfilter' option from UCI.
+      // We explicitly PRESERVE 'maclist' (never delete it) so previously configured
+      // MAC addresses remain saved in UCI for when filtering is re-enabled.
+      deleteOptions.add('macfilter');
+      if (_maclistController.text.trim().isNotEmpty) {
+        final macs = _maclistController.text
+            .split(RegExp(r'[\n,;]+'))
+            .map((e) => e.trim().toUpperCase())
+            .where((e) => e.isNotEmpty)
+            .join(' ');
+        newValues['maclist'] = macs;
+      }
     }
 
     if (_selectedEncryption != 'none') {
@@ -567,6 +581,7 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
         sectionName: iface.sectionName,
         newValues: newValues,
         priorValuesSnapshot: priorSnapshot,
+        deleteOptions: deleteOptions,
         targetRadio: widget.radio,
         targetInterface: widget.interface,
         context: mounted ? context : null,
@@ -638,7 +653,7 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
       if (mounted) {
         context.showToastError(
           'Failed to update wireless SSID',
-          subtitle: e.toString().replaceAll('Exception: ', ''),
+          subtitle: LuciToastManager.parseErrorReason(e),
         );
       }
     } finally {
@@ -825,7 +840,6 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
     return PopScope(
       canPop: !_isSubmitting,
       child: Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: Padding(
@@ -941,6 +955,12 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                           DropdownButtonFormField<String>(
                             initialValue: _selectedEncryption,
                             isExpanded: true,
+                            borderRadius: BorderRadius.circular(16),
+                            dropdownColor:
+                                theme.colorScheme.surfaceContainerHigh,
+                            elevation: 4,
+                            menuMaxHeight: 360,
+                            icon: const Icon(Icons.arrow_drop_down_rounded),
                             decoration: InputDecoration(
                               labelText:
                                   l10n?.encryptionSecurityModeLabel ??
@@ -949,7 +969,9 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                 Icons.lock_outline_rounded,
                                 size: 20,
                               ),
-                              border: const OutlineInputBorder(),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             items: _buildEncryptionDropdownItems(appState),
                             onChanged: (val) {
@@ -1095,6 +1117,14 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                   DropdownButtonFormField<String>(
                                     initialValue: _selectedPmf,
                                     isExpanded: true,
+                                    borderRadius: BorderRadius.circular(16),
+                                    dropdownColor:
+                                        theme.colorScheme.surfaceContainerHigh,
+                                    elevation: 4,
+                                    menuMaxHeight: 360,
+                                    icon: const Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                    ),
                                     decoration: InputDecoration(
                                       labelText:
                                           l10n?.pmfLabel ??
@@ -1103,7 +1133,9 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                         Icons.security_rounded,
                                         size: 20,
                                       ),
-                                      border: const OutlineInputBorder(),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
                                     items: [
                                       DropdownMenuItem(
@@ -1146,6 +1178,14 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                   DropdownButtonFormField<String>(
                                     initialValue: _selectedCipher,
                                     isExpanded: true,
+                                    borderRadius: BorderRadius.circular(16),
+                                    dropdownColor:
+                                        theme.colorScheme.surfaceContainerHigh,
+                                    elevation: 4,
+                                    menuMaxHeight: 360,
+                                    icon: const Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                    ),
                                     decoration: InputDecoration(
                                       labelText:
                                           l10n?.cipherAlgorithmLabel ??
@@ -1154,7 +1194,9 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                         Icons.memory_rounded,
                                         size: 20,
                                       ),
-                                      border: const OutlineInputBorder(),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
                                     items: _buildCipherDropdownItems(),
                                     onChanged: (val) {
@@ -1191,6 +1233,14 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                 DropdownButtonFormField<String>(
                                   initialValue: _macfilter,
                                   isExpanded: true,
+                                  borderRadius: BorderRadius.circular(16),
+                                  dropdownColor:
+                                      theme.colorScheme.surfaceContainerHigh,
+                                  elevation: 4,
+                                  menuMaxHeight: 360,
+                                  icon: const Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                  ),
                                   decoration: InputDecoration(
                                     labelText:
                                         l10n?.macFilterModeLabel ??
@@ -1199,7 +1249,9 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                       Icons.filter_alt_rounded,
                                       size: 20,
                                     ),
-                                    border: const OutlineInputBorder(),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                   items: [
                                     DropdownMenuItem(
@@ -1270,6 +1322,14 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                       ? _selectedNetwork
                                       : _availableNetworks.first,
                                   isExpanded: true,
+                                  borderRadius: BorderRadius.circular(16),
+                                  dropdownColor:
+                                      theme.colorScheme.surfaceContainerHigh,
+                                  elevation: 4,
+                                  menuMaxHeight: 360,
+                                  icon: const Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                  ),
                                   decoration: InputDecoration(
                                     labelText:
                                         l10n?.attachedNetworkBridgeLabel ??
@@ -1278,7 +1338,9 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                       Icons.alt_route_rounded,
                                       size: 20,
                                     ),
-                                    border: const OutlineInputBorder(),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                     helperText: _getNetworkDescription(
                                       _selectedNetwork,
                                       l10n,
@@ -1654,10 +1716,24 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                     Expanded(
                                       child: DropdownButtonFormField<String>(
                                         initialValue: _ipv6Ra,
+                                        isExpanded: true,
+                                        borderRadius: BorderRadius.circular(16),
+                                        dropdownColor: theme
+                                            .colorScheme
+                                            .surfaceContainerHigh,
+                                        elevation: 4,
+                                        menuMaxHeight: 360,
+                                        icon: const Icon(
+                                          Icons.arrow_drop_down_rounded,
+                                        ),
                                         decoration: InputDecoration(
                                           labelText:
                                               l10n?.ipv6RaLabel ?? 'IPv6 RA',
-                                          border: const OutlineInputBorder(),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
                                         ),
                                         items: const [
                                           DropdownMenuItem(
@@ -1684,10 +1760,24 @@ class _EditSsidDialogState extends ConsumerState<EditSsidDialog> {
                                     Expanded(
                                       child: DropdownButtonFormField<String>(
                                         initialValue: _dhcpv6Mode,
+                                        isExpanded: true,
+                                        borderRadius: BorderRadius.circular(16),
+                                        dropdownColor: theme
+                                            .colorScheme
+                                            .surfaceContainerHigh,
+                                        elevation: 4,
+                                        menuMaxHeight: 360,
+                                        icon: const Icon(
+                                          Icons.arrow_drop_down_rounded,
+                                        ),
                                         decoration: InputDecoration(
                                           labelText:
                                               l10n?.dhcpv6ModeLabel ?? 'DHCPv6',
-                                          border: const OutlineInputBorder(),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
                                         ),
                                         items: const [
                                           DropdownMenuItem(

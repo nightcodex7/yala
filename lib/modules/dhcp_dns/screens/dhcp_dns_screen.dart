@@ -10,6 +10,7 @@ import 'package:yet_another_luci_app/widgets/add_static_lease_dialog.dart';
 import 'package:yet_another_luci_app/models/client.dart';
 import 'package:yet_another_luci_app/modules/adguard_home/controllers/adguard_controller.dart';
 import '../models/dhcp_dns_info.dart';
+import '../models/dnsmasq_service_result.dart';
 import '../widgets/adguard_dns_status_card.dart';
 
 import 'package:yet_another_luci_app/widgets/luci_collapsible_card.dart';
@@ -17,11 +18,18 @@ import 'package:yet_another_luci_app/widgets/luci_toast.dart';
 import 'package:yet_another_luci_app/utils/client_naming_helper.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 
-class DhcpDnsScreen extends ConsumerWidget {
+class DhcpDnsScreen extends ConsumerStatefulWidget {
   const DhcpDnsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DhcpDnsScreen> createState() => _DhcpDnsScreenState();
+}
+
+class _DhcpDnsScreenState extends ConsumerState<DhcpDnsScreen> {
+  bool _isReloading = false;
+
+  @override
+  Widget build(BuildContext context) {
     final dashboardDataRaw = ref.watch(
       appStateProvider.select((s) => s.dashboardData),
     );
@@ -81,7 +89,9 @@ class DhcpDnsScreen extends ConsumerWidget {
               Icons.dns_outlined,
             ),
             const SizedBox(height: 8),
-            _buildDnsConfigCard(context, overview.dnsConfig),
+            _buildDnsConfigCard(context, overview.dnsConfig, overview),
+            const SizedBox(height: 16),
+            _buildReloadDnsmasqCard(context, l10n),
             const SizedBox(height: 16),
             LuciCollapsibleCard(
               title: l10n?.activeDhcpLeasesTitle ?? 'Active DHCP Leases',
@@ -153,7 +163,13 @@ class DhcpDnsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDnsConfigCard(BuildContext context, DnsmasqConfig config) {
+  Widget _buildDnsConfigCard(
+    BuildContext context,
+    DnsmasqConfig config, [
+    DhcpDnsOverview? overview,
+  ]) {
+    final upstreamDisplay =
+        overview?.resolvedDnsSummary ?? config.upstreamDnsServers.join(', ');
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -171,8 +187,26 @@ class DhcpDnsScreen extends ConsumerWidget {
             _buildDetailRow(
               context,
               'Upstream DNS Forwarders',
-              config.upstreamDnsServers.join(', '),
+              upstreamDisplay,
             ),
+            if (overview?.realDnsEndpoint != null &&
+                overview!.realDnsEndpoint!.isNotEmpty) ...[
+              const Divider(height: 16),
+              _buildDetailRow(
+                context,
+                'Encrypted DNS Endpoint',
+                overview.realDnsEndpoint!,
+              ),
+            ],
+            if (overview?.realDnsBootstrap != null &&
+                overview!.realDnsBootstrap!.isNotEmpty) ...[
+              const Divider(height: 16),
+              _buildDetailRow(
+                context,
+                'Bootstrap DNS Servers',
+                overview.realDnsBootstrap!,
+              ),
+            ],
             const Divider(height: 16),
             _buildDetailRow(
               context,
@@ -195,6 +229,150 @@ class DhcpDnsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildReloadDnsmasqCard(BuildContext context, AppLocalizations? l10n) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.restart_alt,
+                  color: theme.colorScheme.primary,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n?.dnsmasqReloadTitle ?? 'Reload DHCP & DNS Service',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              l10n?.dnsmasqReloadSubtitle ??
+                  'Reload dnsmasq to apply configuration changes and refresh its internal state',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                onPressed: _isReloading
+                    ? null
+                    : () => _confirmAndReloadDnsmasq(context, l10n),
+                icon: _isReloading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync, size: 18),
+                label: Text(
+                  _isReloading
+                      ? (l10n?.dnsmasqReloading ?? 'Reloading dnsmasq...')
+                      : (l10n?.dnsmasqReloadButton ?? 'Reload dnsmasq'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmAndReloadDnsmasq(
+    BuildContext context,
+    AppLocalizations? l10n,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n?.dnsmasqReloadConfirmTitle ?? 'Reload dnsmasq?'),
+        content: Text(
+          l10n?.dnsmasqReloadConfirmBody ??
+              'This will reload the dnsmasq service. Connected clients should retain their existing leases, but a brief interruption to DNS resolution may occur. This does not force clients to renew DHCP leases.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n?.actionCancel ?? 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n?.dnsmasqReloadButton ?? 'Reload dnsmasq'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isReloading = true);
+    try {
+      final appState = ref.read(appStateProvider);
+      final router = appState.selectedRouter;
+      final api = appState.apiService;
+      if (router == null || api == null) {
+        LuciToastManager.showError(
+          context,
+          l10n?.dnsmasqReloadError ??
+              'Failed to reload dnsmasq: No active router',
+        );
+        return;
+      }
+
+      final result = await api.reloadDnsmasq(
+        router.ipAddress,
+        appState.sysauth ?? '',
+        router.useHttps,
+        context: context,
+      );
+
+      if (!mounted) return;
+
+      if (result.isSuccess) {
+        LuciToastManager.showSuccess(
+          context,
+          l10n?.dnsmasqReloadSuccess ?? 'dnsmasq reloaded successfully',
+        );
+      } else if (result.status == DnsmasqServiceStatus.notRunning) {
+        LuciToastManager.showError(
+          context,
+          l10n?.dnsmasqReloadNotRunning ??
+              'dnsmasq does not appear to be running',
+        );
+      } else {
+        LuciToastManager.showError(
+          context,
+          '${l10n?.dnsmasqReloadError ?? 'Failed to reload dnsmasq'}: ${result.message}',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        LuciToastManager.showError(
+          context,
+          '${l10n?.dnsmasqReloadError ?? 'Failed to reload dnsmasq'}: ${LuciToastManager.parseErrorReason(e, context)}',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isReloading = false);
+      }
+    }
   }
 
   Widget _buildLeasesList(
@@ -459,65 +637,67 @@ class DhcpDnsScreen extends ConsumerWidget {
       return;
     }
 
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.delete_outline,
+                  color: theme.colorScheme.error,
+                  size: 24,
+                ),
               ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.redAccent,
-                size: 24,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  AppLocalizations.of(context)?.dialogRemoveStaticLeaseTitle ??
+                      'Remove Static Lease',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              'Are you sure you want to remove the static IP reservation for "${mapping.hostname}" (${mapping.macAddress})?',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                AppLocalizations.of(context)?.actionCancel ?? 'Cancel',
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.error,
+                foregroundColor: theme.colorScheme.onError,
+              ),
               child: Text(
-                AppLocalizations.of(context)?.dialogRemoveStaticLeaseTitle ??
-                    'Remove Static Lease',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                AppLocalizations.of(context)?.dhcpRemoveReservation ??
+                    'Remove Reservation',
               ),
             ),
           ],
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            'Are you sure you want to remove the static IP reservation for "${mapping.hostname}" (${mapping.macAddress})?',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(AppLocalizations.of(context)?.actionCancel ?? 'Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(
-              AppLocalizations.of(context)?.dhcpRemoveReservation ??
-                  'Remove Reservation',
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (confirmed == true && context.mounted) {
@@ -557,6 +737,9 @@ class DhcpDnsScreen extends ConsumerWidget {
         } else {
           context.showToastError(
             'Failed to remove static lease for ${mapping.hostname}.',
+            subtitle:
+                l10n?.toastErrorCheckPermissionsOrDhcp ??
+                'Check router permissions or UCI DHCP configuration.',
             actionKey: actionKey,
           );
         }
@@ -564,7 +747,7 @@ class DhcpDnsScreen extends ConsumerWidget {
         if (context.mounted) {
           context.showToastError(
             'Failed to remove static lease for ${mapping.hostname}.',
-            subtitle: e.toString().replaceAll('Exception: ', ''),
+            subtitle: LuciToastManager.parseErrorReason(e, context),
             actionKey: actionKey,
           );
         }
@@ -631,7 +814,7 @@ class DhcpDnsScreen extends ConsumerWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: SelectableText(
+          child: Text(
             value,
             textAlign: TextAlign.end,
             style: TextStyle(

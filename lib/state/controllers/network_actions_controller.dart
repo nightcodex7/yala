@@ -854,6 +854,7 @@ heal_dns() {
     required String sectionName,
     required Map<String, String> newValues,
     required Map<String, String> priorValuesSnapshot,
+    List<String>? deleteOptions,
     dynamic targetRadio,
     dynamic targetInterface,
     BuildContext? context,
@@ -876,6 +877,7 @@ heal_dns() {
         _useHttps,
         sectionName: sectionName,
         values: newValues,
+        deleteOptions: deleteOptions,
         context: (context != null && context.mounted) ? context : null,
       );
     }
@@ -891,6 +893,7 @@ heal_dns() {
     required String sectionName,
     required Map<String, String> newValues,
     required Map<String, String> priorValuesSnapshot,
+    List<String>? deleteOptions,
     dynamic targetRadio,
     BuildContext? context,
   }) async {
@@ -912,6 +915,7 @@ heal_dns() {
         _useHttps,
         sectionName: sectionName,
         values: newValues,
+        deleteOptions: deleteOptions,
         context: (context != null && context.mounted) ? context : null,
       );
     }

@@ -453,9 +453,21 @@ class _AdvancedPortForwardDialogState
                       flex: 4,
                       child: DropdownButtonFormField<String>(
                         initialValue: _srcZone,
-                        decoration: const InputDecoration(
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
+                        decoration: InputDecoration(
                           labelText: 'Source Zone',
-                          border: OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                         ),
                         items: availableZones.map((z) {
                           return DropdownMenuItem(
@@ -501,9 +513,21 @@ class _AdvancedPortForwardDialogState
                       flex: 4,
                       child: DropdownButtonFormField<String>(
                         initialValue: _destZone,
-                        decoration: const InputDecoration(
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
+                        decoration: InputDecoration(
                           labelText: 'Dest Zone',
-                          border: OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                         ),
                         items: availableZones.map((z) {
                           return DropdownMenuItem(
@@ -593,9 +617,21 @@ class _AdvancedPortForwardDialogState
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _proto,
-                        decoration: const InputDecoration(
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
+                        decoration: InputDecoration(
                           labelText: 'Protocol',
-                          border: OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                         ),
                         items: const [
                           DropdownMenuItem(value: 'tcp', child: Text('TCP')),
@@ -615,9 +651,21 @@ class _AdvancedPortForwardDialogState
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _family,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(16),
+                        dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                        elevation: 4,
+                        menuMaxHeight: 360,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
                         decoration: InputDecoration(
                           labelText: 'IP Family',
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                           helperText: !supportsIpv6
                               ? 'IPv6 not supported'
                               : null,

@@ -94,6 +94,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
     return Scaffold(
       appBar: LuciAppBar(
         title: l10n?.diagNetworkDiagnostics ?? 'Network Diagnostics',
+        showBack: true,
       ),
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -539,7 +540,13 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
                 DropdownButton<int>(
                   value: _pingCount,
                   underline: const SizedBox(),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
                   items: [
                     DropdownMenuItem(
                       value: 3,
@@ -749,11 +756,17 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
           style: TextStyle(
             fontSize: highlight ? 16 : 14,
             fontWeight: FontWeight.bold,
-            color: highlight ? LuciColors.primary : null,
+            color: highlight ? Theme.of(context).colorScheme.primary : null,
           ),
         ),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }
@@ -785,7 +798,13 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
                 DropdownButton<int>(
                   value: _traceMaxHops,
                   underline: const SizedBox(),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
+                  dropdownColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  menuMaxHeight: 360,
+                  icon: const Icon(Icons.arrow_drop_down_rounded),
                   items: [
                     DropdownMenuItem(
                       value: 15,
@@ -857,7 +876,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
           children: [
             Row(
               children: [
-                const Icon(Icons.route, color: LuciColors.primary),
+                Icon(Icons.route, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1271,12 +1290,16 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
                 spacing: 8,
                 runSpacing: 6,
                 children: dns.ipv4Addresses.map((ip) {
-                  return Chip(
+                  return ActionChip(
                     avatar: const Icon(Icons.public, size: 14),
-                    label: SelectableText(
+                    label: Text(
                       ip,
                       style: GoogleFonts.geistMono(fontWeight: FontWeight.w600),
                     ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: ip));
+                      context.showToastSuccess('$ip copied');
+                    },
                   );
                 }).toList(),
               ),
@@ -1294,12 +1317,16 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
                 spacing: 8,
                 runSpacing: 6,
                 children: dns.ipv6Addresses.map((ip) {
-                  return Chip(
+                  return ActionChip(
                     avatar: const Icon(Icons.language, size: 14),
-                    label: SelectableText(
+                    label: Text(
                       ip,
                       style: GoogleFonts.geistMono(fontWeight: FontWeight.w600),
                     ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: ip));
+                      context.showToastSuccess('$ip copied');
+                    },
                   );
                 }).toList(),
               ),
@@ -1688,7 +1715,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
           children: [
             Row(
               children: [
-                const Icon(Icons.hub, color: LuciColors.primary),
+                Icon(Icons.hub, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
                   l10n?.diagConntrackTitle ?? 'Active NAT Connection Tracking',
@@ -1761,9 +1788,9 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
                 children: [
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.summarize_rounded,
-                        color: LuciColors.primary,
+                        color: theme.colorScheme.primary,
                         size: 28,
                       ),
                       const SizedBox(width: 12),
@@ -2100,6 +2127,14 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
         l10n?.diagRawOutput ?? 'Raw Console Output',
         style: const TextStyle(fontSize: 12),
       ),
+      trailing: IconButton(
+        icon: const Icon(Icons.copy_rounded, size: 16),
+        tooltip: 'Copy Raw Output',
+        onPressed: () {
+          Clipboard.setData(ClipboardData(text: rawText));
+          context.showToastSuccess('Raw console output copied');
+        },
+      ),
       children: [
         Container(
           width: double.infinity,
@@ -2109,7 +2144,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen>
             color: Colors.black87,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: SelectableText(
+          child: Text(
             rawText,
             style: GoogleFonts.geistMono(
               color: Colors.greenAccent,

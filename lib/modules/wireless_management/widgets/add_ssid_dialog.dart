@@ -471,7 +471,7 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
       if (mounted) {
         context.showToastError(
           'Failed to create wireless interface',
-          subtitle: e.toString().replaceAll('Exception: ', ''),
+          subtitle: LuciToastManager.parseErrorReason(e),
         );
       }
     } finally {
@@ -494,7 +494,6 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
     return PopScope(
       canPop: !_isSubmitting,
       child: AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Icon(
@@ -546,10 +545,20 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                     DropdownButtonFormField<WirelessRadio>(
                       initialValue: _selectedRadio,
                       isExpanded: true,
-                      decoration: const InputDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                      elevation: 4,
+                      menuMaxHeight: 360,
+                      icon: const Icon(Icons.arrow_drop_down_rounded),
+                      decoration: InputDecoration(
                         labelText: 'Target Physical Radio',
-                        prefixIcon: Icon(Icons.cell_tower_rounded, size: 20),
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(
+                          Icons.cell_tower_rounded,
+                          size: 20,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       items: widget.radios
                           .map(
@@ -621,11 +630,18 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                         ? _selectedNetwork
                         : _availableNetworks.first,
                     isExpanded: true,
+                    borderRadius: BorderRadius.circular(16),
+                    dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                    elevation: 4,
+                    menuMaxHeight: 360,
+                    icon: const Icon(Icons.arrow_drop_down_rounded),
                     decoration: InputDecoration(
                       labelText:
                           l10n?.wifiDetailNetworkBridge ?? 'Network Attachment',
                       prefixIcon: const Icon(Icons.lan_rounded, size: 20),
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       helperText: _getNetworkDescription(
                         _selectedNetwork,
                         l10n,
@@ -659,12 +675,19 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                   DropdownButtonFormField<String>(
                     initialValue: _selectedEncryption,
                     isExpanded: true,
+                    borderRadius: BorderRadius.circular(16),
+                    dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                    elevation: 4,
+                    menuMaxHeight: 360,
+                    icon: const Icon(Icons.arrow_drop_down_rounded),
                     decoration: InputDecoration(
                       labelText:
                           l10n?.encryptionSecurityModeLabel ??
                           'Security Protocol',
                       prefixIcon: const Icon(Icons.security_rounded, size: 20),
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       helperText: _isLoadingCapabilities
                           ? 'Loading hardware capabilities…'
                           : _dynamicEncryptions.isNotEmpty
@@ -821,6 +844,12 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                           DropdownButtonFormField<String>(
                             initialValue: _selectedPmf,
                             isExpanded: true,
+                            borderRadius: BorderRadius.circular(16),
+                            dropdownColor:
+                                theme.colorScheme.surfaceContainerHigh,
+                            elevation: 4,
+                            menuMaxHeight: 360,
+                            icon: const Icon(Icons.arrow_drop_down_rounded),
                             decoration: InputDecoration(
                               labelText:
                                   l10n?.pmfLabel ??
@@ -829,7 +858,9 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                                 Icons.verified_user_rounded,
                                 size: 20,
                               ),
-                              border: const OutlineInputBorder(),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               helperText:
                                   l10n?.wifiPmfHelperText ??
                                   'Protection against deauthentication attacks',
@@ -874,6 +905,12 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                           DropdownButtonFormField<String>(
                             initialValue: _selectedCipher,
                             isExpanded: true,
+                            borderRadius: BorderRadius.circular(16),
+                            dropdownColor:
+                                theme.colorScheme.surfaceContainerHigh,
+                            elevation: 4,
+                            menuMaxHeight: 360,
+                            icon: const Icon(Icons.arrow_drop_down_rounded),
                             decoration: InputDecoration(
                               labelText:
                                   l10n?.cipherAlgorithmLabel ??
@@ -882,7 +919,9 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                                 Icons.memory_rounded,
                                 size: 20,
                               ),
-                              border: const OutlineInputBorder(),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               helperText: _dynamicCiphers.isNotEmpty
                                   ? (l10n?.wifiCipherHwSupported ??
                                         'Hardware-supported ciphers')
@@ -911,6 +950,11 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                         DropdownButtonFormField<String>(
                           initialValue: _macfilter,
                           isExpanded: true,
+                          borderRadius: BorderRadius.circular(16),
+                          dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                          elevation: 4,
+                          menuMaxHeight: 360,
+                          icon: const Icon(Icons.arrow_drop_down_rounded),
                           decoration: InputDecoration(
                             labelText:
                                 l10n?.macFilterModeLabel ?? 'MAC Filter Mode',
@@ -918,7 +962,9 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                               Icons.filter_alt_rounded,
                               size: 20,
                             ),
-                            border: const OutlineInputBorder(),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                           items: [
                             DropdownMenuItem(
@@ -1252,9 +1298,18 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                             Expanded(
                               child: DropdownButtonFormField<String>(
                                 initialValue: _ipv6Ra,
+                                isExpanded: true,
+                                borderRadius: BorderRadius.circular(16),
+                                dropdownColor:
+                                    theme.colorScheme.surfaceContainerHigh,
+                                elevation: 4,
+                                menuMaxHeight: 360,
+                                icon: const Icon(Icons.arrow_drop_down_rounded),
                                 decoration: InputDecoration(
                                   labelText: l10n?.ipv6RaLabel ?? 'IPv6 RA',
-                                  border: const OutlineInputBorder(),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                                 items: const [
                                   DropdownMenuItem(
@@ -1284,9 +1339,18 @@ class _AddSsidDialogState extends ConsumerState<AddSsidDialog> {
                             Expanded(
                               child: DropdownButtonFormField<String>(
                                 initialValue: _dhcpv6Mode,
+                                isExpanded: true,
+                                borderRadius: BorderRadius.circular(16),
+                                dropdownColor:
+                                    theme.colorScheme.surfaceContainerHigh,
+                                elevation: 4,
+                                menuMaxHeight: 360,
+                                icon: const Icon(Icons.arrow_drop_down_rounded),
                                 decoration: InputDecoration(
                                   labelText: l10n?.dhcpv6ModeLabel ?? 'DHCPv6',
-                                  border: const OutlineInputBorder(),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                                 items: const [
                                   DropdownMenuItem(

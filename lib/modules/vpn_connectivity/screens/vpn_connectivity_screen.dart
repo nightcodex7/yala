@@ -4,10 +4,12 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/main.dart';
 import 'package:yet_another_luci_app/widgets/luci_toast.dart';
 import 'package:yet_another_luci_app/widgets/luci_collapsible_card.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import '../models/vpn_info.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 
@@ -356,8 +358,8 @@ class VpnConnectivityScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            _buildDetailRow('Public Key', wg.publicKey),
-            _buildDetailRow('Listen Port', '${wg.listenPort}'),
+            _buildDetailRow(context, 'Public Key', wg.publicKey),
+            _buildDetailRow(context, 'Listen Port', '${wg.listenPort}'),
             const Divider(height: 20),
             Text(
               'Connected WireGuard Peers (${wg.peers.length})',
@@ -417,11 +419,13 @@ class VpnConnectivityScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 4),
-          _buildDetailRow('Endpoint', peer.endpoint ?? 'N/A'),
-          _buildDetailRow('Allowed IPs', peer.allowedIps.join(', ')),
+          _buildDetailRow(context, 'Endpoint', peer.endpoint ?? 'N/A'),
+          _buildDetailRow(context, 'Allowed IPs', peer.allowedIps.join(', ')),
           _buildDetailRow(
+            context,
             'Traffic Transferred',
             'RX: ${_formatBytes(peer.rxBytes)} / TX: ${_formatBytes(peer.txBytes)}',
+            copyable: false,
           ),
         ],
       ),
@@ -598,21 +602,28 @@ class VpnConnectivityScreen extends ConsumerWidget {
             ),
             const Divider(height: 20),
             _buildDetailRow(
+              context,
               'Tailscale IP',
               ts.tailscaleIp.isNotEmpty ? ts.tailscaleIp : 'N/A',
             ),
             if (ts.tailnet.isNotEmpty)
-              _buildDetailRow('Tailnet Account', ts.tailnet),
+              _buildDetailRow(context, 'Tailnet Account', ts.tailnet),
             if (ts.magicDns.isNotEmpty)
-              _buildDetailRow('MagicDNS Domain', ts.magicDns),
+              _buildDetailRow(context, 'MagicDNS Domain', ts.magicDns),
             if (ts.peersCount > 0)
-              _buildDetailRow('Mesh Peers', '${ts.peersCount} Connected Peers'),
+              _buildDetailRow(
+                context,
+                'Mesh Peers',
+                '${ts.peersCount} Connected Peers',
+                copyable: false,
+              ),
             if (ts.isExitNode)
               _buildDetailRow(
+                context,
                 'Exit Node Capability',
                 'ENABLED (Offers Exit Node)',
+                copyable: false,
               ),
-            _buildDetailRow('Backend Daemon State', ts.backendState),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -709,20 +720,25 @@ class VpnConnectivityScreen extends ConsumerWidget {
             ),
             const Divider(height: 16),
             _buildDetailRow(
+              context,
               'Encrypted DNS Profile ID',
               ndns.profileId.isNotEmpty ? ndns.profileId : 'N/A',
             ),
             _buildDetailRow(
+              context,
               'NextDNS Daemon Status',
               ndns.isEnabled
                   ? (ndns.isRunning
                         ? 'ACTIVE & ENCRYPTED'
                         : 'STOPPED / DEACTIVATED')
                   : 'DISABLED',
+              copyable: false,
             ),
             _buildDetailRow(
+              context,
               'Report Client Info',
               ndns.reportClientInfo ? 'ENABLED' : 'DISABLED',
+              copyable: false,
             ),
             const SizedBox(height: 8),
             Row(
@@ -774,12 +790,12 @@ class VpnConnectivityScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 16,
-                      backgroundColor: Colors.orange,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
                       child: Icon(
                         Icons.cloud_done,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onPrimary,
                         size: 18,
                       ),
                     ),
@@ -804,16 +820,18 @@ class VpnConnectivityScreen extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         color: cf.isRunning
-                            ? Colors.orange.withValues(alpha: 0.15)
-                            : Colors.grey.withValues(alpha: 0.2),
+                            ? LuciStatusColors.successBg(context)
+                            : Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         cf.isRunning ? 'ACTIVE' : 'DISABLED',
                         style: TextStyle(
                           color: cf.isRunning
-                              ? Colors.orange.shade800
-                              : Colors.grey,
+                              ? LuciStatusColors.connectedColor(context)
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
                         ),
@@ -840,14 +858,18 @@ class VpnConnectivityScreen extends ConsumerWidget {
               ],
             ),
             const Divider(height: 20),
-            _buildDetailRow('Tunnel ID', cf.tunnelId),
+            _buildDetailRow(context, 'Tunnel ID', cf.tunnelId),
             _buildDetailRow(
+              context,
               'Edge Connections',
               '${cf.connectionsCount} Active Edge Hops',
+              copyable: false,
             ),
             _buildDetailRow(
+              context,
               'Tunnel Status',
               cf.isRunning ? 'CONNECTED TO CLOUDFLARE EDGE' : 'INACTIVE',
+              copyable: false,
             ),
             const SizedBox(height: 8),
             Row(
@@ -937,7 +959,7 @@ class VpnConnectivityScreen extends ConsumerWidget {
             context.showToastError(
               'Configuration Update Failed',
               subtitle:
-                  'The router was unable to apply the VPN configuration change.',
+                  'The router was unable to apply the VPN configuration change. Check permissions or network service state.',
               actionKey: actionKey,
             );
           }
@@ -960,7 +982,7 @@ class VpnConnectivityScreen extends ConsumerWidget {
         if (context.mounted) {
           context.showToastError(
             'Configuration Update Failed',
-            subtitle: e.toString().replaceAll('Exception: ', ''),
+            subtitle: LuciToastManager.parseErrorReason(e),
             actionKey: actionKey,
           );
         }
@@ -1048,28 +1070,53 @@ class VpnConnectivityScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 130,
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+  Widget _buildDetailRow(
+    BuildContext context,
+    String label,
+    String value, {
+    bool copyable = true,
+  }) {
+    final canCopy = copyable && value.isNotEmpty && value != 'N/A';
+    return InkWell(
+      onTap: canCopy
+          ? () {
+              Clipboard.setData(ClipboardData(text: value));
+              context.showToastSuccess(
+                '$label copied',
+                subtitle: 'Copied to clipboard.',
+              );
+            }
+          : null,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 2.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 130,
+              child: Text(
+                label,
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SelectableText(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
             ),
-          ),
-        ],
+            if (canCopy) ...[
+              const SizedBox(width: 4),
+              const Icon(Icons.copy_rounded, size: 12, color: Colors.grey),
+            ],
+          ],
+        ),
       ),
     );
   }

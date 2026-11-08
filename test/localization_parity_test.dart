@@ -15,7 +15,19 @@ void main() {
     final variableRegex = RegExp(r'\{(\w+)\}');
     final icuPluralRegex = RegExp(r'\{(\w+),\s*plural,');
 
-    const locales = ['de', 'es', 'fr', 'id', 'pt', 'pt_BR', 'ru', 'zh'];
+    const locales = [
+      'de',
+      'es',
+      'fr',
+      'id',
+      'it',
+      'ja',
+      'pt',
+      'pt_BR',
+      'ru',
+      'uk',
+      'zh',
+    ];
 
     setUpAll(() {
       final enFile = File('lib/l10n/app_en.arb');

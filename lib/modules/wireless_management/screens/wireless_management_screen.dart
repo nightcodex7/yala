@@ -25,12 +25,12 @@ import 'package:yet_another_luci_app/utils/logger.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 
 class WirelessManagementScreen extends ConsumerStatefulWidget {
-  final bool showBack;
+  final bool? showBack;
   final bool isTabActive;
 
   const WirelessManagementScreen({
     super.key,
-    this.showBack = false,
+    this.showBack,
     this.isTabActive = true,
   });
 
@@ -112,6 +112,12 @@ class _WirelessManagementScreenState
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _lastRenderedWidget = null;
+  }
+
+  @override
   void didUpdateWidget(WirelessManagementScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isTabActive != oldWidget.isTabActive) {
@@ -182,10 +188,12 @@ class _WirelessManagementScreenState
     );
 
     final l10n = AppLocalizations.of(context);
+    final effectiveShowBack =
+        widget.showBack ?? (ModalRoute.of(context)?.canPop ?? false);
     final scaffold = Scaffold(
       appBar: LuciAppBar(
         title: l10n?.wirelessTitle ?? 'Wireless',
-        showBack: widget.showBack,
+        showBack: effectiveShowBack,
       ),
       body: Column(
         children: [
@@ -244,9 +252,10 @@ class _WirelessManagementScreenState
     );
 
     final Widget result;
-    if (widget.showBack || appState.isAccessControlPendingConfirmation) {
+    if (effectiveShowBack || appState.isAccessControlPendingConfirmation) {
       result = PopScope(
-        canPop: widget.showBack && !appState.isAccessControlPendingConfirmation,
+        canPop:
+            effectiveShowBack && !appState.isAccessControlPendingConfirmation,
         onPopInvokedWithResult: (didPop, popResult) async {
           if (didPop) return;
           final canExit = await LuciGuardrail.confirmStagedChangesOrExit(
@@ -254,7 +263,7 @@ class _WirelessManagementScreenState
             appState,
           );
           if (canExit && context.mounted) {
-            if (widget.showBack && Navigator.canPop(context)) {
+            if (effectiveShowBack && Navigator.canPop(context)) {
               Navigator.pop(context);
             }
           }
@@ -463,22 +472,26 @@ class _WirelessManagementScreenState
     final isRadioEnabled = !radio.isDisabled;
     final isRadioActive = isRadioEnabled && radio.isUp;
 
-    final minimalSummary = isRadioActive
-        ? (l10n != null
-              ? l10n.wirelessRadioSummary(
-                  radio.bandLabel,
-                  radio.channel,
-                  radio.interfaces.length,
-                  regularIfaces.length,
-                  guestIfaces.length,
-                )
-              : '${radio.bandLabel} • Ch ${radio.channel} • ${radio.interfaces.length} SSID${radio.interfaces.length == 1 ? '' : 's'} (${regularIfaces.length} main, ${guestIfaces.length} guest)')
-        : (l10n != null
-              ? l10n.wirelessRadioSummaryDisabled(
-                  radio.bandLabel,
-                  radio.channel,
-                )
-              : 'DISABLED • ${radio.bandLabel} • Ch ${radio.channel}');
+    final String minimalSummary;
+    if (isRadioActive) {
+      minimalSummary = l10n != null
+          ? l10n.wirelessRadioSummary(
+              radio.bandLabel,
+              radio.channel,
+              radio.interfaces.length,
+              regularIfaces.length,
+              guestIfaces.length,
+            )
+          : '${radio.bandLabel} • Ch ${radio.channel} • ${radio.interfaces.length} SSID${radio.interfaces.length == 1 ? '' : 's'} (${regularIfaces.length} main, ${guestIfaces.length} guest)';
+    } else if (radio.isDisabled) {
+      minimalSummary = l10n != null
+          ? l10n.wirelessRadioSummaryDisabled(radio.bandLabel, radio.channel)
+          : 'DISABLED • ${radio.bandLabel} • Ch ${radio.channel}';
+    } else {
+      final statusPrefix = radio.retrySetupFailed ? 'SETUP FAILED' : 'DOWN';
+      minimalSummary =
+          '$statusPrefix • ${radio.bandLabel} • Ch ${radio.channel}';
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -495,8 +508,21 @@ class _WirelessManagementScreenState
             bottom: 14,
           ),
           leading: CircleAvatar(
-            backgroundColor: bandColor.withValues(alpha: 0.15),
-            child: Icon(Icons.wifi, color: bandColor),
+            backgroundColor: radio.isDisabled
+                ? theme.colorScheme.onSurface.withValues(alpha: 0.08)
+                : (!isRadioActive
+                      ? LuciStatusColors.warningBg(context)
+                      : bandColor.withValues(alpha: 0.15)),
+            child: Icon(
+              radio.isDisabled
+                  ? Icons.wifi_off_rounded
+                  : (!isRadioActive ? Icons.warning_amber_rounded : Icons.wifi),
+              color: radio.isDisabled
+                  ? theme.colorScheme.outline
+                  : (!isRadioActive
+                        ? LuciStatusColors.warningColor(context)
+                        : bandColor),
+            ),
           ),
           title: Row(
             mainAxisSize: MainAxisSize.min,
@@ -515,24 +541,61 @@ class _WirelessManagementScreenState
                 ),
               ),
               const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isRadioActive
-                      ? LuciStatusColors.connected.withValues(alpha: 0.15)
-                      : Colors.red.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  isRadioActive
-                      ? (l10n?.statusActive ?? 'ACTIVE')
-                      : (l10n?.statusDisabled ?? 'DISABLED'),
-                  style: TextStyle(
+              Tooltip(
+                message: radio.isDisabled
+                    ? (l10n?.statusDisabled ?? 'Radio disabled in settings')
+                    : (!isRadioActive
+                          ? (radio.retrySetupFailed
+                                ? 'Radio setup failed on router'
+                                : 'Radio interface is down')
+                          : (l10n?.statusActive ?? 'Active')),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
                     color: isRadioActive
-                        ? LuciStatusColors.connected
-                        : Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10,
+                        ? LuciStatusColors.connectedColor(
+                            context,
+                          ).withValues(alpha: 0.15)
+                        : (radio.isDisabled
+                              ? theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.08,
+                                )
+                              : LuciStatusColors.warningBg(context)),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!isRadioActive && !radio.isDisabled) ...[
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 11,
+                          color: LuciStatusColors.warningColor(context),
+                        ),
+                        const SizedBox(width: 3),
+                      ],
+                      Text(
+                        isRadioActive
+                            ? (l10n?.statusActive ?? 'ACTIVE')
+                            : (radio.isDisabled
+                                  ? (l10n?.statusDisabled ?? 'DISABLED')
+                                  : (radio.retrySetupFailed
+                                        ? 'SETUP FAILED'
+                                        : 'DOWN')),
+                        style: TextStyle(
+                          color: isRadioActive
+                              ? LuciStatusColors.connectedColor(context)
+                              : (radio.isDisabled
+                                    ? theme.colorScheme.outline
+                                    : LuciStatusColors.warningColor(context)),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -910,6 +973,9 @@ class _WirelessManagementScreenState
         context.showToastError(
           l10n?.toastSsidFailed(iface.ssid) ??
               'Failed to update SSID "${iface.ssid}".',
+          subtitle:
+              l10n?.toastErrorCheckPermissionsOrWireless ??
+              'Check router permissions or wireless configuration.',
           actionKey: actionKey,
         );
       }
@@ -919,7 +985,7 @@ class _WirelessManagementScreenState
         context.showToastError(
           l10n?.toastSsidFailed(iface.ssid) ??
               'Failed to update SSID "${iface.ssid}".',
-          subtitle: e.toString().replaceAll('Exception: ', ''),
+          subtitle: LuciToastManager.parseErrorReason(e),
           actionKey: actionKey,
         );
       }
@@ -1137,8 +1203,8 @@ class _WirelessManagementScreenState
                                   ? Icons.play_circle_outline
                                   : Icons.pause_circle_outline,
                               color: isPaused
-                                  ? LuciStatusColors.connected
-                                  : Colors.orange,
+                                  ? LuciStatusColors.connectedColor(context)
+                                  : LuciStatusColors.warningColor(context),
                               size: 18,
                             ),
                             const SizedBox(width: 8),
@@ -1206,6 +1272,9 @@ class _WirelessManagementScreenState
                     'Failed to pause internet for $name.')
               : (currentL10n?.toastFailedResumeInternet(name) ??
                     'Failed to resume internet for $name.'),
+          subtitle:
+              currentL10n?.toastErrorCheckPermissionsOrFirewall ??
+              'Check router permissions or firewall configuration.',
           actionKey: actionKey,
         );
       }
@@ -1219,7 +1288,7 @@ class _WirelessManagementScreenState
                     'Failed to pause internet for $name.')
               : (currentL10n?.toastFailedResumeInternet(name) ??
                     'Failed to resume internet for $name.'),
-          subtitle: e.toString().replaceAll('Exception: ', ''),
+          subtitle: LuciToastManager.parseErrorReason(e),
           actionKey: actionKey,
         );
       }

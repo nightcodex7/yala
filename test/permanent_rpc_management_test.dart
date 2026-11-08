@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import 'package:yet_another_luci_app/models/dashboard_preferences.dart';
 import 'package:yet_another_luci_app/models/router.dart' as model;
 import 'package:yet_another_luci_app/models/router_capabilities.dart';
@@ -13,6 +15,7 @@ import 'package:yet_another_luci_app/modules/system_monitoring/models/router_tem
 import 'package:yet_another_luci_app/screens/dashboard_screen.dart';
 import 'package:yet_another_luci_app/screens/more_screen.dart';
 import 'package:yet_another_luci_app/screens/settings_screen.dart';
+import 'package:yet_another_luci_app/services/api_service.dart';
 import 'package:yet_another_luci_app/state/app_state.dart';
 import 'package:yet_another_luci_app/widgets/luci_toast.dart';
 import 'package:yet_another_luci_app/widgets/rpc_permissions_dialog.dart';
@@ -303,6 +306,83 @@ void main() {
         expect(find.text('Missing RPC Packages'), findsNothing);
         expect(find.text('RPC Permissions Required'), findsNothing);
         expect(find.text('Fix Permissions'), findsNothing);
+      },
+    );
+  });
+
+  group('RPC Fix Script & Toast Localization Resilience', () {
+    test('getPermissionsFixScript creates ACL file and reloads rpcd', () {
+      final script = ApiService.getPermissionsFixScript();
+      final aclIndex = script.indexOf(
+        'cat << \'EOF\' > /usr/share/rpcd/acl.d/yet-another-luci-app.json',
+      );
+      final reloadIndex = script.indexOf(
+        '/etc/init.d/rpcd restart 2>/dev/null || /etc/init.d/rpcd reload',
+      );
+
+      expect(aclIndex, isNonNegative);
+      expect(reloadIndex, isNonNegative);
+
+      // ACL creation must come before rpcd restart/reload
+      expect(aclIndex < reloadIndex, isTrue);
+
+      // Script handles both apk and opkg package managers
+      expect(script.contains('command -v apk'), isTrue);
+      expect(script.contains('apk add'), isTrue);
+      expect(script.contains('opkg install'), isTrue);
+    });
+
+    testWidgets(
+      'LuciToastManager shows localized Operation Timed Out toast message on timeout',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: LuciToastManager.navigatorKey,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('de'),
+            home: Builder(
+              builder: (ctx) {
+                return ElevatedButton(
+                  onPressed: () {
+                    LuciToastManager.safeShowLoading(
+                      ctx,
+                      'Test Loading',
+                      actionKey: 'test_action',
+                      timeout: const Duration(milliseconds: 100),
+                    );
+                  },
+                  child: const Text('Start Loading'),
+                );
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Trigger loading toast
+        await tester.tap(find.text('Start Loading'));
+        await tester.pump();
+
+        expect(find.text('Test Loading'), findsOneWidget);
+
+        // Advance timer past the 100ms timeout
+        await tester.pump(const Duration(milliseconds: 150));
+        await tester.pump();
+
+        // Verify localized German title and subtitle
+        expect(find.text('Vorgang abgelaufen'), findsOneWidget);
+        expect(
+          find.text(
+            'Die Anforderung hat zu lange gedauert. Bitte überprüfen Sie die Netzwerkverbindung.',
+          ),
+          findsOneWidget,
+        );
       },
     );
   });

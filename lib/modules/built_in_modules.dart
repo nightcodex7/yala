@@ -20,6 +20,9 @@ import 'diagnostics/diagnostics_module.dart';
 import 'sqm/sqm_module.dart';
 import 'bandwidth_monitor/bandwidth_monitor_module.dart';
 import 'adguard_home/adguard_home_module.dart';
+import 'advanced_reboot/advanced_reboot_module.dart';
+import 'log_viewer/log_viewer_module.dart';
+import 'ssh_console/ssh_console_module.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/clients_screen.dart';
 import '../screens/interfaces_screen.dart';
@@ -178,6 +181,9 @@ void registerBuiltInModules() {
     SqmModule(),
     BandwidthMonitorModule(),
     AdGuardHomeModule(),
+    AdvancedRebootModule(),
+    LogViewerModule(),
+    SshConsoleModule(),
     ClientsModule(),
     InterfacesModule(),
     MoreModule(),

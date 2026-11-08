@@ -6,6 +6,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import '../models/parental_profile.dart';
+import '../controllers/parental_controls_controller.dart';
+import 'parental_profile_avatar.dart';
 
 /// Profile summary card shown in the main parental controls list.
 class ParentalProfileCard extends StatelessWidget {
@@ -17,6 +19,7 @@ class ParentalProfileCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback? onToggleEnabled;
+  final VoidCallback? onTap;
 
   const ParentalProfileCard({
     super.key,
@@ -28,6 +31,7 @@ class ParentalProfileCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     this.onToggleEnabled,
+    this.onTap,
   });
 
   Color _parseColor(String hex) {
@@ -45,9 +49,12 @@ class ParentalProfileCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final accentColor = _parseColor(profile.color);
     final isPaused = profile.isPaused;
+    final isPending = ParentalControlsController.instance
+        .isProfileOperationPending(profile.id);
 
     return Card(
       elevation: 0,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
@@ -60,142 +67,151 @@ class ParentalProfileCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ────────────────────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.06),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-            ),
-            child: Row(
+          if (isPending) const LinearProgressIndicator(minHeight: 2.5),
+          InkWell(
+            onTap: isPending ? null : onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon badge
+                // ── Header ────────────────────────────────────────────────────
                 Container(
-                  width: 44,
-                  height: 44,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
                   decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      profile.icon,
-                      style: const TextStyle(fontSize: 22),
+                    color: accentColor.withValues(alpha: 0.06),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        profile.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      // Modern Avatar
+                      ParentalProfileAvatar(
+                        icon: profile.icon,
+                        colorHex: profile.color,
+                        size: 46,
+                        isPaused: isPaused,
+                        isBedtime:
+                            profile.hasSchedule &&
+                            profile.schedule!.isTimeInBlockWindow(),
+                        isEnabled: profile.isEnabled,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              profile.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              profile.macAddresses.isEmpty
+                                  ? 'Ready • 0 devices assigned'
+                                  : (l10n?.parentalProfileDevicesCount(
+                                          profile.macAddresses.length,
+                                        ) ??
+                                        '${profile.macAddresses.length} device${profile.macAddresses.length != 1 ? 's' : ''}'),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        profile.macAddresses.isEmpty
-                            ? 'Ready • 0 devices assigned'
-                            : (l10n?.parentalProfileDevicesCount(
-                                    profile.macAddresses.length,
-                                  ) ??
-                                  '${profile.macAddresses.length} device${profile.macAddresses.length != 1 ? 's' : ''}'),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      // Status chip
+                      if (!profile.isEnabled)
+                        const _BypassedStatusChip()
+                      else if (profile.macAddresses.isEmpty)
+                        const _ReadyStatusChip()
+                      else if (isPaused)
+                        _PauseStatusChip(profile: profile)
+                      else if (profile.hasSchedule &&
+                          profile.schedule!.isTimeInBlockWindow())
+                        _ScheduleActiveChip(schedule: profile.schedule!),
+                      const SizedBox(width: 4),
+                      // Menu
+                      PopupMenuButton<String>(
+                        enabled: !isPending,
+                        icon: const Icon(Icons.more_vert_rounded, size: 20),
+                        onSelected: (v) {
+                          if (v == 'edit') onEdit();
+                          if (v == 'toggle_enabled') onToggleEnabled?.call();
+                          if (v == 'delete') onDelete();
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text(
+                              l10n?.parentalProfileBtnEdit ?? 'Edit Profile',
+                            ),
+                          ),
+                          if (onToggleEnabled != null)
+                            PopupMenuItem(
+                              value: 'toggle_enabled',
+                              child: Text(
+                                profile.isEnabled
+                                    ? 'Bypass Restrictions'
+                                    : 'Enable Guardrails',
+                              ),
+                            ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text(
+                              l10n?.parentalProfileBtnDelete ?? 'Delete',
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                // Status chip
-                if (!profile.isEnabled)
-                  const _BypassedStatusChip()
-                else if (profile.macAddresses.isEmpty)
-                  const _ReadyStatusChip()
-                else if (isPaused)
-                  _PauseStatusChip(profile: profile),
-                const SizedBox(width: 4),
-                // Menu
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded, size: 20),
-                  onSelected: (v) {
-                    if (v == 'edit') onEdit();
-                    if (v == 'toggle_enabled') onToggleEnabled?.call();
-                    if (v == 'delete') onDelete();
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Text(
-                        l10n?.parentalProfileBtnEdit ?? 'Edit Profile',
-                      ),
+
+                // ── Feature chips ─────────────────────────────────────────────
+                if (profile.hasSchedule ||
+                    profile.hasTimeLimit ||
+                    profile.hasContentFilter)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (profile.hasSchedule)
+                          _FeatureChip(
+                            icon: Icons.schedule_rounded,
+                            label: profile.schedule!.blockTimeFormatted,
+                            color: hasFileExec ? Colors.blue : Colors.grey,
+                            tooltip: hasFileExec
+                                ? 'Schedule: block at ${profile.schedule!.blockTimeFormatted}'
+                                : 'Schedule requires file.exec access',
+                          ),
+                        if (profile.hasTimeLimit)
+                          _FeatureChip(
+                            icon: Icons.timer_outlined,
+                            label: '${profile.dailyTimeLimitMinutes}m/day',
+                            color: Colors.purple,
+                            tooltip:
+                                'Daily time limit: ${profile.dailyTimeLimitMinutes} minutes',
+                          ),
+                        if (profile.hasContentFilter)
+                          _FeatureChip(
+                            icon: Icons.dns_outlined,
+                            label: profile.contentFilter.label.split(' ').first,
+                            color: hasFirewall ? Colors.teal : Colors.grey,
+                            tooltip: profile.contentFilter.description,
+                          ),
+                      ],
                     ),
-                    if (onToggleEnabled != null)
-                      PopupMenuItem(
-                        value: 'toggle_enabled',
-                        child: Text(
-                          profile.isEnabled
-                              ? 'Bypass Restrictions'
-                              : 'Enable Guardrails',
-                        ),
-                      ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                        l10n?.parentalProfileBtnDelete ?? 'Delete',
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),
-
-          // ── Feature chips ─────────────────────────────────────────────
-          if (profile.hasSchedule ||
-              profile.hasTimeLimit ||
-              profile.hasContentFilter)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: [
-                  if (profile.hasSchedule)
-                    _FeatureChip(
-                      icon: Icons.schedule_rounded,
-                      label: profile.schedule!.blockTimeFormatted,
-                      color: hasFileExec ? Colors.blue : Colors.grey,
-                      tooltip: hasFileExec
-                          ? 'Schedule: block at ${profile.schedule!.blockTimeFormatted}'
-                          : 'Schedule requires file.exec access',
-                    ),
-                  if (profile.hasTimeLimit)
-                    _FeatureChip(
-                      icon: Icons.timer_outlined,
-                      label: '${profile.dailyTimeLimitMinutes}m/day',
-                      color: Colors.purple,
-                      tooltip:
-                          'Daily time limit: ${profile.dailyTimeLimitMinutes} minutes',
-                    ),
-                  if (profile.hasContentFilter)
-                    _FeatureChip(
-                      icon: Icons.dns_outlined,
-                      label: profile.contentFilter.label.split(' ').first,
-                      color: hasFirewall ? Colors.teal : Colors.grey,
-                      tooltip: profile.contentFilter.description,
-                    ),
-                ],
-              ),
-            ),
 
           // ── Actions ───────────────────────────────────────────────────
           Padding(
@@ -205,11 +221,13 @@ class ParentalProfileCard extends StatelessWidget {
                 if (isPaused)
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: onResume,
+                      onPressed: isPending ? null : onResume,
                       icon: const Icon(Icons.play_arrow_rounded, size: 18),
                       label: Text(
-                        l10n?.parentalProfileResumeInternet ??
-                            'Resume Internet',
+                        isPending
+                            ? 'Resuming…'
+                            : (l10n?.parentalProfileResumeInternet ??
+                                  'Resume Internet'),
                       ),
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.green,
@@ -221,8 +239,13 @@ class ParentalProfileCard extends StatelessWidget {
                   Expanded(
                     child: _PauseButton(
                       enabled:
-                          hasFirewall && profile.hasMacs && profile.isEnabled,
-                      tooltip: !hasFirewall
+                          hasFirewall &&
+                          profile.hasMacs &&
+                          profile.isEnabled &&
+                          !isPending,
+                      tooltip: isPending
+                          ? 'Operation currently in progress'
+                          : !hasFirewall
                           ? 'Requires firewall write access'
                           : !profile.hasMacs
                           ? 'Add devices to this profile first'
@@ -371,6 +394,39 @@ class _PauseStatusChipState extends State<_PauseStatusChip> {
               fontSize: 11,
               fontWeight: FontWeight.bold,
               color: Colors.orange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScheduleActiveChip extends StatelessWidget {
+  final TimeSchedule schedule;
+  const _ScheduleActiveChip({required this.schedule});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.indigo.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.indigo.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.bedtime_rounded, size: 14, color: Colors.indigo),
+          const SizedBox(width: 4),
+          Text(
+            l10n?.parentalProfileBedtimeLabel ?? 'Bedtime',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.indigo,
             ),
           ),
         ],

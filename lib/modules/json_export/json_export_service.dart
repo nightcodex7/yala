@@ -11,6 +11,7 @@ import 'package:yet_another_luci_app/modules/dhcp_dns/models/dhcp_dns_info.dart'
 import 'package:yet_another_luci_app/modules/firewall_security/models/firewall_info.dart';
 import 'package:yet_another_luci_app/modules/parental_controls/controllers/parental_controls_controller.dart';
 import 'package:yet_another_luci_app/modules/services_system/models/ddns_info.dart';
+import 'package:yet_another_luci_app/modules/ssh_console/services/saved_commands_service.dart';
 import 'package:yet_another_luci_app/state/app_state.dart';
 
 /// Status of a single export category.
@@ -323,9 +324,27 @@ class ConfigExportService {
     }
   }
 
+  /// Exports saved SSH console commands for the current router.
+  static Future<ExportCategoryResult> exportSshSavedCommands(
+    AppState appState,
+  ) async {
+    try {
+      final routerId = appState.selectedRouter?.id;
+      if (routerId == null) return ExportCategoryResult.empty();
+
+      final commands = await SavedCommandsService().getAll(routerId);
+      if (commands.isEmpty) return ExportCategoryResult.empty();
+
+      final list = commands.map((c) => c.toJson()).toList();
+      return ExportCategoryResult.success(list, list.length);
+    } catch (e) {
+      return ExportCategoryResult.failed('SSH saved commands export error: $e');
+    }
+  }
+
   // ── All-in-one export ──────────────────────────────────────────────────────
 
-  /// Collects data for all 10 categories and returns a structured export document.
+  /// Collects data for all categories and returns a structured export document.
   static Future<Map<String, dynamic>> buildAllCategoriesExport(
     AppState appState,
   ) async {
@@ -342,6 +361,7 @@ class ConfigExportService {
     final cronResult = exportCronJobs(appState);
     final initResult = exportInitScripts(appState);
     final dashboardResult = exportDashboardSettings(appState);
+    final sshSavedCommandsResult = await exportSshSavedCommands(appState);
 
     Map<String, dynamic> categoryEntry(ExportCategoryResult r, String label) {
       return {
@@ -379,6 +399,10 @@ class ConfigExportService {
         'dashboardSettings': categoryEntry(
           dashboardResult,
           'Dashboard Settings',
+        ),
+        'sshSavedCommands': categoryEntry(
+          sshSavedCommandsResult,
+          'SSH Saved Commands',
         ),
       },
     };

@@ -4,6 +4,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/main.dart';
 import 'package:yet_another_luci_app/design/luci_design_system.dart';
@@ -163,19 +164,19 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
       context: context,
       builder: (context) {
         final l10n = AppLocalizations.of(context);
+        final theme = Theme.of(context);
         return AlertDialog(
           actionsOverflowButtonSpacing: 8,
           actionsOverflowDirection: VerticalDirection.down,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
           title: Row(
             children: [
               Icon(
                 isError
                     ? Icons.error_outline_rounded
                     : Icons.info_outline_rounded,
-                color: isError ? Colors.red : Colors.blue,
+                color: isError
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.primary,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -199,10 +200,10 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.amber.shade900.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
+                      color: LuciStatusColors.warningBg(context),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Colors.amber.shade700.withValues(alpha: 0.3),
+                        color: LuciStatusColors.warningBorder(context),
                       ),
                     ),
                     child: Row(
@@ -210,7 +211,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                       children: [
                         Icon(
                           Icons.warning_amber_rounded,
-                          color: Colors.amber.shade800,
+                          color: LuciStatusColors.warningColor(context),
                           size: 20,
                         ),
                         const SizedBox(width: 10),
@@ -219,7 +220,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                             'The router\'s root filesystem is mounted read-only because there is no space left in the flash overlay partition (/overlay).\n\nTo resolve this:\n• Free up flash space or remove unused packages\n• Run "firstboot" via SSH to reset the overlay\n• Use Extroot (USB drive) for expanded storage',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.amber.shade900,
+                              color: LuciStatusColors.warningText(context),
                               height: 1.4,
                             ),
                           ),
@@ -233,8 +234,8 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                     'Exit code: $exitCode',
                     style: TextStyle(
                       color: isError
-                          ? Colors.red.shade700
-                          : Colors.grey.shade700,
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -248,7 +249,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                     color: Colors.black.withValues(alpha: 0.88),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: SelectableText(
+                  child: Text(
                     output.isNotEmpty ? output : 'No output returned.',
                     style: const TextStyle(
                       fontFamily: 'monospace',
@@ -261,6 +262,15 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
             ),
           ),
           actions: [
+            if (output.isNotEmpty)
+              TextButton.icon(
+                icon: const Icon(Icons.copy_rounded, size: 14),
+                label: const Text('Copy Log'),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: output));
+                  context.showToastSuccess('Log copied to clipboard');
+                },
+              ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(l10n?.actionConfirm ?? 'OK'),
@@ -340,55 +350,60 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
     final controller = TextEditingController();
     final target = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(l10n?.pkgInstallCustomTitle ?? 'Install Custom Package'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n?.pkgInstallCustomDesc(ext) ??
-                    'Enter package name, or URL to an $ext package:',
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText:
-                      l10n?.pkgInstallCustomHint ??
-                      'e.g. luci-app-wireguard or https://...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          title: Text(l10n?.pkgInstallCustomTitle ?? 'Install Custom Package'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n?.pkgInstallCustomDesc(ext) ??
+                      'Enter package name, or URL to an $ext package:',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText:
+                        l10n?.pkgInstallCustomHint ??
+                        'e.g. luci-app-wireguard or https://...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final val = controller.text.trim();
-              if (val.isNotEmpty) Navigator.pop(context, val);
-            },
-            child: Text(l10n?.pkgActionInstall ?? 'Install'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final val = controller.text.trim();
+                if (val.isNotEmpty) Navigator.pop(context, val);
+              },
+              child: Text(l10n?.pkgActionInstall ?? 'Install'),
+            ),
+          ],
+        );
+      },
     );
 
     if (target == null || target.isEmpty) return;
@@ -447,15 +462,12 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
           return AlertDialog(
             actionsOverflowButtonSpacing: 8,
             actionsOverflowDirection: VerticalDirection.down,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
             backgroundColor: Theme.of(context).colorScheme.errorContainer,
             title: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.warning_amber_rounded,
-                  color: Colors.red,
+                  color: Theme.of(context).colorScheme.error,
                   size: 28,
                 ),
                 const SizedBox(width: 8),
@@ -502,9 +514,6 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
         return AlertDialog(
           actionsOverflowButtonSpacing: 8,
           actionsOverflowDirection: VerticalDirection.down,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
           title: Text(
             l10n?.pkgMgrRemoveTitle(pkg.name) ?? 'Uninstall ${pkg.name}?',
           ),
@@ -590,7 +599,6 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
       builder: (context) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           l10n?.pkgConfirmInstallTitle(pkg.name) ?? 'Install ${pkg.name}?',
         ),
@@ -667,7 +675,6 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
       builder: (context) => AlertDialog(
         actionsOverflowButtonSpacing: 8,
         actionsOverflowDirection: VerticalDirection.down,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           l10n?.pkgConfirmUpgradeTitle(pkg.name) ?? 'Upgrade ${pkg.name}?',
         ),
@@ -682,11 +689,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
             onPressed: () => Navigator.pop(context, false),
             child: Text(l10n?.actionCancel ?? 'Cancel'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber.shade800,
-              foregroundColor: Colors.white,
-            ),
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(l10n?.pkgActionUpgrade ?? 'Upgrade'),
           ),
@@ -738,9 +741,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      useSafeArea: true,
       builder: (context) {
         return DraggableScrollableSheet(
           initialChildSize: 0.6,
@@ -749,33 +750,24 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
           expand: false,
           builder: (context, scrollController) {
             return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
               child: ListView(
                 controller: scrollController,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade400,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   Row(
                     children: [
                       CircleAvatar(
                         backgroundColor: pkg.isInstalled
-                            ? LuciStatusColors.connected.withValues(alpha: 0.15)
+                            ? LuciStatusColors.connectedColor(
+                                context,
+                              ).withValues(alpha: 0.15)
                             : theme.colorScheme.primary.withValues(alpha: 0.15),
                         child: Icon(
                           pkg.isInstalled
                               ? Icons.inventory_2_outlined
                               : Icons.cloud_download_outlined,
                           color: pkg.isInstalled
-                              ? LuciStatusColors.connected
+                              ? LuciStatusColors.connectedColor(context)
                               : theme.colorScheme.primary,
                         ),
                       ),
@@ -881,7 +873,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade600,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -899,10 +891,10 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: isRpcMissing
                                     ? theme.colorScheme.surfaceContainerHighest
-                                    : Colors.amber.shade800,
+                                    : theme.colorScheme.primary,
                                 foregroundColor: isRpcMissing
                                     ? theme.colorScheme.onSurfaceVariant
-                                    : Colors.white,
+                                    : theme.colorScheme.onPrimary,
                               ),
                               onPressed: () {
                                 Navigator.pop(context);
@@ -922,7 +914,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                                     : Icons.upgrade_rounded,
                                 size: 18,
                                 color: isRpcMissing
-                                    ? Colors.amber.shade800
+                                    ? LuciStatusColors.warningColor(context)
                                     : null,
                               ),
                               label: Text(l10n?.pkgActionUpgrade ?? 'Upgrade'),
@@ -935,11 +927,13 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                             style: OutlinedButton.styleFrom(
                               foregroundColor: isRpcMissing
                                   ? theme.colorScheme.onSurfaceVariant
-                                  : Colors.red,
+                                  : theme.colorScheme.error,
                               side: BorderSide(
                                 color: isRpcMissing
                                     ? theme.colorScheme.outlineVariant
-                                    : Colors.red,
+                                    : theme.colorScheme.error.withValues(
+                                        alpha: 0.5,
+                                      ),
                               ),
                             ),
                             onPressed: () {
@@ -960,7 +954,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                                   : Icons.delete_outline,
                               size: 18,
                               color: isRpcMissing
-                                  ? Colors.amber.shade800
+                                  ? LuciStatusColors.warningColor(context)
                                   : null,
                             ),
                             label: Text(
@@ -978,7 +972,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                             : theme.colorScheme.primary,
                         foregroundColor: isRpcMissing
                             ? theme.colorScheme.onSurfaceVariant
-                            : Colors.white,
+                            : theme.colorScheme.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       onPressed: () {
@@ -998,7 +992,9 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                             ? Icons.lock_outline_rounded
                             : Icons.download_rounded,
                         size: 18,
-                        color: isRpcMissing ? Colors.amber.shade800 : null,
+                        color: isRpcMissing
+                            ? LuciStatusColors.warningColor(context)
+                            : null,
                       ),
                       label: Text(l10n?.pkgActionInstall ?? 'Install Package'),
                     ),
@@ -1023,14 +1019,12 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
-          Expanded(
-            child: SelectableText(value, style: const TextStyle(fontSize: 13)),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],
       ),
     );
@@ -1046,11 +1040,9 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.amber.shade900.withValues(alpha: 0.12),
+        color: LuciStatusColors.warningBg(context),
         border: Border(
-          bottom: BorderSide(
-            color: Colors.amber.shade700.withValues(alpha: 0.3),
-          ),
+          bottom: BorderSide(color: LuciStatusColors.warningBorder(context)),
         ),
       ),
       child: Row(
@@ -1058,7 +1050,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
           Icon(
             Icons.lock_outline_rounded,
             size: 20,
-            color: Colors.amber.shade800,
+            color: LuciStatusColors.warningColor(context),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1071,7 +1063,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: Colors.amber.shade900,
+                    color: LuciStatusColors.warningText(context),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1092,8 +1084,8 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
           const SizedBox(width: 8),
           FilledButton.tonal(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.amber.shade700,
-              foregroundColor: Colors.white,
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1140,7 +1132,9 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                 Icon(
                   Icons.extension_off_rounded,
                   size: 64,
-                  color: Colors.grey.shade400,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -1155,7 +1149,10 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                   l10n?.pkgMgrNotDetectedDesc ??
                       'This router image does not have an active OPKG or APK package manager installed, or capability probing failed to detect one.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
@@ -1277,7 +1274,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
+                    color: Theme.of(context).colorScheme.surfaceContainer,
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
@@ -1364,7 +1361,9 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                                           : Icons.sync_rounded,
                                       size: 16,
                                       color: isRpcMissing
-                                          ? Colors.amber.shade800
+                                          ? LuciStatusColors.warningColor(
+                                              context,
+                                            )
                                           : null,
                                     ),
                               label: Text(
@@ -1404,7 +1403,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                                   : Icons.add_box_outlined,
                               size: 18,
                               color: isRpcMissing
-                                  ? Colors.amber.shade800
+                                  ? LuciStatusColors.warningColor(context)
                                   : null,
                             ),
                             onPressed: isRpcMissing
@@ -1468,8 +1467,10 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                         borderRadius: BorderRadius.circular(16),
                       ),
                       color: _isPermissionDenied
-                          ? Colors.orange.shade50
-                          : Theme.of(context).cardColor,
+                          ? theme.colorScheme.errorContainer.withValues(
+                              alpha: 0.3,
+                            )
+                          : theme.colorScheme.surfaceContainer,
                       child: Padding(
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
@@ -1480,8 +1481,8 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                                   : Icons.cloud_off_rounded,
                               size: 48,
                               color: _isPermissionDenied
-                                  ? Colors.orange.shade800
-                                  : Colors.grey.shade400,
+                                  ? theme.colorScheme.error
+                                  : theme.colorScheme.outline,
                             ),
                             const SizedBox(height: 12),
                             Text(
@@ -1495,7 +1496,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                                   ?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: _isPermissionDenied
-                                        ? Colors.orange.shade900
+                                        ? theme.colorScheme.onErrorContainer
                                         : null,
                                   ),
                             ),
@@ -1508,8 +1509,8 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: _isPermissionDenied
-                                    ? Colors.orange.shade900
-                                    : Colors.grey.shade600,
+                                    ? theme.colorScheme.onErrorContainer
+                                    : theme.colorScheme.onSurfaceVariant,
                                 fontSize: 12,
                               ),
                             ),
@@ -1526,8 +1527,10 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                                   const SizedBox(width: 12),
                                   FilledButton.icon(
                                     style: FilledButton.styleFrom(
-                                      backgroundColor: Colors.amber.shade800,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor:
+                                          theme.colorScheme.primary,
+                                      foregroundColor:
+                                          theme.colorScheme.onPrimary,
                                     ),
                                     onPressed: () => RpcPermissionsDialog.show(
                                       context,
@@ -1596,10 +1599,13 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
   }
 
   Widget _buildBadgeCount(int count, {bool isAmber = false}) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: isAmber ? Colors.amber.shade800 : Colors.grey.shade300,
+        color: isAmber
+            ? theme.colorScheme.primary
+            : theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
@@ -1607,7 +1613,9 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.bold,
-          color: isAmber ? Colors.white : Colors.black87,
+          color: isAmber
+              ? theme.colorScheme.onPrimary
+              : theme.colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -1625,7 +1633,10 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
           child: Text(
             emptyMessage,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
           ),
         ),
       );
@@ -1675,7 +1686,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                 Icon(
                   Icons.lock_outline_rounded,
                   size: 12,
-                  color: Colors.amber.shade800,
+                  color: LuciStatusColors.warningColor(context),
                 ),
                 const SizedBox(width: 4),
               ],
@@ -1684,7 +1695,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                 style: TextStyle(
                   color: isRpcMissing
                       ? theme.colorScheme.onSurfaceVariant
-                      : Colors.red,
+                      : theme.colorScheme.error,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1702,7 +1713,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                 : theme.colorScheme.primary,
             foregroundColor: isRpcMissing
                 ? theme.colorScheme.onSurfaceVariant
-                : Colors.white,
+                : theme.colorScheme.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1721,7 +1732,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                 Icon(
                   Icons.lock_outline_rounded,
                   size: 12,
-                  color: Colors.amber.shade800,
+                  color: LuciStatusColors.warningColor(context),
                 ),
                 const SizedBox(width: 4),
               ],
@@ -1742,10 +1753,10 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
           style: ElevatedButton.styleFrom(
             backgroundColor: isRpcMissing
                 ? theme.colorScheme.surfaceContainerHighest
-                : Colors.amber.shade800,
+                : theme.colorScheme.primary,
             foregroundColor: isRpcMissing
                 ? theme.colorScheme.onSurfaceVariant
-                : Colors.white,
+                : theme.colorScheme.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1764,7 +1775,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                 Icon(
                   Icons.lock_outline_rounded,
                   size: 12,
-                  color: Colors.amber.shade800,
+                  color: LuciStatusColors.warningColor(context),
                 ),
                 const SizedBox(width: 4),
               ],
@@ -1784,9 +1795,9 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: () => _showPackageDetails(context, pkg),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1796,7 +1807,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
               CircleAvatar(
                 radius: 18,
                 backgroundColor: pkg.isInstalled
-                    ? LuciStatusColors.connected.withValues(alpha: 0.15)
+                    ? LuciStatusColors.successBg(context)
                     : theme.colorScheme.primary.withValues(alpha: 0.15),
                 child: Icon(
                   actionType == _PackageActionType.upgrade
@@ -1805,9 +1816,9 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                             ? Icons.inventory_2_outlined
                             : Icons.cloud_download_outlined),
                   color: actionType == _PackageActionType.upgrade
-                      ? Colors.amber.shade800
+                      ? theme.colorScheme.primary
                       : (pkg.isInstalled
-                            ? LuciStatusColors.connected
+                            ? LuciStatusColors.connectedColor(context)
                             : theme.colorScheme.primary),
                   size: 18,
                 ),
@@ -1883,7 +1894,7 @@ class _PackageManagerScreenState extends ConsumerState<PackageManagerScreen>
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],

@@ -881,6 +881,39 @@ class ClientController {
         return null;
       }
 
+      // Pre-start all independent fetch operations so they run concurrently with
+      // the wireless station query below. By the time each is awaited, it will
+      // often already be complete, effectively parallelising the data-gather phase.
+      final _dhcpFuture = _apiService!.call(
+        router.ipAddress,
+        activeSysauth,
+        router.useHttps,
+        object: 'luci-rpc',
+        method: 'getDHCPLeases',
+        params: {},
+      );
+      final _ifaceDumpFuture = _apiService!.call(
+        router.ipAddress,
+        activeSysauth,
+        router.useHttps,
+        object: 'network.interface',
+        method: 'dump',
+        params: {},
+      );
+      final _hostHintsFuture = _apiService!.fetchHostHintsWithContext(
+        ipAddress: router.ipAddress,
+        sysauth: activeSysauth,
+        useHttps: router.useHttps,
+      );
+      final _deviceStatusFuture = _apiService!.call(
+        router.ipAddress,
+        activeSysauth,
+        router.useHttps,
+        object: 'network.device',
+        method: 'status',
+        params: {},
+      );
+
       // 1. Fetch live associated wireless stations with full traffic & PHY stats
       final stationsMap = await _apiService!
           .fetchAllAssociatedWirelessStationsWithDetailsContext(
@@ -990,15 +1023,8 @@ class ClientController {
         (_, ts) => nowStamp.difference(ts) > const Duration(minutes: 5),
       );
 
-      // 2. Fetch getDHCPLeases from luci-rpc
-      final callRes = await _apiService!.call(
-        router.ipAddress,
-        activeSysauth,
-        router.useHttps,
-        object: 'luci-rpc',
-        method: 'getDHCPLeases',
-        params: {},
-      );
+      // 2. Fetch getDHCPLeases from luci-rpc (future pre-started above)
+      final callRes = await _dhcpFuture;
       final dhcp4Leases = <Map<String, dynamic>>[];
       final dhcp6Leases = <Map<String, dynamic>>[];
       if (callRes is List && callRes.length > 1 && callRes[0] == 0) {
@@ -1056,14 +1082,7 @@ class ClientController {
       final wanMacs = <String>{};
 
       try {
-        final ifaceRes = await _apiService!.call(
-          router.ipAddress,
-          activeSysauth,
-          router.useHttps,
-          object: 'network.interface',
-          method: 'dump',
-          params: {},
-        );
+        final ifaceRes = await _ifaceDumpFuture;
         if (ifaceRes is List &&
             ifaceRes.length > 1 &&
             ifaceRes[0] == 0 &&
@@ -1297,12 +1316,8 @@ class ClientController {
         } catch (_) {}
       }
 
-      // 4. Fetch Host Hints dictionary
-      final hostHints = await _apiService!.fetchHostHintsWithContext(
-        ipAddress: router.ipAddress,
-        sysauth: activeSysauth,
-        useHttps: router.useHttps,
-      );
+      // 4. Fetch Host Hints dictionary (future pre-started above)
+      final hostHints = await _hostHintsFuture;
 
       final routerIps = <String>{
         router.ipAddress,
@@ -1313,14 +1328,7 @@ class ClientController {
       final routerMacs = <String>{};
 
       try {
-        final devRes = await _apiService!.call(
-          router.ipAddress,
-          activeSysauth,
-          router.useHttps,
-          object: 'network.device',
-          method: 'status',
-          params: {},
-        );
+        final devRes = await _deviceStatusFuture;
         if (devRes is List &&
             devRes.length > 1 &&
             devRes[0] == 0 &&

@@ -73,6 +73,18 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(true)
                     }
                 }
+                "openAppSettings" -> {
+                    try {
+                        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = android.net.Uri.fromParts("package", packageName, null)
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SETTINGS_ERROR", e.message, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

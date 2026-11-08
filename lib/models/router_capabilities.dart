@@ -24,6 +24,7 @@ class RouterCapabilities {
   final Set<String> ubusObjects;
   final Map<String, List<String>> ubusMethods;
   final Map<String, List<String>> uciPermissions;
+  final Map<String, List<String>> filePermissions;
   final PackageManagerEngine packageEngine;
   final FirewallBackend firewallBackend;
   final NetworkModel networkModel;
@@ -44,6 +45,7 @@ class RouterCapabilities {
     this.ubusObjects = const {},
     this.ubusMethods = const {},
     this.uciPermissions = const {},
+    this.filePermissions = const {},
     this.packageEngine = PackageManagerEngine.opkg,
     this.firewallBackend = FirewallBackend.fw4,
     this.networkModel = NetworkModel.dsa,
@@ -67,6 +69,7 @@ class RouterCapabilities {
       ubusObjects: const {},
       ubusMethods: const {},
       uciPermissions: const {},
+      filePermissions: const {},
       packageEngine: PackageManagerEngine.opkg,
       firewallBackend: FirewallBackend.fw3,
       networkModel: NetworkModel.swconfig,
@@ -109,6 +112,9 @@ class RouterCapabilities {
       },
       uciPermissions: const {
         '*': ['read', 'write'],
+      },
+      filePermissions: const {
+        '*': ['read', 'write', 'exec'],
       },
       packageEngine: PackageManagerEngine.opkg,
       firewallBackend: FirewallBackend.fw4,
@@ -156,16 +162,59 @@ class RouterCapabilities {
         uciPermissions.containsKey('wireless');
   }
 
-  /// Helper to check if file.exec or backend execution capability is allowed
+  /// Checks whether a specific command or binary path is permitted for execution by OpenWrt rpcd ACLs.
+  bool canExecCommand(String command) {
+    if (probeFailed) return true; // optimistic default if probing failed
+    if (filePermissions.isEmpty) {
+      // If file ACLs were not probed, fall back to general ubus method check
+      return hasMethod('file', 'exec');
+    }
+    // Check global wildcard
+    if (filePermissions.containsKey('*') &&
+        (filePermissions['*']?.contains('exec') == true ||
+            filePermissions['*']?.contains('*') == true)) {
+      return true;
+    }
+    // Check exact path match
+    if (filePermissions.containsKey(command) &&
+        (filePermissions[command]?.contains('exec') == true ||
+            filePermissions[command]?.contains('*') == true)) {
+      return true;
+    }
+    // Check wildcard prefix path match (e.g. /bin/*, /usr/bin/*, /*)
+    for (final entry in filePermissions.entries) {
+      final pattern = entry.key;
+      if (pattern.endsWith('*')) {
+        final prefix = pattern.substring(0, pattern.length - 1);
+        if (command.startsWith(prefix) &&
+            (entry.value.contains('exec') || entry.value.contains('*'))) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Helper to check if file.exec or backend execution capability is allowed.
+  ///
+  /// On OpenWrt with rpcd, file.so always exposes the 'exec' ubus method, but rpcd
+  /// strictly enforces ACLs. Default LuCI only permits /bin/ping and /bin/traceroute,
+  /// but blocks /bin/sh and /usr/bin/curl with UBUS_STATUS_PERMISSION_DENIED (6).
+  /// If file ACLs are probed, this verifies that /bin/sh or general command execution is granted.
   bool get hasFileExec {
     if (probeFailed || ubusObjects.isEmpty) return true;
     if (ubusObjects.contains('*')) return true;
-    if (ubusMethods.containsKey('file')) {
-      final fileMethods = ubusMethods['file'];
-      return fileMethods?.contains('exec') == true ||
-          fileMethods?.contains('*') == true;
+    final hasUbusExec =
+        ubusMethods.containsKey('file') &&
+        (ubusMethods['file']?.contains('exec') == true ||
+            ubusMethods['file']?.contains('*') == true);
+    if (!hasUbusExec && !hasObject('file')) return false;
+
+    if (filePermissions.isNotEmpty) {
+      return canExecCommand('/bin/sh') || canExecCommand('/usr/bin/curl');
     }
-    return hasObject('file');
+
+    return hasUbusExec;
   }
 
   /// Helper to check if both RPC modules and execution permissions are available
@@ -233,6 +282,9 @@ class RouterCapabilities {
       'uciPermissions': uciPermissions.map(
         (key, value) => MapEntry(key, value),
       ),
+      'filePermissions': filePermissions.map(
+        (key, value) => MapEntry(key, value),
+      ),
       'packageEngine': packageEngine.name,
       'firewallBackend': firewallBackend.name,
       'networkModel': networkModel.name,
@@ -263,12 +315,18 @@ class RouterCapabilities {
       final uciPermissionsMap = rawUciPermissions.map(
         (key, value) => MapEntry(key, (value as List).cast<String>()),
       );
+      final rawFilePermissions =
+          json['filePermissions'] as Map<String, dynamic>? ?? {};
+      final filePermissionsMap = rawFilePermissions.map(
+        (key, value) => MapEntry(key, (value as List).cast<String>()),
+      );
 
       return RouterCapabilities(
         routerId: json['routerId'] as String? ?? 'default',
         ubusObjects: ubusObjsList.toSet(),
         ubusMethods: ubusMethodsMap,
         uciPermissions: uciPermissionsMap,
+        filePermissions: filePermissionsMap,
         packageEngine: PackageManagerEngine.values.firstWhere(
           (e) => e.name == json['packageEngine'],
           orElse: () => PackageManagerEngine.opkg,
@@ -310,6 +368,7 @@ class RouterCapabilities {
     Set<String>? ubusObjects,
     Map<String, List<String>>? ubusMethods,
     Map<String, List<String>>? uciPermissions,
+    Map<String, List<String>>? filePermissions,
     PackageManagerEngine? packageEngine,
     FirewallBackend? firewallBackend,
     NetworkModel? networkModel,
@@ -330,6 +389,7 @@ class RouterCapabilities {
       ubusObjects: ubusObjects ?? this.ubusObjects,
       ubusMethods: ubusMethods ?? this.ubusMethods,
       uciPermissions: uciPermissions ?? this.uciPermissions,
+      filePermissions: filePermissions ?? this.filePermissions,
       packageEngine: packageEngine ?? this.packageEngine,
       firewallBackend: firewallBackend ?? this.firewallBackend,
       networkModel: networkModel ?? this.networkModel,

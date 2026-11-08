@@ -30,6 +30,9 @@ class ParentalControlsStore extends ChangeNotifier {
   bool _isLoaded = false;
   bool get isLoaded => _isLoaded;
 
+  /// Public notifier for controllers modifying store collections.
+  void notifyChanges() => notifyListeners();
+
   // ─── Persistence ────────────────────────────────────────────────────────────
 
   /// Load state from a serialized JSON string (from SecureStorage).
@@ -282,8 +285,33 @@ class ParentalControlsStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Returns whether any ACTIVE (non-bypassed) profile is currently blocked (paused or schedule blocked) and contains this MAC.
+  /// Returns the maximum daily minutes used across any assigned devices in this profile.
+  int getProfileDailyMinutesUsed(ParentalProfile profile) {
+    int maxUsed = 0;
+    for (final mac in profile.macAddresses) {
+      final used = getDailyMinutesUsed(mac);
+      if (used > maxUsed) maxUsed = used;
+    }
+    return maxUsed;
+  }
+
+  /// Returns whether this profile has reached or exceeded its daily time limit.
+  bool isProfileQuotaFinished(ParentalProfile profile) {
+    return profile.isDailyLimitReached(getProfileDailyMinutesUsed(profile));
+  }
+
+  /// Returns whether this profile is currently blocked (paused, bedtime, or daily quota).
+  bool isProfileCurrentlyBlocked(ParentalProfile profile) {
+    return profile.isCurrentlyBlocked(getProfileDailyMinutesUsed(profile));
+  }
+
+  /// Returns whether any ACTIVE (non-bypassed) profile containing this MAC is currently blocked.
   bool isMacPaused(String mac) {
-    return profilesForMac(mac).any((p) => p.isCurrentlyBlocked);
+    final normMac = mac.toUpperCase();
+    return _profiles.any(
+      (p) =>
+          p.macAddresses.any((m) => m.toUpperCase() == normMac) &&
+          isProfileCurrentlyBlocked(p),
+    );
   }
 }

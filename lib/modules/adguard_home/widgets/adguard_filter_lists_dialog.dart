@@ -206,7 +206,6 @@ class _AdGuardFilterListsDialogState extends State<AdGuardFilterListsDialog>
 
     return Dialog(
       key: const Key('agh_filter_lists_dialog'),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 680, maxHeight: 720),

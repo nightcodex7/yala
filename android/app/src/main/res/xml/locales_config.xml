@@ -9,4 +9,7 @@
     <locale android:name="id"/>
     <locale android:name="fr"/>
     <locale android:name="zh"/>
+    <locale android:name="uk"/>
+    <locale android:name="it"/>
+    <locale android:name="ja"/>
 </locale-config>

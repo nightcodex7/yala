@@ -2,6 +2,8 @@
 // Copyright (C) 2025-2026 cogwheel0
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import 'package:yet_another_luci_app/modules/dhcp_dns/utils/dns_provider_resolver.dart';
+
 class DhcpLease {
   final String hostname;
   final String ipAddress;
@@ -383,12 +385,28 @@ class DhcpDnsOverview {
   final List<DhcpStaticMapping> staticMappings;
   final List<SubnetInfo> configuredSubnets;
 
+  /// Friendly resolved real upstream DNS provider name (e.g. "Quad9 (DoH)").
+  final String? resolvedDnsProvider;
+
+  /// Complete human-readable summary of the resolved DNS service.
+  final String? resolvedDnsSummary;
+
+  /// Real upstream DoH or DoT endpoint URL/host if configured.
+  final String? realDnsEndpoint;
+
+  /// Bootstrap DNS servers if configured.
+  final String? realDnsBootstrap;
+
   const DhcpDnsOverview({
     required this.dnsConfig,
     required this.activeLeases,
     required this.activeDhcp6Leases,
     required this.staticMappings,
     required this.configuredSubnets,
+    this.resolvedDnsProvider,
+    this.resolvedDnsSummary,
+    this.realDnsEndpoint,
+    this.realDnsBootstrap,
   });
 
   factory DhcpDnsOverview.fromDashboardData(
@@ -982,12 +1000,35 @@ class DhcpDnsOverview {
       }
     }
 
+    final dnsmasqConfig = DnsmasqConfig.fromJson(dnsmasqRaw);
+    final resolvedDns = DnsProviderResolver.resolve(
+      upstreamServers: dnsmasqConfig.upstreamDnsServers,
+      httpsDnsProxyData:
+          (data?['https-dns-proxy'] ?? data?['httpsDnsProxy'])
+              as Map<String, dynamic>?,
+      stubbyData:
+          (data?['stubby'] ?? data?['uciStubby']) as Map<String, dynamic>?,
+      smartdnsData:
+          (data?['smartdns'] ?? data?['uciSmartdns']) as Map<String, dynamic>?,
+      nextdnsData:
+          (data?['nextdns'] ?? data?['uciNextdns']) as Map<String, dynamic>?,
+      cloudflaredData:
+          (data?['cloudflared'] ?? data?['uciCloudflared'])
+              as Map<String, dynamic>?,
+      rawDnsmasq: dnsmasqRaw,
+      interfaceDump: data?['interfaceDump'] as Map<String, dynamic>?,
+    );
+
     return DhcpDnsOverview(
-      dnsConfig: DnsmasqConfig.fromJson(dnsmasqRaw),
+      dnsConfig: dnsmasqConfig,
       activeLeases: finalLeaseList,
       activeDhcp6Leases: dhcp6List,
       staticMappings: staticList,
       configuredSubnets: subnetsList,
+      resolvedDnsProvider: resolvedDns?.displayLabel,
+      resolvedDnsSummary: resolvedDns?.summary,
+      realDnsEndpoint: resolvedDns?.endpoint,
+      realDnsBootstrap: resolvedDns?.bootstrapDns,
     );
   }
 }

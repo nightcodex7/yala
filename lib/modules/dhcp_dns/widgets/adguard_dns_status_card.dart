@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/modules/adguard_home/controllers/adguard_controller.dart';
 import 'package:yet_another_luci_app/modules/adguard_home/models/adguard_models.dart';
 import 'package:yet_another_luci_app/modules/adguard_home/screens/adguard_home_screen.dart';
@@ -203,8 +204,8 @@ class _AdGuardDnsStatusCardState extends ConsumerState<AdGuardDnsStatusCard> {
         : Icons.warning_amber_rounded;
 
     final Color badgeColor = isStopped
-        ? Colors.red.shade700
-        : Colors.orange.shade800;
+        ? theme.colorScheme.error
+        : LuciStatusColors.warningColor(context);
 
     final String descriptionText = isStopped
         ? (l10n?.aghDnsCardStoppedDesc ??
@@ -377,7 +378,7 @@ class _AdGuardDnsStatusCardState extends ConsumerState<AdGuardDnsStatusCard> {
                       label: l10n?.aghBlockedQueries ?? 'Blocked Queries',
                       value: '$blockedQueries',
                       keyName: 'agh_dns_card_blocked_queries',
-                      valueColor: Colors.red.shade700,
+                      valueColor: theme.colorScheme.error,
                       theme: theme,
                     ),
                   ),
@@ -386,7 +387,7 @@ class _AdGuardDnsStatusCardState extends ConsumerState<AdGuardDnsStatusCard> {
                       label: l10n?.aghBlockRate ?? 'Block Rate',
                       value: '${blockRate.toStringAsFixed(1)}%',
                       keyName: 'agh_dns_card_block_rate',
-                      valueColor: Colors.orange.shade800,
+                      valueColor: LuciStatusColors.warningColor(context),
                       theme: theme,
                     ),
                   ),

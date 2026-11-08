@@ -24,15 +24,10 @@ class AdGuardTopListsBottomSheet extends StatefulWidget {
     required AdGuardStats? stats,
     int initialTabIndex = 0,
   }) {
-    final theme = Theme.of(context);
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: theme.colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (ctx) => AdGuardTopListsBottomSheet(
         stats: stats,
         initialTabIndex: initialTabIndex,
@@ -92,19 +87,6 @@ class _AdGuardTopListsBottomSheetState extends State<AdGuardTopListsBottomSheet>
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              decoration: BoxDecoration(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-
           // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),

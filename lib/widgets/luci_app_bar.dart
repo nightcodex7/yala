@@ -9,38 +9,51 @@ import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 class LuciAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String? title;
   final Widget? titleWidget;
-  final bool centerTitle;
-  final bool showBack;
+  final bool? centerTitle;
+  final bool? showBack;
   final List<Widget>? actions;
   final Color? backgroundColor;
-  final double elevation;
+  final double? elevation;
+  final double? scrolledUnderElevation;
 
   const LuciAppBar({
     super.key,
     this.title,
     this.titleWidget,
     this.centerTitle = true,
-    this.showBack = false,
+    this.showBack,
     this.actions,
     this.backgroundColor,
-    this.elevation = 2.0,
+    this.elevation,
+    this.scrolledUnderElevation,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final isApple =
+        theme.platform == TargetPlatform.iOS ||
+        theme.platform == TargetPlatform.macOS;
+    final effectiveCenterTitle = centerTitle ?? true;
+    final effectiveElevation = elevation ?? 0.0;
+    final effectiveScrolledElevation = scrolledUnderElevation ?? 2.0;
+    final canPop = ModalRoute.of(context)?.canPop ?? false;
+    final effectiveShowBack = showBack ?? canPop;
+
     return AppBar(
       automaticallyImplyLeading: false,
       backgroundColor: backgroundColor ?? theme.colorScheme.surface,
-      elevation: elevation,
-      scrolledUnderElevation: elevation,
-      centerTitle: centerTitle,
-      titleSpacing: 16.0,
-      leading: showBack
+      elevation: effectiveElevation,
+      scrolledUnderElevation: effectiveScrolledElevation,
+      centerTitle: effectiveCenterTitle,
+      titleSpacing: effectiveShowBack ? null : 16.0,
+      leading: effectiveShowBack
           ? IconButton(
               icon: Icon(
-                Icons.arrow_back_ios_new_rounded,
+                isApple
+                    ? Icons.arrow_back_ios_new_rounded
+                    : Icons.arrow_back_rounded,
                 color: theme.colorScheme.onSurface,
               ),
               onPressed: () => Navigator.of(context).maybePop(),
@@ -61,7 +74,7 @@ class LuciAppBar extends StatelessWidget implements PreferredSizeWidget {
               : null),
       actions: actions,
       shadowColor: theme.shadowColor,
-      surfaceTintColor: backgroundColor ?? theme.colorScheme.surface,
+      surfaceTintColor: theme.colorScheme.surfaceTint,
       systemOverlayStyle: Theme.of(context).brightness == Brightness.dark
           ? Theme.of(context).appBarTheme.systemOverlayStyle?.copyWith(
               statusBarBrightness: Brightness.dark,

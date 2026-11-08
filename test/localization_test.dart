@@ -21,7 +21,7 @@ void main() {
       }).toSet();
 
       // Expected supported locales:
-      // ru, es, pt-BR (and pt fallback), de, id, fr, zh, and base en
+      // ru, es, pt-BR (and pt fallback), de, id, fr, zh, uk, it, ja, and base en
       final expectedLocales = {
         'ru',
         'es',
@@ -31,12 +31,15 @@ void main() {
         'id',
         'fr',
         'zh',
+        'uk',
+        'it',
+        'ja',
         'en',
       };
 
       expect(formatted, equals(expectedLocales));
-      // Ensure exactly 9 entries (8 languages + 1 regional variant)
-      expect(supportedLocales.length, 9);
+      // Ensure exactly 12 entries (11 languages + 1 regional variant)
+      expect(supportedLocales.length, 12);
     });
 
     test('All ARB files exist on filesystem with exact naming', () {
@@ -50,6 +53,9 @@ void main() {
         'lib/l10n/app_id.arb',
         'lib/l10n/app_fr.arb',
         'lib/l10n/app_zh.arb',
+        'lib/l10n/app_uk.arb',
+        'lib/l10n/app_it.arb',
+        'lib/l10n/app_ja.arb',
       ];
 
       for (final filePath in arbFiles) {
@@ -71,12 +77,69 @@ void main() {
       expect(content, contains('<locale android:name="id"/>'));
       expect(content, contains('<locale android:name="fr"/>'));
       expect(content, contains('<locale android:name="zh"/>'));
+      expect(content, contains('<locale android:name="uk"/>'));
+      expect(content, contains('<locale android:name="it"/>'));
+      expect(content, contains('<locale android:name="ja"/>'));
 
       // Ensure no unauthorized languages are present
-      expect(content, isNot(contains('<locale android:name="it"/>')));
-      expect(content, isNot(contains('<locale android:name="ja"/>')));
       expect(content, isNot(contains('<locale android:name="ar"/>')));
     });
+
+    test(
+      'Android res values directories and build.gradle.kts cover all 12 locales',
+      () {
+        const androidLocales = [
+          'en',
+          'ru',
+          'es',
+          'pt',
+          'pt-rBR',
+          'de',
+          'id',
+          'fr',
+          'zh',
+          'uk',
+          'it',
+          'ja',
+        ];
+
+        for (final loc in androidLocales) {
+          final stringsFile = File(
+            'android/app/src/main/res/values-$loc/strings.xml',
+          );
+          expect(
+            stringsFile.existsSync(),
+            isTrue,
+            reason:
+                'values-$loc/strings.xml must exist for Play Store bundle localization detection',
+          );
+        }
+
+        final gradleFile = File('android/app/build.gradle.kts');
+        expect(gradleFile.existsSync(), isTrue);
+        final gradleContent = gradleFile.readAsStringSync();
+        for (final loc in [
+          'en',
+          'ru',
+          'es',
+          'pt',
+          'de',
+          'id',
+          'fr',
+          'zh',
+          'uk',
+          'it',
+          'ja',
+        ]) {
+          expect(
+            gradleContent,
+            contains('"$loc"'),
+            reason:
+                'build.gradle.kts resourceConfigurations must include "$loc"',
+          );
+        }
+      },
+    );
 
     test(
       'AppLocalizations delegate loads each target locale properly',
@@ -90,6 +153,9 @@ void main() {
           const Locale('id'),
           const Locale('fr'),
           const Locale('zh'),
+          const Locale('uk'),
+          const Locale('it'),
+          const Locale('ja'),
         ];
 
         for (final locale in targetLocales) {
@@ -118,6 +184,8 @@ void main() {
       final de = await AppLocalizations.delegate.load(const Locale('de'));
       final id = await AppLocalizations.delegate.load(const Locale('id'));
       final fr = await AppLocalizations.delegate.load(const Locale('fr'));
+      final it = await AppLocalizations.delegate.load(const Locale('it'));
+      final ja = await AppLocalizations.delegate.load(const Locale('ja'));
 
       // Russian verification
       expect(ru.navDashboard, 'Панель');
@@ -184,6 +252,32 @@ void main() {
       expect(fr.actionCancel, 'Annuler');
       expect(fr.actionDismiss, 'Ignorer');
       expect(fr.languageTitle, 'Langue');
+
+      // Italian verification
+      expect(it.navDashboard, 'Dashboard');
+      expect(it.navInterfaces, 'Interfacce');
+      expect(it.navMore, 'Altro');
+      expect(it.settingsTitle, 'Impostazioni');
+      expect(it.actionSave, 'Salva');
+      expect(it.actionCancel, 'Annulla');
+      expect(it.actionDismiss, 'Ignora');
+      expect(it.languageTitle, 'Lingua');
+      expect(it.logViewerTitle, 'Log di sistema e kernel');
+      expect(it.sshTerminalTitle, 'Terminale SSH');
+      expect(it.dnsmasqReloadTitle, 'Ricarica servizio DHCP e DNS');
+
+      // Japanese verification
+      expect(ja.navDashboard, 'ダッシュボード');
+      expect(ja.navInterfaces, 'インターフェース');
+      expect(ja.navMore, 'その他');
+      expect(ja.settingsTitle, '設定');
+      expect(ja.actionSave, '保存');
+      expect(ja.actionCancel, 'キャンセル');
+      expect(ja.actionDismiss, '閉じる');
+      expect(ja.languageTitle, '言語');
+      expect(ja.logViewerTitle, 'システム・カーネルログ');
+      expect(ja.sshTerminalTitle, 'SSH ターミナル');
+      expect(ja.dnsmasqReloadTitle, 'DHCP・DNS サービスの再読み込み');
 
       // English baseline
       expect(en.navDashboard, 'Dashboard');

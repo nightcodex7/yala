@@ -150,8 +150,6 @@ class NetworkTopologyCard extends StatelessWidget {
                         color: colorScheme.onSurfaceVariant,
                         fontSize: 11,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

@@ -57,9 +57,6 @@ class _ManageRoutersScreenState extends ConsumerState<ManageRoutersScreen> {
               return AlertDialog(
                 actionsOverflowButtonSpacing: 8,
                 actionsOverflowDirection: VerticalDirection.down,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
                 title: Text(
                   l10n?.renameRouterDialogTitle ?? 'Edit Router Profile',
                 ),
@@ -461,15 +458,6 @@ class _ManageRoutersScreenState extends ConsumerState<ManageRoutersScreen> {
           return StatefulBuilder(
             builder: (context, setState) {
               return AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surface.withValues(alpha: 0.95),
-                shadowColor: Theme.of(
-                  context,
-                ).shadowColor.withValues(alpha: 0.08),
                 insetPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 60,
@@ -1005,7 +993,7 @@ class _ManageRoutersScreenState extends ConsumerState<ManageRoutersScreen> {
                               onEdit: () =>
                                   _showEditRouterDialog(context, router),
                               onTap: () async {
-                                if (isSwitching) return;
+                                if (_switchingRouterId != null) return;
                                 if (isSelected && !widget.isFromLogin) {
                                   Navigator.of(
                                     context,
@@ -1021,12 +1009,20 @@ class _ManageRoutersScreenState extends ConsumerState<ManageRoutersScreen> {
                                   setState(() {
                                     _switchingRouterId = router.id;
                                   });
+                                  if (widget.isFromLogin) {
+                                    context.showToastLoading(
+                                      'Connecting...',
+                                      subtitle:
+                                          'Connecting to ${router.displayName}...',
+                                    );
+                                  }
 
                                   try {
                                     await appState.selectRouter(
                                       router.id,
                                       context: context,
                                     );
+                                    LuciToastManager.dismissAllLoading();
                                     if (appState.hasActiveSession) {
                                       if (!context.mounted) return;
                                       if (widget.isFromLogin) {
@@ -1060,6 +1056,7 @@ class _ManageRoutersScreenState extends ConsumerState<ManageRoutersScreen> {
                                       );
                                     }
                                   } finally {
+                                    LuciToastManager.dismissAllLoading();
                                     if (mounted) {
                                       setState(() {
                                         _switchingRouterId = null;
@@ -1094,6 +1091,11 @@ class _ManageRoutersScreenState extends ConsumerState<ManageRoutersScreen> {
                                         ),
                                       ),
                                       TextButton(
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Theme.of(
+                                            context,
+                                          ).colorScheme.error,
+                                        ),
                                         onPressed: () =>
                                             Navigator.pop(context, true),
                                         child: Text(
@@ -1287,7 +1289,7 @@ class _UnifiedRouterCard extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                         color: colorScheme.onSurface,
                       ),
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
@@ -1299,7 +1301,7 @@ class _UnifiedRouterCard extends StatelessWidget {
                         fontWeight: FontWeight.w400,
                         letterSpacing: 0.1,
                       ),
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../design/luci_design_system.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../main.dart';
+import '../../../widgets/rpc_permissions_dialog.dart';
 import '../controllers/speed_test_controller.dart';
 import '../models/speed_test_models.dart';
 
@@ -16,6 +18,9 @@ class SpeedTestView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(speedTestControllerProvider);
     final controller = ref.read(speedTestControllerProvider.notifier);
+    final selectedRouter = ref.watch(
+      appStateProvider.select((s) => s.selectedRouter),
+    );
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
@@ -29,7 +34,12 @@ class SpeedTestView extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 1. Vantage Point & Transport Header Banner
-          _buildVantageBanner(context, state, l10n),
+          _buildVantageBanner(
+            context,
+            state,
+            l10n,
+            currentRouterName: selectedRouter?.displayName,
+          ),
           const SizedBox(height: LuciSpacing.md),
 
           // 2. Primary Metrics Cards (Download & Upload)
@@ -176,32 +186,89 @@ class SpeedTestView extends ConsumerWidget {
 
           // 5. Error Banner if test failed
           if (state.errorMessage != null) ...[
-            Container(
-              padding: const EdgeInsets.all(LuciSpacing.md),
-              decoration: BoxDecoration(
-                color: colorScheme.errorContainer.withValues(alpha: 0.8),
-                borderRadius: LuciCardStyles.standardRadius,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.error_outline_rounded,
-                    color: colorScheme.onErrorContainer,
-                    size: 20,
+            Builder(
+              builder: (ctx) {
+                final isPermissionError =
+                    state.result?.isRpcPermissionError == true ||
+                    (state.errorMessage?.contains(
+                          'RPC execution permissions',
+                        ) ??
+                        false);
+                return Container(
+                  padding: const EdgeInsets.all(LuciSpacing.md),
+                  decoration: BoxDecoration(
+                    color: isPermissionError
+                        ? colorScheme.errorContainer.withValues(alpha: 0.9)
+                        : colorScheme.errorContainer.withValues(alpha: 0.8),
+                    borderRadius: LuciCardStyles.standardRadius,
+                    border: isPermissionError
+                        ? Border.all(
+                            color: colorScheme.error.withValues(alpha: 0.4),
+                          )
+                        : null,
                   ),
-                  const SizedBox(width: LuciSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      state.errorMessage!,
-                      style: TextStyle(
-                        color: colorScheme.onErrorContainer,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            isPermissionError
+                                ? Icons.admin_panel_settings_outlined
+                                : Icons.error_outline_rounded,
+                            color: colorScheme.onErrorContainer,
+                            size: 20,
+                          ),
+                          const SizedBox(width: LuciSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              isPermissionError
+                                  ? (l10n?.speedTestRpcPermissionRequired ??
+                                        state.errorMessage!)
+                                  : state.errorMessage!,
+                              style: TextStyle(
+                                color: colorScheme.onErrorContainer,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                      if (isPermissionError) ...[
+                        const SizedBox(height: LuciSpacing.sm),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.tonalIcon(
+                            onPressed: () => RpcPermissionsDialog.show(
+                              context,
+                              actionName: 'Router Speed Test',
+                            ),
+                            icon: const Icon(Icons.build_rounded, size: 16),
+                            label: Text(
+                              l10n?.speedTestBtnOpenRpcSetup ??
+                                  'Open RPC Setup',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
             const SizedBox(height: LuciSpacing.md),
           ],
@@ -316,11 +383,16 @@ class SpeedTestView extends ConsumerWidget {
   Widget _buildVantageBanner(
     BuildContext context,
     SpeedTestState state,
-    AppLocalizations? l10n,
-  ) {
+    AppLocalizations? l10n, {
+    String? currentRouterName,
+  }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final transport = state.result?.connectionType ?? 'Router WAN';
+    final fallbackTransport =
+        currentRouterName != null && currentRouterName.isNotEmpty
+        ? 'Router WAN ($currentRouterName)'
+        : 'Router WAN';
+    final transport = state.result?.connectionType ?? fallbackTransport;
 
     return Container(
       padding: const EdgeInsets.all(LuciSpacing.md),

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
+import 'package:yet_another_luci_app/widgets/luci_toast.dart';
 import '../controllers/adguard_controller.dart';
 import '../models/adguard_models.dart';
 
@@ -283,9 +284,11 @@ class _AdGuardProfileDialogState extends State<AdGuardProfileDialog> {
         setState(() {
           _isSaving = false;
         });
-        ScaffoldMessenger.of(
+        LuciToastManager.safeShowError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save profile: $e')));
+          'Failed to save profile',
+          subtitle: LuciToastManager.parseErrorReason(e),
+        );
       }
     }
   }

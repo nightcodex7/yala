@@ -215,6 +215,7 @@ class _RouterDashboardSettingsScreenState
             horizontal: LuciSpacing.md,
             vertical: LuciSpacing.sm,
           ),
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
           children: children,
         ),
       ),
@@ -437,6 +438,7 @@ class _RouterDashboardSettingsScreenState
                     _onPreferenceChanged();
                   },
                   activeTrackColor: Theme.of(context).colorScheme.primary,
+                  activeThumbColor: Colors.white,
                 ),
               ),
             );
@@ -569,6 +571,7 @@ class _RouterDashboardSettingsScreenState
             _onPreferenceChanged();
           },
           activeTrackColor: Theme.of(context).colorScheme.primary,
+          activeThumbColor: Colors.white,
           dense: true,
         ),
         SwitchListTile.adaptive(
@@ -584,6 +587,7 @@ class _RouterDashboardSettingsScreenState
             _onPreferenceChanged();
           },
           activeTrackColor: Theme.of(context).colorScheme.primary,
+          activeThumbColor: Colors.white,
           dense: true,
         ),
         SwitchListTile.adaptive(
@@ -599,6 +603,7 @@ class _RouterDashboardSettingsScreenState
             _onPreferenceChanged();
           },
           activeTrackColor: Theme.of(context).colorScheme.primary,
+          activeThumbColor: Colors.white,
           dense: true,
         ),
         SwitchListTile.adaptive(
@@ -614,6 +619,7 @@ class _RouterDashboardSettingsScreenState
             _onPreferenceChanged();
           },
           activeTrackColor: Theme.of(context).colorScheme.primary,
+          activeThumbColor: Colors.white,
           dense: true,
         ),
         SwitchListTile.adaptive(
@@ -635,16 +641,20 @@ class _RouterDashboardSettingsScreenState
             _onPreferenceChanged();
           },
           activeTrackColor: Theme.of(context).colorScheme.primary,
+          activeThumbColor: Colors.white,
           dense: true,
         ),
         const Divider(height: 20),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Text(
-            l10n?.rdSettingsThermalScale ?? 'Temperature Scale',
-            style: LuciTextStyles.detailValue(
-              context,
-            ).copyWith(fontWeight: FontWeight.bold),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              l10n?.rdSettingsThermalScale ?? 'Temperature Scale',
+              style: LuciTextStyles.detailValue(
+                context,
+              ).copyWith(fontWeight: FontWeight.bold),
+            ),
           ),
         ),
         RadioGroup<String>(
@@ -729,11 +739,14 @@ class _RouterDashboardSettingsScreenState
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Text(
-            l10n?.rdSettingsSpeedDisplayUnit ?? 'Speed Display Unit',
-            style: LuciTextStyles.detailValue(
-              context,
-            ).copyWith(fontWeight: FontWeight.bold),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              l10n?.rdSettingsSpeedDisplayUnit ?? 'Speed Display Unit',
+              style: LuciTextStyles.detailValue(
+                context,
+              ).copyWith(fontWeight: FontWeight.bold),
+            ),
           ),
         ),
         RadioGroup<String>(
@@ -816,7 +829,7 @@ class _RouterDashboardSettingsScreenState
               _onPreferenceChanged();
             },
             activeTrackColor: Theme.of(context).colorScheme.primary,
-            activeThumbColor: Theme.of(context).colorScheme.onPrimary,
+            activeThumbColor: Colors.white,
           ),
         ),
         if (!_preferences.showAllThroughput && interfaces.isNotEmpty) ...[
@@ -886,6 +899,7 @@ class _RouterDashboardSettingsScreenState
             _onPreferenceChanged();
           },
           activeTrackColor: Theme.of(context).colorScheme.primary,
+          activeThumbColor: Colors.white,
           dense: true,
         ),
         SwitchListTile.adaptive(
@@ -904,6 +918,7 @@ class _RouterDashboardSettingsScreenState
             _onPreferenceChanged();
           },
           activeTrackColor: Theme.of(context).colorScheme.primary,
+          activeThumbColor: Colors.white,
           dense: true,
         ),
       ],
@@ -953,7 +968,7 @@ class _RouterDashboardSettingsScreenState
               _onPreferenceChanged();
             },
             activeTrackColor: Theme.of(context).colorScheme.primary,
-            activeThumbColor: Theme.of(context).colorScheme.onPrimary,
+            activeThumbColor: Colors.white,
           ),
         ),
         if (_preferences.enabledWirelessInterfaces.isNotEmpty) ...[
@@ -1048,7 +1063,7 @@ class _RouterDashboardSettingsScreenState
               _onPreferenceChanged();
             },
             activeTrackColor: Theme.of(context).colorScheme.primary,
-            activeThumbColor: Theme.of(context).colorScheme.onPrimary,
+            activeThumbColor: Colors.white,
           ),
         ),
         if (_preferences.enabledWiredInterfaces.isNotEmpty) ...[
@@ -1158,6 +1173,7 @@ class _RouterDashboardSettingsScreenState
         padding: const EdgeInsets.symmetric(vertical: LuciSpacing.sm),
         children: [
           LuciStaggeredAnimation(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             staggerDelay: const Duration(milliseconds: 40),
             children: [
               _buildCardOrderSection(),

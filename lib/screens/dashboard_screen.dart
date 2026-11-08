@@ -13,6 +13,7 @@ import 'package:yet_another_luci_app/widgets/luci_app_bar.dart';
 import 'package:yet_another_luci_app/models/router.dart' as model;
 import 'package:yet_another_luci_app/modules/core/luci_module_registry.dart';
 import 'package:yet_another_luci_app/modules/wireless_management/models/wireless_info.dart';
+import 'package:yet_another_luci_app/utils/logger.dart';
 import 'package:yet_another_luci_app/utils/release_utils.dart';
 import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/models/client.dart';
@@ -44,6 +45,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _dismissedRpcWarning = true;
   Widget? _lastRenderedScaffold;
   String? _lastSelectedRouterId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _lastRenderedScaffold = null;
+  }
 
   @override
   void didUpdateWidget(covariant DashboardScreen oldWidget) {
@@ -197,14 +204,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     Text(
                       l10n?.labelModel ?? 'Model',
                       style: labelStyle,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       model,
                       style: valueStyle,
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                     ),
@@ -218,7 +225,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     Text(
                       releaseInfo.distributionName,
                       style: labelStyle,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
@@ -239,11 +246,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     switch (appState.connectionStatus) {
       case RouterConnectionStatus.connected:
-        statusColor = LuciStatusColors.connectionDot;
+        statusColor = LuciStatusColors.connectionDotColor(context);
         tooltipMsg = 'Router Connected';
         break;
       case RouterConnectionStatus.reconnecting:
-        statusColor = LuciStatusColors.warning;
+        statusColor = LuciStatusColors.warningColor(context);
         tooltipMsg = 'Reconnecting to Router...';
         break;
       case RouterConnectionStatus.disconnected:
@@ -277,6 +284,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.onSurface,
             ),
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -314,142 +322,127 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      useSafeArea: true,
       builder: (bottomSheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(2),
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Icon(Icons.router_rounded, color: colorScheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n?.manageRoutersTitle ?? 'Switch Router',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Icon(Icons.router_rounded, color: colorScheme.primary),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          l10n?.manageRoutersTitle ?? 'Switch Router',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      icon: const Icon(Icons.settings_outlined, size: 16),
+                      label: Text(l10n?.btnManage ?? 'Manage'),
+                      onPressed: () {
+                        Navigator.pop(bottomSheetContext);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ManageRoutersScreen(),
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 16),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const ClampingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  itemCount: appState.routers.length,
+                  itemBuilder: (context, index) {
+                    final r = appState.routers[index];
+                    final isSelected = r.id == selectedRouterId;
+                    final displayName = (r.name != null && r.name!.isNotEmpty)
+                        ? r.name!
+                        : (r.lastKnownHostname != null &&
+                              r.lastKnownHostname!.isNotEmpty)
+                        ? r.lastKnownHostname!
+                        : r.ipAddress;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isSelected
+                            ? colorScheme.primaryContainer
+                            : colorScheme.surfaceContainerHighest,
+                        child: Icon(
+                          Icons.router_rounded,
+                          color: isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
+                          size: 20,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        icon: const Icon(Icons.settings_outlined, size: 16),
-                        label: Text(l10n?.btnManage ?? 'Manage'),
-                        onPressed: () {
-                          Navigator.pop(bottomSheetContext);
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const ManageRoutersScreen(),
-                            ),
-                          );
-                        },
+                      title: Text(
+                        displayName,
+                        style: TextStyle(
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 16),
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    physics: const ClampingScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
-                    ),
-                    itemCount: appState.routers.length,
-                    itemBuilder: (context, index) {
-                      final r = appState.routers[index];
-                      final isSelected = r.id == selectedRouterId;
-                      final displayName = (r.name != null && r.name!.isNotEmpty)
-                          ? r.name!
-                          : (r.lastKnownHostname != null &&
-                                r.lastKnownHostname!.isNotEmpty)
-                          ? r.lastKnownHostname!
-                          : r.ipAddress;
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: isSelected
-                              ? colorScheme.primaryContainer
-                              : colorScheme.surfaceContainerHighest,
-                          child: Icon(
-                            Icons.router_rounded,
-                            color: isSelected
-                                ? colorScheme.onPrimaryContainer
-                                : colorScheme.onSurfaceVariant,
-                            size: 20,
-                          ),
-                        ),
-                        title: Text(
-                          displayName,
-                          style: TextStyle(
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                        subtitle: Text('${r.ipAddress} (${r.username})'),
-                        trailing: isSelected
-                            ? Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primaryContainer,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle_rounded,
-                                      size: 14,
+                      subtitle: Text('${r.ipAddress} (${r.username})'),
+                      trailing: isSelected
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 14,
+                                    color: colorScheme.onPrimaryContainer,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Active',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
                                       color: colorScheme.onPrimaryContainer,
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Active',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.onPrimaryContainer,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : null,
-                        onTap: () {
-                          Navigator.pop(bottomSheetContext);
-                          if (!isSelected) {
-                            appState.selectRouter(r.id, context: context);
-                          }
-                        },
-                      );
-                    },
-                  ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.pop(bottomSheetContext);
+                        if (!isSelected) {
+                          appState.selectRouter(r.id, context: context);
+                        }
+                      },
+                    );
+                  },
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -1561,10 +1554,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      useSafeArea: true,
       builder: (context) {
         final l10n = AppLocalizations.of(context);
         final leasesRaw = appState.dashboardData?['dhcpLeases'];
@@ -1585,243 +1575,230 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           }
         }
 
-        return SafeArea(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.75,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(2),
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.wifi_tethering,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ssid,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '$radioName • $bandLabel • Channel $channel',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.wifi_tethering,
-                      color: Theme.of(context).colorScheme.primary,
+                  Chip(
+                    label: Text(
+                      l10n?.dashStationsConnected(stations.length) ??
+                          '${stations.length} connected',
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            ssid,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            '$radioName • $bandLabel • Channel $channel',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
-                        ],
-                      ),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
+                    labelStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
                     ),
-                    Chip(
-                      label: Text(
-                        l10n?.dashStationsConnected(stations.length) ??
-                            '${stations.length} connected',
-                      ),
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      labelStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 24),
-                if (stations.isEmpty)
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24.0),
-                        child: Center(
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.devices_other,
-                                size: 40,
-                                color: Colors.grey.shade500,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No clients currently associated with $radioName ($ssid).',
-                                style: TextStyle(color: Colors.grey.shade600),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              if (stations.isEmpty)
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24.0),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.devices_other,
+                              size: 40,
+                              color: Colors.grey.shade500,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No clients currently associated with $radioName ($ssid).',
+                              style: TextStyle(color: Colors.grey.shade600),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  )
-                else
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: stations.length,
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final st = stations[index];
-                        final normMac = st.macAddress.toUpperCase();
-                        final lease = leases[normMac];
-                        final hostname =
-                            lease?['hostname']?.toString() ??
-                            lease?['name']?.toString() ??
-                            'Wireless Client';
-                        final ip =
-                            lease?['ipaddr']?.toString() ??
-                            lease?['ip']?.toString() ??
-                            'DHCP Unassigned';
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: stations.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final st = stations[index];
+                      final normMac = st.macAddress.toUpperCase();
+                      final lease = leases[normMac];
+                      final hostname =
+                          lease?['hostname']?.toString() ??
+                          lease?['name']?.toString() ??
+                          'Wireless Client';
+                      final ip =
+                          lease?['ipaddr']?.toString() ??
+                          lease?['ip']?.toString() ??
+                          'DHCP Unassigned';
 
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: CircleAvatar(
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.15),
-                            child: Icon(
-                              Icons.devices,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 20,
-                            ),
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.15),
+                          child: Icon(
+                            Icons.devices,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 20,
                           ),
-                          title: Text(
-                            hostname,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
+                        ),
+                        title: Text(
+                          hostname,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
-                          subtitle: Text(
-                            'IP: $ip\nMAC: ${st.macAddress}',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    st.formattedSignal,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color:
-                                          st.signalDbm != null &&
-                                              st.signalDbm! > -65
-                                          ? LuciStatusColors.connected
-                                          : Colors.orange,
-                                      fontSize: 12,
-                                    ),
+                        ),
+                        subtitle: Text(
+                          'IP: $ip\nMAC: ${st.macAddress}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  st.formattedSignal,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        st.signalDbm != null &&
+                                            st.signalDbm! > -65
+                                        ? LuciStatusColors.connected
+                                        : Colors.orange,
+                                    fontSize: 12,
                                   ),
-                                  Text(
-                                    st.signalQualityLabel,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey,
-                                    ),
+                                ),
+                                Text(
+                                  st.signalQualityLabel,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
                                   ),
-                                ],
-                              ),
-                              PopupMenuButton<String>(
-                                tooltip: '',
-                                icon: const Icon(Icons.more_vert, size: 20),
-                                onSelected: (val) async {
-                                  Navigator.pop(context);
-                                  final actionKey =
-                                      'pause_internet_${st.macAddress}';
-                                  final isPaused = appState.isInternetPaused(
-                                    st.macAddress,
+                                ),
+                              ],
+                            ),
+                            PopupMenuButton<String>(
+                              tooltip: '',
+                              icon: const Icon(Icons.more_vert, size: 20),
+                              onSelected: (val) async {
+                                Navigator.pop(context);
+                                final actionKey =
+                                    'pause_internet_${st.macAddress}';
+                                final isPaused = appState.isInternetPaused(
+                                  st.macAddress,
+                                );
+                                if (val == 'pause') {
+                                  context.showToastLoading(
+                                    '${!isPaused ? "Pausing" : "Resuming"} internet access...',
+                                    subtitle: 'Target: $hostname',
+                                    actionKey: actionKey,
                                   );
-                                  if (val == 'pause') {
-                                    context.showToastLoading(
-                                      '${!isPaused ? "Pausing" : "Resuming"} internet access...',
-                                      subtitle: 'Target: $hostname',
-                                      actionKey: actionKey,
-                                    );
-                                    final res = await appState
-                                        .pauseClientInternet(
-                                          st.macAddress,
-                                          pause: !isPaused,
-                                          context: context,
-                                        );
-                                    if (context.mounted) {
-                                      if (res) {
-                                        context.showToastSuccess(
-                                          'Internet ${!isPaused ? "paused" : "restored"} for $hostname.',
-                                          actionKey: actionKey,
-                                        );
-                                      } else {
-                                        context.showToastError(
-                                          'Failed to update internet access for $hostname.',
-                                          actionKey: actionKey,
-                                        );
-                                      }
+                                  final res = await appState
+                                      .pauseClientInternet(
+                                        st.macAddress,
+                                        pause: !isPaused,
+                                        context: context,
+                                      );
+                                  if (context.mounted) {
+                                    if (res) {
+                                      context.showToastSuccess(
+                                        'Internet ${!isPaused ? "paused" : "restored"} for $hostname.',
+                                        actionKey: actionKey,
+                                      );
+                                    } else {
+                                      context.showToastError(
+                                        'Failed to update internet access for $hostname.',
+                                        actionKey: actionKey,
+                                      );
                                     }
                                   }
-                                },
-                                itemBuilder: (ctx) {
-                                  final isPaused = appState.isInternetPaused(
-                                    st.macAddress,
-                                  );
-                                  return [
-                                    PopupMenuItem(
-                                      value: 'pause',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            isPaused
-                                                ? Icons.play_circle_outline
-                                                : Icons.pause_circle_outline,
-                                            color: isPaused
-                                                ? LuciStatusColors.connected
-                                                : Colors.orange,
-                                            size: 18,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            isPaused
-                                                ? 'Resume Internet'
-                                                : 'Pause Internet',
-                                          ),
-                                        ],
-                                      ),
+                                }
+                              },
+                              itemBuilder: (ctx) {
+                                final isPaused = appState.isInternetPaused(
+                                  st.macAddress,
+                                );
+                                return [
+                                  PopupMenuItem(
+                                    value: 'pause',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          isPaused
+                                              ? Icons.play_circle_outline
+                                              : Icons.pause_circle_outline,
+                                          color: isPaused
+                                              ? LuciStatusColors.connected
+                                              : Colors.orange,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          isPaused
+                                              ? 'Resume Internet'
+                                              : 'Pause Internet',
+                                        ),
+                                      ],
                                     ),
-                                  ];
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                                  ),
+                                ];
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         );
       },
@@ -1830,10 +1807,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildWirelessNetworksCard(AppState appState) {
     final l10n = AppLocalizations.of(context);
-    final overview = WirelessOverview.fromDashboardData(
-      appState.dashboardData,
-      isReviewerMode: appState.reviewerModeEnabled,
-    );
+    WirelessOverview overview;
+    try {
+      overview = WirelessOverview.fromDashboardData(
+        appState.dashboardData,
+        isReviewerMode: appState.reviewerModeEnabled,
+      );
+    } catch (e, stack) {
+      Logger.error(
+        'Failed to parse wireless overview for dashboard: $e',
+        stack,
+      );
+      overview = const WirelessOverview(radios: []);
+    }
 
     if (overview.radios.isEmpty) {
       return Card(
@@ -1856,8 +1842,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -1931,18 +1915,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: isEnabled
-                                      ? LuciStatusColors.connected.withValues(
-                                          alpha: 0.15,
-                                        )
-                                      : Colors.red.withValues(alpha: 0.15),
+                                      ? LuciStatusColors.connectedColor(
+                                          context,
+                                        ).withValues(alpha: 0.15)
+                                      : Theme.of(context).colorScheme.error
+                                            .withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   isEnabled ? 'ENABLED' : 'DISABLED',
                                   style: TextStyle(
                                     color: isEnabled
-                                        ? LuciStatusColors.connected
-                                        : Colors.red.shade800,
+                                        ? LuciStatusColors.connectedColor(
+                                            context,
+                                          )
+                                        : Theme.of(context).colorScheme.error,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -2103,8 +2090,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -2234,6 +2219,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 name.toUpperCase(),
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.bold),
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -2248,10 +2234,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isUp
-                              ? LuciStatusColors.connected.withValues(
-                                  alpha: 0.18,
-                                )
-                              : Colors.red.withValues(alpha: 0.18),
+                              ? LuciStatusColors.connectedColor(
+                                  context,
+                                ).withValues(alpha: 0.18)
+                              : Theme.of(context).colorScheme.errorContainer,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
@@ -2263,8 +2249,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: isUp
-                                    ? LuciStatusColors.connected
-                                    : Colors.red.shade600,
+                                    ? LuciStatusColors.connectedColor(context)
+                                    : Theme.of(context).colorScheme.error,
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -2273,8 +2259,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: isUp
-                                    ? LuciStatusColors.connected
-                                    : Colors.red.shade800,
+                                    ? LuciStatusColors.connectedColor(context)
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onErrorContainer,
                                 fontSize: 10,
                               ),
                             ),
@@ -2300,7 +2288,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           style: GoogleFonts.geistMono(
                             fontWeight: FontWeight.w600,
                           ),
-                          overflow: TextOverflow.ellipsis,
+                          softWrap: true,
                         ),
                       ),
                     ],
@@ -2427,38 +2415,48 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        actionsOverflowButtonSpacing: 8,
-        actionsOverflowDirection: VerticalDirection.down,
-        title: Text(l10n?.exitReviewerModeTitle ?? 'Exit Reviewer Mode?'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'This will disable reviewer mode and redirect to the login screen so you can connect to a live router.',
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.down,
+          icon: Icon(
+            Icons.exit_to_app_rounded,
+            color: theme.colorScheme.error,
+            size: 28,
           ),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(l10n?.actionCancel ?? 'Cancel'),
+          title: Text(l10n?.exitReviewerModeTitle ?? 'Exit Reviewer Mode?'),
+          content: const SingleChildScrollView(
+            child: Text(
+              'This will disable reviewer mode and redirect to the login screen so you can connect to a live router.',
+            ),
           ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              final appState = ref.read(appStateProvider);
-              await appState.setReviewerMode(false);
-              if (context.mounted) {
-                await Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/login', (route) => false);
-              }
-            },
-            icon: const Icon(Icons.logout_rounded, size: 16),
-            label: Text(l10n?.exitReviewerModeBtn ?? 'Exit Reviewer Mode'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(l10n?.actionCancel ?? 'Cancel'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.error,
+                foregroundColor: theme.colorScheme.onError,
+              ),
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                final appState = ref.read(appStateProvider);
+                await appState.setReviewerMode(false);
+                if (context.mounted) {
+                  await Navigator.of(
+                    context,
+                  ).pushNamedAndRemoveUntil('/login', (route) => false);
+                }
+              },
+              icon: const Icon(Icons.logout_rounded, size: 16),
+              label: Text(l10n?.exitReviewerModeBtn ?? 'Exit Reviewer Mode'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -2903,7 +2901,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     if (context.mounted) {
                       context.showToastError(
                         'Flush DNS Failed',
-                        subtitle: e.toString().replaceAll('Exception: ', ''),
+                        subtitle: LuciToastManager.parseErrorReason(e),
                         actionKey: actionKey,
                       );
                     }
@@ -2972,7 +2970,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               if (context.mounted) {
                 context.showToastError(
                   'Refresh Failed',
-                  subtitle: e.toString().replaceAll('Exception: ', ''),
+                  subtitle: LuciToastManager.parseErrorReason(e),
                   actionKey: actionKey,
                 );
               }
@@ -3266,7 +3264,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         actionsOverflowDirection: VerticalDirection.down,
         title: Row(
           children: [
-            const Icon(Icons.terminal, color: Colors.blue),
+            Icon(Icons.terminal, color: Theme.of(ctx).colorScheme.primary),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

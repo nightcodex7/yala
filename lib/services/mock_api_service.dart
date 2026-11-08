@@ -18,6 +18,9 @@ import 'package:yet_another_luci_app/modules/diagnostics/models/routing_neighbor
 import 'package:yet_another_luci_app/modules/diagnostics/models/diagnostic_report.dart';
 import 'package:yet_another_luci_app/modules/diagnostics/models/flush_dns_result.dart';
 import 'package:yet_another_luci_app/modules/bandwidth_monitor/models/bandwidth_data.dart';
+import 'package:yet_another_luci_app/modules/dhcp_dns/models/dnsmasq_service_result.dart';
+import 'package:yet_another_luci_app/modules/log_viewer/models/log_entry.dart';
+import 'package:yet_another_luci_app/modules/log_viewer/models/log_fetch_result.dart';
 import 'package:yet_another_luci_app/services/interfaces/api_service_interface.dart';
 import 'package:yet_another_luci_app/config/app_config.dart';
 import 'package:yet_another_luci_app/models/router_capabilities.dart';
@@ -26,6 +29,7 @@ import 'package:yet_another_luci_app/modules/firewall_security/models/firewall_i
 import 'package:yet_another_luci_app/utils/self_device_guard.dart';
 import 'package:yet_another_luci_app/utils/client_naming_helper.dart';
 import 'package:yet_another_luci_app/modules/domain_blocking/models/domain_block_rule.dart';
+import 'package:yet_another_luci_app/models/client_speed_limit.dart';
 
 /// The four approved capability profiles for Reviewer Mode and test isolation.
 enum MockCapabilityProfile {
@@ -60,6 +64,9 @@ class MockApiService implements IApiService {
   static final List<FirewallPortForwarding> _mockPortForwards = [];
   static final List<FirewallCustomRule> _mockCustomRules = [];
   static final Map<String, NetworkAccessPolicy> _mockPolicies = {};
+  static final Map<String, ClientSpeedLimit> _mockSpeedLimits = {};
+  static final Map<String, Map<String, ClientSpeedLimit>>
+  _mockSpeedLimitsByRouter = {};
   static final Set<String> _mockDnsmasqBlockedDomains = {
     'ads.example.com',
     'tracker.sample.org',
@@ -75,11 +82,29 @@ class MockApiService implements IApiService {
       List.unmodifiable(_mockCustomRules);
   static NetworkAccessPolicy? getMockPolicy(String mac) =>
       _mockPolicies[ClientNamingHelper.normalizeMac(mac)];
+  static ClientSpeedLimit? getMockSpeedLimit(String mac, {String? routerId}) {
+    final normMac = ClientNamingHelper.normalizeMac(mac);
+    if (routerId != null && _mockSpeedLimitsByRouter.containsKey(routerId)) {
+      return _mockSpeedLimitsByRouter[routerId]![normMac];
+    }
+    return _mockSpeedLimits[normMac];
+  }
+
+  static Map<String, ClientSpeedLimit> getMockSpeedLimitsForRouter(
+    String routerKey,
+  ) {
+    return Map.unmodifiable(_mockSpeedLimitsByRouter[routerKey] ?? {});
+  }
+
+  static Map<String, ClientSpeedLimit> get allMockSpeedLimits =>
+      Map.unmodifiable(_mockSpeedLimits);
 
   static void resetMockState() {
     _mockHostname = 'MockRouter';
     resetMockFirewallState();
     resetMockDnsmasqState();
+    _mockSpeedLimitsByRouter.clear();
+    _mockSpeedLimits.clear();
   }
 
   static void resetMockDnsmasqState() {
@@ -431,11 +456,13 @@ class MockApiService implements IApiService {
 
       if (object == 'file' && method == 'stat') {
         final path = params['path']?.toString() ?? '';
-        if (path == '/etc/apk') {
+        if (path == '/etc/apk' ||
+            path == '/etc/apk/repositories.d/distfeeds.list' ||
+            path == '/etc/apk/repositories') {
           if (mockPackageEngine == PackageManagerEngine.apk) {
             return [
               0,
-              {'type': 'directory', 'path': '/etc/apk'},
+              {'type': 'directory', 'path': path},
             ];
           } else {
             return [
@@ -444,11 +471,13 @@ class MockApiService implements IApiService {
             ];
           }
         }
-        if (path == '/etc/opkg') {
+        if (path == '/etc/opkg' ||
+            path == '/etc/opkg.conf' ||
+            path == '/etc/opkg/distfeeds.conf') {
           if (mockPackageEngine == PackageManagerEngine.opkg) {
             return [
               0,
-              {'type': 'directory', 'path': '/etc/opkg'},
+              {'type': 'directory', 'path': path},
             ];
           } else {
             return [
@@ -461,6 +490,15 @@ class MockApiService implements IApiService {
 
       if (object == 'file' && method == 'exec') {
         final cmd = params['command']?.toString() ?? '';
+        if (cmd == '/sbin/firstboot' ||
+            cmd == 'firstboot' ||
+            cmd == '/sbin/reboot' ||
+            cmd == 'reboot') {
+          return [
+            0,
+            {'code': 0, 'stdout': '', 'stderr': ''},
+          ];
+        }
         if (cmd == 'opkg') {
           if (mockPackageEngine == PackageManagerEngine.opkg) {
             return [
@@ -1010,6 +1048,15 @@ class MockApiService implements IApiService {
                 },
               ],
             },
+          },
+        ];
+
+      case 'luci.getFeatures':
+        return [
+          0,
+          <String, dynamic>{
+            'apk': mockPackageEngine == PackageManagerEngine.apk,
+            'opkg': mockPackageEngine == PackageManagerEngine.opkg,
           },
         ];
 
@@ -1995,6 +2042,40 @@ class MockApiService implements IApiService {
   }
 
   @override
+  Future<bool> applyClientSpeedLimits(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required List<ClientSpeedLimit> limits,
+    required RouterCapabilities capabilities,
+    BuildContext? context,
+  }) async {
+    if (!capabilities.hasUciWriteAccess ||
+        activeProfile == MockCapabilityProfile.readOnlyLuci) {
+      return false;
+    }
+    if (activeProfile == MockCapabilityProfile.constrainedFailure) {
+      return false;
+    }
+    final routerKey = '${useHttps ? "https" : "http"}://$ipAddress';
+    final routerLimits = _mockSpeedLimitsByRouter.putIfAbsent(
+      routerKey,
+      () => {},
+    );
+    routerLimits.clear();
+    _mockSpeedLimits.clear();
+    for (final limit in limits) {
+      if (limit.isEffectivelyRestricted) {
+        final normMac = ClientNamingHelper.normalizeMac(limit.targetMac);
+        final normalized = limit.copyWith(targetMac: normMac);
+        routerLimits[normMac] = normalized;
+        _mockSpeedLimits[normMac] = normalized;
+      }
+    }
+    return true;
+  }
+
+  @override
   Future<bool> banWirelessClient(
     String ipAddress,
     String sysauth,
@@ -2253,6 +2334,7 @@ class MockApiService implements IApiService {
     bool useHttps, {
     required String sectionName,
     required Map<String, String> values,
+    List<String>? deleteOptions,
     BuildContext? context,
   }) async {
     await Future.delayed(const Duration(milliseconds: 300));
@@ -2279,6 +2361,7 @@ class MockApiService implements IApiService {
     bool useHttps, {
     required String sectionName,
     required Map<String, String> values,
+    List<String>? deleteOptions,
     BuildContext? context,
   }) async {
     await Future.delayed(const Duration(milliseconds: 300));
@@ -2485,6 +2568,17 @@ class MockApiService implements IApiService {
     return true;
   }
 
+  final List<ParentalProfile> _mockParentalProfiles = [
+    const ParentalProfile(
+      id: 'profile_1',
+      name: 'Profile 1',
+      icon: '👦',
+      color: '#F97316',
+      macAddresses: ['AA:BB:CC:11:22:33'],
+      contentFilter: ContentFilterDns.openDnsFamilyShield,
+    ),
+  ];
+
   @override
   Future<List<ParentalProfile>?> fetchParentalProfiles(
     String ipAddress,
@@ -2492,17 +2586,8 @@ class MockApiService implements IApiService {
     bool useHttps, {
     BuildContext? context,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    return [
-      const ParentalProfile(
-        id: 'profile_1',
-        name: 'Profile 1',
-        icon: '👦',
-        color: '#F97316',
-        macAddresses: ['AA:BB:CC:11:22:33'],
-        contentFilter: ContentFilterDns.openDnsFamilyShield,
-      ),
-    ];
+    await Future.delayed(const Duration(milliseconds: 100));
+    return List<ParentalProfile>.from(_mockParentalProfiles);
   }
 
   @override
@@ -2513,7 +2598,13 @@ class MockApiService implements IApiService {
     required ParentalProfile profile,
     BuildContext? context,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 100));
+    final idx = _mockParentalProfiles.indexWhere((p) => p.id == profile.id);
+    if (idx >= 0) {
+      _mockParentalProfiles[idx] = profile;
+    } else {
+      _mockParentalProfiles.add(profile);
+    }
     return true;
   }
 
@@ -2525,7 +2616,8 @@ class MockApiService implements IApiService {
     required String profileId,
     BuildContext? context,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 100));
+    _mockParentalProfiles.removeWhere((p) => p.id == profileId);
     return true;
   }
 
@@ -2606,6 +2698,18 @@ class MockApiService implements IApiService {
         ? rawArgs.map((e) => e.toString()).toList()
         : <String>[];
     final fullCmd = '$cmd ${argsList.join(" ")}';
+
+    if (cmd == '/sbin/firstboot' ||
+        cmd == 'firstboot' ||
+        cmd == '/sbin/reboot' ||
+        cmd == 'reboot' ||
+        fullCmd.contains('firstboot') ||
+        fullCmd.contains('reboot')) {
+      return [
+        0,
+        {'code': 0, 'stdout': '', 'stderr': ''},
+      ];
+    }
 
     if (fullCmd.contains('thermal_zone') || fullCmd.contains('hwmon')) {
       return [
@@ -3322,5 +3426,58 @@ Description: Command line tool for transferring data
     if (normalized == null || normalized.isEmpty) return false;
     _mockDnsmasqBlockedDomains.remove(normalized);
     return true;
+  }
+
+  @override
+  Future<DnsmasqServiceResult> reloadDnsmasq(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    BuildContext? context,
+  }) async {
+    if (simulateDnsmasqFailure) {
+      return DnsmasqServiceResult.failure('Simulated dnsmasq reload failure');
+    }
+    return DnsmasqServiceResult.success();
+  }
+
+  @override
+  Future<LogFetchResult> fetchSyslog(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    int lines = 200,
+    BuildContext? context,
+  }) async {
+    final mockEntries = List.generate(
+      lines > 10 ? 10 : lines,
+      (i) => LogEntry(
+        index: i,
+        raw: 'Mock Syslog entry $i',
+        level: LogLevel.info,
+        message: 'Mock log entry message $i',
+      ),
+    );
+    return LogFetchSuccess(mockEntries);
+  }
+
+  @override
+  Future<LogFetchResult> fetchKernelLog(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    int lines = 200,
+    BuildContext? context,
+  }) async {
+    final mockEntries = List.generate(
+      lines > 10 ? 10 : lines,
+      (i) => LogEntry(
+        index: i,
+        raw: 'Mock Kernel dmesg entry $i',
+        level: LogLevel.notice,
+        message: 'Mock kernel log entry message $i',
+      ),
+    );
+    return LogFetchSuccess(mockEntries);
   }
 }

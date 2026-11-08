@@ -16,6 +16,10 @@ import 'package:yet_another_luci_app/state/app_state.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  setUpAll(() {
+    registerOpenSourceLicenses();
+  });
+
   group('GPLv3 Compliance & Attribution Tests', () {
     test(
       'AppConfig defines proper GPLv3 metadata, copyleft disclaimer, and upstream credits',
@@ -46,28 +50,6 @@ void main() {
     test(
       'LicenseRegistry includes yet_another_luci_app entry with full GPL copyleft text',
       () async {
-        LicenseRegistry.addLicense(() async* {
-          yield const LicenseEntryWithLineBreaks(
-            ['yet_another_luci_app (yala)'],
-            '''Yet Another LuCI App (yala)
-Original work Copyright (C) 2025-2026 cogwheel0
-Modifications Copyright (C) 2026 @nightcodex7
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.''',
-          );
-        });
-
         final entries = await LicenseRegistry.licenses.toList();
         final yalaEntry = entries.firstWhere(
           (e) => e.packages.any((p) => p.contains('yet_another_luci_app')),
@@ -79,6 +61,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.''',
         expect(paragraphs, contains('@nightcodex7'));
         expect(paragraphs, contains('GNU General Public License'));
         expect(paragraphs, contains('WITHOUT ANY WARRANTY'));
+      },
+    );
+
+    test(
+      'LicenseRegistry includes luci-app-advanced-reboot entry with upstream attribution',
+      () async {
+        final entries = await LicenseRegistry.licenses.toList();
+        final rebootEntry = entries.firstWhere(
+          (e) => e.packages.any((p) => p.contains('luci-app-advanced-reboot')),
+        );
+
+        expect(rebootEntry, isNotNull);
+        final paragraphs = rebootEntry.paragraphs.map((p) => p.text).join('\n');
+        expect(paragraphs, contains('Stan Grishin'));
+        expect(paragraphs, contains('OpenWrt Contributors'));
+        expect(paragraphs, contains('GNU General Public License'));
       },
     );
 

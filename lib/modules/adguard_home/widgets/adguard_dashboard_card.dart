@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yet_another_luci_app/design/luci_design_system.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import 'package:yet_another_luci_app/main.dart';
 import '../controllers/adguard_controller.dart';
@@ -229,14 +230,14 @@ class _AdGuardDashboardCardState extends ConsumerState<AdGuardDashboardCard> {
                     label: l10n?.aghBlockedQueries ?? 'Blocked',
                     value: '$blockedQueries',
                     keyName: 'agh_dashboard_blocked',
-                    valueColor: Colors.red.shade700,
+                    valueColor: Theme.of(context).colorScheme.error,
                   ),
                   _buildStatItem(
                     context,
                     label: l10n?.aghBlockRate ?? 'Block Rate',
                     value: '${blockRate.toStringAsFixed(1)}%',
                     keyName: 'agh_dashboard_block_rate',
-                    valueColor: Colors.orange.shade800,
+                    valueColor: LuciStatusColors.warningColor(context),
                   ),
                 ],
               ),

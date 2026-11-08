@@ -86,6 +86,24 @@ const kAppLanguages = <AppLanguageOption>[
     nativeLabel: '简体中文',
     code: 'ZH',
   ),
+  AppLanguageOption(
+    locale: Locale('uk'),
+    label: 'Ukrainian',
+    nativeLabel: 'Українська',
+    code: 'UK',
+  ),
+  AppLanguageOption(
+    locale: Locale('it'),
+    label: 'Italian',
+    nativeLabel: 'Italiano',
+    code: 'IT',
+  ),
+  AppLanguageOption(
+    locale: Locale('ja'),
+    label: 'Japanese',
+    nativeLabel: '日本語',
+    code: 'JA',
+  ),
 ];
 
 /// A compact Material 3 badge indicating that multi-language localization is currently in beta.

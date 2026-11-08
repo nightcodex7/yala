@@ -2,32 +2,61 @@
 // Copyright (C) 2025-2026 cogwheel0
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Class encapsulating real-time history series data.
 class RealtimeMetricsData {
-  final List<double> cpuHistory;
-  final List<double> ramHistory;
-  final List<double> rxHistory;
-  final List<double> txHistory;
+  final List<double> _cpuBuffer;
+  final List<double> _ramBuffer;
+  final List<double> _rxBuffer;
+  final List<double> _txBuffer;
   final int pollingIntervalSeconds;
   final int timeWindowSeconds;
 
-  const RealtimeMetricsData({
-    required this.cpuHistory,
-    required this.ramHistory,
-    required this.rxHistory,
-    required this.txHistory,
+  RealtimeMetricsData({
+    List<double>? cpuHistory,
+    List<double>? ramHistory,
+    List<double>? rxHistory,
+    List<double>? txHistory,
+    List<double>? cpuBuffer,
+    List<double>? ramBuffer,
+    List<double>? rxBuffer,
+    List<double>? txBuffer,
     required this.pollingIntervalSeconds,
     this.timeWindowSeconds = 60,
-  });
+  }) : _cpuBuffer = cpuBuffer ?? cpuHistory ?? const [],
+       _ramBuffer = ramBuffer ?? ramHistory ?? const [],
+       _rxBuffer = rxBuffer ?? rxHistory ?? const [],
+       _txBuffer = txBuffer ?? txHistory ?? const [];
 
   /// Maximum points in history buffer to cover timeWindowSeconds at pollingIntervalSeconds.
   int get maxPoints =>
       (timeWindowSeconds / pollingIntervalSeconds).round().clamp(6, 300);
 
+  /// Slices buffer to the active time window capacity.
+  List<double> get cpuHistory => _slice(_cpuBuffer);
+  List<double> get ramHistory => _slice(_ramBuffer);
+  List<double> get rxHistory => _slice(_rxBuffer);
+  List<double> get txHistory => _slice(_txBuffer);
+
+  /// Full master buffers preserving history across rolling window changes.
+  List<double> get cpuBuffer => _cpuBuffer;
+  List<double> get ramBuffer => _ramBuffer;
+  List<double> get rxBuffer => _rxBuffer;
+  List<double> get txBuffer => _txBuffer;
+
+  List<double> _slice(List<double> list) {
+    final limit = maxPoints;
+    if (list.length <= limit) return list;
+    return list.sublist(list.length - limit);
+  }
+
   RealtimeMetricsData copyWith({
+    List<double>? cpuBuffer,
+    List<double>? ramBuffer,
+    List<double>? rxBuffer,
+    List<double>? txBuffer,
     List<double>? cpuHistory,
     List<double>? ramHistory,
     List<double>? rxHistory,
@@ -36,10 +65,10 @@ class RealtimeMetricsData {
     int? timeWindowSeconds,
   }) {
     return RealtimeMetricsData(
-      cpuHistory: cpuHistory ?? this.cpuHistory,
-      ramHistory: ramHistory ?? this.ramHistory,
-      rxHistory: rxHistory ?? this.rxHistory,
-      txHistory: txHistory ?? this.txHistory,
+      cpuBuffer: cpuBuffer ?? cpuHistory ?? _cpuBuffer,
+      ramBuffer: ramBuffer ?? ramHistory ?? _ramBuffer,
+      rxBuffer: rxBuffer ?? rxHistory ?? _rxBuffer,
+      txBuffer: txBuffer ?? txHistory ?? _txBuffer,
       pollingIntervalSeconds:
           pollingIntervalSeconds ?? this.pollingIntervalSeconds,
       timeWindowSeconds: timeWindowSeconds ?? this.timeWindowSeconds,
@@ -49,15 +78,15 @@ class RealtimeMetricsData {
 
 /// Dynamic polling engine with decoupled rolling time window (e.g. 60s) and configurable polling interval (1s-10s).
 class MetricsChartEngine extends StateNotifier<RealtimeMetricsData> {
-  Timer? _timer;
+  static const int maxCapacity = 300;
 
   MetricsChartEngine({int timeWindowSeconds = 60, int intervalSeconds = 2})
     : super(
         RealtimeMetricsData(
-          cpuHistory: [],
-          ramHistory: [],
-          rxHistory: [],
-          txHistory: [],
+          cpuBuffer: [],
+          ramBuffer: [],
+          rxBuffer: [],
+          txBuffer: [],
           pollingIntervalSeconds: intervalSeconds.clamp(1, 10),
           timeWindowSeconds: timeWindowSeconds.clamp(15, 600),
         ),
@@ -68,67 +97,61 @@ class MetricsChartEngine extends StateNotifier<RealtimeMetricsData> {
   void updatePollingInterval(int seconds) {
     final clamped = seconds.clamp(1, 10);
     if (state.pollingIntervalSeconds == clamped) return;
-
-    final newState = state.copyWith(pollingIntervalSeconds: clamped);
-    final limit = newState.maxPoints;
-
-    state = newState.copyWith(
-      cpuHistory: _trim(newState.cpuHistory, limit),
-      ramHistory: _trim(newState.ramHistory, limit),
-      rxHistory: _trim(newState.rxHistory, limit),
-      txHistory: _trim(newState.txHistory, limit),
-    );
+    state = state.copyWith(pollingIntervalSeconds: clamped);
   }
 
   void updateTimeWindow(int seconds) {
     final clamped = seconds.clamp(15, 600);
     if (state.timeWindowSeconds == clamped) return;
+    state = state.copyWith(timeWindowSeconds: clamped);
+  }
 
-    final newState = state.copyWith(timeWindowSeconds: clamped);
-    final limit = newState.maxPoints;
-
-    state = newState.copyWith(
-      cpuHistory: _trim(newState.cpuHistory, limit),
-      ramHistory: _trim(newState.ramHistory, limit),
-      rxHistory: _trim(newState.rxHistory, limit),
-      txHistory: _trim(newState.txHistory, limit),
+  /// Seeds buffer with available history or initial baseline metrics.
+  void seedHistory({
+    required List<double> rxHistory,
+    required List<double> txHistory,
+    required double cpuUsage,
+    required double ramUsage,
+  }) {
+    if (state.cpuBuffer.isNotEmpty) return;
+    final int count = math.max(rxHistory.length, txHistory.length);
+    if (count == 0) {
+      addSample(cpuUsage: cpuUsage, ramUsage: ramUsage, rxRate: 0, txRate: 0);
+      return;
+    }
+    final cpuList = List<double>.filled(count, cpuUsage);
+    final ramList = List<double>.filled(count, ramUsage);
+    final rxList = List<double>.from(rxHistory);
+    final txList = List<double>.from(txHistory);
+    state = state.copyWith(
+      cpuBuffer: cpuList,
+      ramBuffer: ramList,
+      rxBuffer: rxList,
+      txBuffer: txList,
     );
   }
 
-  List<double> _trim(List<double> list, int limit) {
-    if (list.length <= limit) return list;
-    return list.sublist(list.length - limit);
-  }
-
-  /// Appends a new metric sample point to history buffer, maintaining time window capacity.
+  /// Appends a new metric sample point to history buffer, maintaining full historical capacity.
   void addSample({
     required double cpuUsage,
     required double ramUsage,
     required double rxRate,
     required double txRate,
   }) {
-    final limit = maxPoints;
-
     List<double> append(List<double> list, double value) {
       final updated = List<double>.from(list)..add(value);
-      while (updated.length > limit) {
+      while (updated.length > maxCapacity) {
         updated.removeAt(0);
       }
       return updated;
     }
 
     state = state.copyWith(
-      cpuHistory: append(state.cpuHistory, cpuUsage),
-      ramHistory: append(state.ramHistory, ramUsage),
-      rxHistory: append(state.rxHistory, rxRate),
-      txHistory: append(state.txHistory, txRate),
+      cpuBuffer: append(state.cpuBuffer, cpuUsage),
+      ramBuffer: append(state.ramBuffer, ramUsage),
+      rxBuffer: append(state.rxBuffer, rxRate),
+      txBuffer: append(state.txBuffer, txRate),
     );
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
   }
 }
 

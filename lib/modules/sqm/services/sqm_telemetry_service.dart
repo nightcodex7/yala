@@ -60,8 +60,16 @@ class SqmTelemetryService {
       final List<CakeTinStats> tins = [];
 
       // Regex patterns
+      //
+      // NOTE: When tc is invoked as `tc -s qdisc show dev <iface>`, the kernel
+      // does NOT echo back "dev <iface>" on the root qdisc header line.
+      // e.g.:  qdisc cake 802b: root refcnt 2 bandwidth 78Mbit ...
+      // The "dev <iface>" token only appears when listing all interfaces at once
+      // (`tc qdisc show` without a device filter).  Both forms must be handled,
+      // so the entire `dev <name>` clause is optional.  When absent, the caller
+      // already knows the interface via the `interfaceName` parameter.
       final qdiscHeaderRegex = RegExp(
-        r'^qdisc\s+([a-zA-Z0-9_\-]+)(?:\s+([a-zA-Z0-9:]+))?\s+dev\s+([a-zA-Z0-9_\-\.]+)(?:\s+(root))?',
+        r'^qdisc\s+([a-zA-Z0-9_\-]+)(?:\s+([a-zA-Z0-9:]+))?(?:\s+dev\s+([a-zA-Z0-9_\-\.]+))?(?:\s+(root)(?:\s|$))?',
       );
       final sentRegex = RegExp(
         r'Sent\s+(\d+)\s+bytes\s+(\d+)\s+pkt\s*\(dropped\s+(\d+),\s*overlimits\s+(\d+)(?:,?\s*requeues\s+(\d+))?\)',

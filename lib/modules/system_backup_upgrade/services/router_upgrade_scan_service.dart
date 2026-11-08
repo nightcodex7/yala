@@ -583,10 +583,10 @@ class RouterUpgradeScanService {
           object: 'luci',
           method: 'getFeatures',
         );
-        Map<String, dynamic>? featData;
+        Map? featData;
         if (featRes is List && featRes.length > 1 && featRes[0] == 0) {
-          featData = featRes[1] as Map<String, dynamic>?;
-        } else if (featRes is Map<String, dynamic>) {
+          featData = featRes[1] is Map ? featRes[1] as Map : null;
+        } else if (featRes is Map) {
           featData = featRes;
         }
         if (featData != null) {
