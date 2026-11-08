@@ -39,19 +39,10 @@ jobs:
 
       - name: Select Xcode Version
         run: |
-          echo "Available Xcode installations on runner:"
-          ls -d /Applications/Xcode* || true
-          if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_16.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_15.4.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-          elif [ -d "/Applications/Xcode.app" ]; then
-            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-          fi
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           sudo xcodebuild -runFirstLaunch
           xcodebuild -version
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -showdestinations || true
 
       - name: Set Up Flutter
         # subosito/flutter-action v2
@@ -78,9 +69,6 @@ jobs:
 
       - name: Build iOS App (Unsigned for Sideloading)
         run: |
-          echo "=== Testing xcodebuild showBuildSettings ==="
-          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings || true
-
           EXTRA_ARGS=""
           if [ -n "${{ inputs.build_name }}" ]; then
             EXTRA_ARGS="$EXTRA_ARGS --build-name=${{ inputs.build_name }}"
@@ -93,7 +81,6 @@ jobs:
             --dart-define=FLAVOR=community \
             --dart-define=OFFICIAL_BUILD=true \
             --dart-define=IPA_BUILD=true \
-            -v \
             $EXTRA_ARGS
 
       - name: Package Sideloadable IPA
