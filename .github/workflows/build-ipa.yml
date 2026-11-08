@@ -78,6 +78,9 @@ jobs:
 
       - name: Build iOS App (Unsigned for Sideloading)
         run: |
+          echo "=== Testing xcodebuild showBuildSettings ==="
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings || true
+
           EXTRA_ARGS=""
           if [ -n "${{ inputs.build_name }}" ]; then
             EXTRA_ARGS="$EXTRA_ARGS --build-name=${{ inputs.build_name }}"
@@ -90,6 +93,7 @@ jobs:
             --dart-define=FLAVOR=community \
             --dart-define=OFFICIAL_BUILD=true \
             --dart-define=IPA_BUILD=true \
+            -v \
             $EXTRA_ARGS
 
       - name: Package Sideloadable IPA
