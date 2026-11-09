@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/main.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
+import 'package:yet_another_luci_app/utils/logger.dart';
 import '../models/vpn_info.dart';
 
 class VpnConnectivityCard extends ConsumerWidget {
@@ -13,66 +14,72 @@ class VpnConnectivityCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final appState = ref.watch(appStateProvider);
-    final overview = VpnConnectivityOverview.fromDashboardData(
-      appState.dashboardData,
-      isReviewerMode: appState.reviewerModeEnabled,
-    );
+    try {
+      final l10n = AppLocalizations.of(context);
+      final appState = ref.watch(appStateProvider);
+      final overview = VpnConnectivityOverview.fromDashboardData(
+        appState.dashboardData,
+        isReviewerMode: appState.reviewerModeEnabled,
+      );
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 10.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.vpn_lock_outlined,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          l10n?.vpnConnectivityTitle ?? 'VPN & Secure Tunnels',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 10.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.vpn_lock_outlined,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n?.vpnConnectivityTitle ??
+                                'VPN & Secure Tunnels',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${overview.activeServicesCount}/${overview.totalConfiguredServices} Active',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.bold,
+                  const SizedBox(width: 8),
+                  Text(
+                    '${overview.activeServicesCount}/${overview.totalConfiguredServices} Active',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildActiveConnectionsRow(context, overview),
-          ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildActiveConnectionsRow(context, overview),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e, stack) {
+      Logger.exception('Error rendering VpnConnectivityCard', e, stack);
+      return const SizedBox.shrink();
+    }
   }
 
   Widget _buildActiveConnectionsRow(

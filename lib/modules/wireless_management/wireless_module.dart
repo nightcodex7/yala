@@ -38,7 +38,5 @@ class WirelessManagementModule extends LuciModule {
   }
 
   @override
-  Widget buildDashboardWidget(BuildContext context) {
-    return const SizedBox.shrink();
-  }
+  Widget? buildDashboardWidget(BuildContext context) => null;
 }

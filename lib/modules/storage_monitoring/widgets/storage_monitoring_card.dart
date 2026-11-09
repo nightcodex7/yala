@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import 'package:yet_another_luci_app/main.dart';
+import 'package:yet_another_luci_app/utils/logger.dart';
 import '../models/storage_info.dart';
 
 class StorageMonitoringCard extends ConsumerWidget {
@@ -13,137 +14,142 @@ class StorageMonitoringCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final appState = ref.watch(appStateProvider);
-    final mountData = appState.dashboardData?['mountPoints'];
-    final storage = StorageOverview.fromRpcData(
-      mountData,
-      isReviewerMode: appState.reviewerModeEnabled,
-    );
-    final l10n = AppLocalizations.of(context);
+    try {
+      final appState = ref.watch(appStateProvider);
+      final mountData = appState.dashboardData?['mountPoints'];
+      final storage = StorageOverview.fromRpcData(
+        mountData,
+        isReviewerMode: appState.reviewerModeEnabled,
+      );
+      final l10n = AppLocalizations.of(context);
 
-    final displayItems = storage.priorityDisplayMounts;
+      final displayItems = storage.priorityDisplayMounts;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.sd_storage_outlined,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          l10n?.storageMonitoringTitle ?? 'Storage & Overlay',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 14.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.sd_storage_outlined,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n?.storageMonitoringTitle ?? 'Storage & Overlay',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (storage.hasExternalStorage) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.usb_rounded,
+                                size: 11,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onTertiaryContainer,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                l10n?.storageMonExternalLabel ?? 'External',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onTertiaryContainer,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        l10n != null
+                            ? l10n.storageMountsCount(
+                                storage.mountedDevices.length,
+                              )
+                            : '${storage.mountedDevices.length} Mounts',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (storage.hasExternalStorage) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.tertiaryContainer,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.usb_rounded,
-                              size: 11,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onTertiaryContainer,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              l10n?.storageMonExternalLabel ?? 'External',
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onTertiaryContainer,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    Text(
-                      l10n != null
-                          ? l10n.storageMountsCount(
-                              storage.mountedDevices.length,
-                            )
-                          : '${storage.mountedDevices.length} Mounts',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (displayItems.isEmpty)
-              Text(
-                l10n?.storageNoDevices ?? 'No storage devices detected.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: Colors.grey),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              )
-            else
-              Column(
-                children: [
-                  for (int i = 0; i < displayItems.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 10),
-                    _buildStorageBarForItem(
-                      context,
-                      item: displayItems[i],
-                      index: i,
-                    ),
-                  ],
                 ],
               ),
-          ],
+              const SizedBox(height: 12),
+              if (displayItems.isEmpty)
+                Text(
+                  l10n?.storageNoDevices ?? 'No storage devices detected.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                )
+              else
+                Column(
+                  children: [
+                    for (int i = 0; i < displayItems.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 10),
+                      _buildStorageBarForItem(
+                        context,
+                        item: displayItems[i],
+                        index: i,
+                      ),
+                    ],
+                  ],
+                ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e, stack) {
+      Logger.exception('Error rendering StorageMonitoringCard', e, stack);
+      return const SizedBox.shrink();
+    }
   }
 
   Widget _buildStorageBarForItem(

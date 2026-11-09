@@ -84,5 +84,47 @@ void main() {
       expect(stagedMap.containsKey('dropbear'), isFalse);
       expect(stagedMap.isEmpty, isTrue);
     });
+
+    test(
+      'InitScript handles string priority indices and string booleans safely',
+      () {
+        final json = {'enabled': '1', 'running': '1', 'index': '25'};
+        final script = InitScript.fromJson('firewall', json);
+        expect(script.name, equals('firewall'));
+        expect(script.isEnabled, isTrue);
+        expect(script.isRunning, isTrue);
+        expect(script.startPriority, equals(25));
+
+        final json2 = {'enabled': '0', 'running': '0', 'start': '99'};
+        final script2 = InitScript.fromJson('custom', json2);
+        expect(script2.name, equals('custom'));
+        expect(script2.isEnabled, isFalse);
+        expect(script2.isRunning, isFalse);
+        expect(script2.startPriority, equals(99));
+      },
+    );
+
+    test(
+      'ServicesSystemOverview handles non-standard and dynamic map types without TypeError',
+      () {
+        final dynamicData = <String, dynamic>{
+          'services': <dynamic, dynamic>{
+            'dnsmasq': <dynamic, dynamic>{
+              'running': true,
+              'enabled': true,
+              'pid': 1234,
+            },
+          },
+          'initScripts': <dynamic>[], // e.g. empty list from RPC response
+          'cronJobs': ['0 4 * * * /sbin/reboot', null, ''],
+        };
+
+        final overview = ServicesSystemOverview.fromDashboardData(dynamicData);
+        expect(overview.services.length, equals(1));
+        expect(overview.services.first.name, equals('dnsmasq'));
+        expect(overview.initScripts.isEmpty, isTrue);
+        expect(overview.cronJobs.length, equals(1));
+      },
+    );
   });
 }

@@ -40,6 +40,7 @@ class _WifiAccessControlScreenState
   final Map<String, bool> _initialIfaceAllows = {};
   final Map<String, bool> _selectedIfaceAllows = {};
   String? _phoneMac;
+  Client? _phoneClient;
 
   @override
   void initState() {
@@ -50,7 +51,6 @@ class _WifiAccessControlScreenState
     if (cachedClients.isNotEmpty) {
       _availableClients = cachedClients;
       _isLoadingClients = false;
-      _detectPhoneMac(cachedClients);
     }
     _loadClients();
   }
@@ -63,22 +63,53 @@ class _WifiAccessControlScreenState
 
   // ... (keeping internal state methods)
 
-  void _detectPhoneMac(List<Client> clients, [List<String>? localAddresses]) {
+  void _detectPhoneMac(List<Client> clients, [Set<String>? localAddresses]) {
+    if (localAddresses == null || localAddresses.isEmpty) return;
+
     for (final c in clients) {
       final normMac = _normalizeMac(c.macAddress);
       final normIp = c.ipAddress.toLowerCase().trim();
-      if (localAddresses != null &&
-          (localAddresses.contains(normIp) ||
-              localAddresses.any(
-                (a) => SelfDeviceGuard.normalizeMac(a) == normMac,
-              ))) {
+      final hasMatchingIp =
+          normIp.isNotEmpty &&
+          normIp != 'n/a' &&
+          localAddresses.contains(normIp);
+      final hasMatchingIpv6 =
+          c.ipv6Addresses?.any(
+            (ip6) => localAddresses.contains(ip6.toLowerCase().trim()),
+          ) ??
+          false;
+      final hasMatchingMac = localAddresses.any(
+        (a) => SelfDeviceGuard.normalizeMac(a) == normMac,
+      );
+
+      if (hasMatchingIp || hasMatchingIpv6 || hasMatchingMac) {
+        _phoneClient = c;
         _phoneMac = normMac;
         return;
       }
-      if (c.isConnected && c.connectionType == ConnectionType.wireless) {
-        _phoneMac ??= normMac;
-      }
     }
+  }
+
+  bool _isPhoneConnectedToIface(WirelessInterface iface, String secName) {
+    if (_phoneClient == null) return false;
+    if (_phoneClient!.connectionType != ConnectionType.wireless) return false;
+    if (!_phoneClient!.isConnected) return false;
+
+    // 1. If phone's SSID is known, match against this interface's SSID
+    if (_phoneClient!.ssid != null && _phoneClient!.ssid!.trim().isNotEmpty) {
+      return _phoneClient!.ssid!.trim().toLowerCase() ==
+          iface.ssid.trim().toLowerCase();
+    }
+
+    // 2. If phone's wireless interface name / section is known, match it
+    if (_phoneClient!.wirelessIface != null &&
+        _phoneClient!.wirelessIface!.trim().isNotEmpty) {
+      final ifaceName = _phoneClient!.wirelessIface!.trim().toLowerCase();
+      return ifaceName == iface.ifName.trim().toLowerCase() ||
+          ifaceName == secName.trim().toLowerCase();
+    }
+
+    return false;
   }
 
   Future<void> _loadClients() async {
@@ -107,7 +138,7 @@ class _WifiAccessControlScreenState
       );
       final results = await Future.wait([localAddressesFuture, clientsFuture]);
       if (!mounted) return;
-      final localAddresses = results[0] as List<String>;
+      final localAddresses = results[0] as Set<String>;
       final clients = results[1] as List<Client>;
       final effectiveClients = clients.isNotEmpty ? clients : _availableClients;
       setState(() {
@@ -1270,6 +1301,7 @@ class _WifiAccessControlScreenState
 
         final shouldAllow = _selectedIfaceAllows[secName] ?? false;
         final updatedMaclist = List<String>.from(currentMaclist);
+        final isPhoneOnThisIface = _isPhoneConnectedToIface(iface, secName);
 
         if (shouldAllow) {
           if (!updatedMaclist.contains(targetMac)) {
@@ -1279,8 +1311,10 @@ class _WifiAccessControlScreenState
           newMaclistByIface[secName] = updatedMaclist;
           affectedSsids.add('${iface.ssid} (${radio.name})');
 
-          // Check phone lockout risk: If phone MAC is known and NOT in updated maclist for an allowed SSID
-          if (_phoneMac != null &&
+          // Check phone lockout risk: ONLY if the managing device is actively connected
+          // to this wireless interface, and the new allowlist will exclude the managing device!
+          if (isPhoneOnThisIface &&
+              _phoneMac != null &&
               _phoneMac!.isNotEmpty &&
               !updatedMaclist.contains(_phoneMac)) {
             phoneLockoutRisk = true;
@@ -1292,6 +1326,14 @@ class _WifiAccessControlScreenState
             newMacfilterByIface[secName] = 'disable';
           } else {
             newMacfilterByIface[secName] = 'allow';
+            // If managing device is on this interface, and user explicitly removed the managing device
+            // from the allowlist while the interface remains in allow mode:
+            if (isPhoneOnThisIface &&
+                _phoneMac != null &&
+                targetMac == _phoneMac &&
+                !updatedMaclist.contains(_phoneMac)) {
+              phoneLockoutRisk = true;
+            }
           }
         }
       }

@@ -124,7 +124,8 @@ class SqmOverview {
     String? detectedWan;
 
     // A. Check explicit 'wan' dictionary if available
-    final wanDict = data['wan'] as Map<String, dynamic>?;
+    final dynamic wanRaw = data['wan'];
+    final wanDict = wanRaw is Map ? wanRaw : null;
     if (wanDict != null) {
       final wanL3 = wanDict['l3_device']?.toString().trim();
       final wanDev = wanDict['device']?.toString().trim();
@@ -143,7 +144,8 @@ class SqmOverview {
     }
 
     // B. Check explicit 'wan6' dictionary
-    final wan6Dict = data['wan6'] as Map<String, dynamic>?;
+    final dynamic wan6Raw = data['wan6'];
+    final wan6Dict = wan6Raw is Map ? wan6Raw : null;
     if (wan6Dict != null) {
       final w6L3 = wan6Dict['l3_device']?.toString().trim();
       final w6Dev = wan6Dict['device']?.toString().trim();
@@ -152,7 +154,8 @@ class SqmOverview {
     }
 
     // C. Scan interfaceDump for routes and active L3 interfaces
-    final interfaceDump = data['interfaceDump'] as Map<String, dynamic>?;
+    final dynamic ifDumpRaw = data['interfaceDump'];
+    final interfaceDump = ifDumpRaw is Map ? ifDumpRaw : null;
     if (interfaceDump != null && interfaceDump['interface'] is List) {
       for (final item in interfaceDump['interface']) {
         if (item is Map) {
@@ -201,7 +204,8 @@ class SqmOverview {
     }
 
     // E. Extract existing interfaces configured in /etc/config/sqm
-    final rawSqmData = data['sqm'] as Map<String, dynamic>?;
+    final dynamic rawSqmRaw = data['sqm'];
+    final rawSqmData = rawSqmRaw is Map ? rawSqmRaw : null;
     if (rawSqmData != null && rawSqmData.isNotEmpty) {
       for (final val in rawSqmData.values) {
         if (val is Map && val['interface'] != null) {
@@ -237,8 +241,10 @@ class SqmOverview {
     bool serviceEnabled = false;
     bool servicePresent = false;
 
-    final initScripts = data['initScripts'] as Map<String, dynamic>?;
-    final services = data['services'] as Map<String, dynamic>?;
+    final dynamic initRaw = data['initScripts'];
+    final dynamic srvRaw = data['services'];
+    final initScripts = initRaw is Map ? initRaw : null;
+    final services = srvRaw is Map ? srvRaw : null;
 
     if (initScripts != null && initScripts['sqm'] is Map) {
       final sqmInit = initScripts['sqm'] as Map;
@@ -280,7 +286,8 @@ class SqmOverview {
 
     // 4. Parse UCI queues from data['sqm']
     final parsedQueues = <SqmQueue>[];
-    final sqmData = data['sqm'] as Map<String, dynamic>?;
+    final dynamic sqmDataRaw = data['sqm'];
+    final sqmData = sqmDataRaw is Map ? sqmDataRaw : null;
 
     if (sqmData != null && sqmData.isNotEmpty) {
       sqmData.forEach((key, value) {

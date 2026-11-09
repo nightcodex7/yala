@@ -133,14 +133,18 @@ class InitScript {
     if (!running && json['running'] == null && enabled) {
       running = true;
     }
+    final rawPriority = json['index'] ?? json['start'];
+    int priority = 50;
+    if (rawPriority is num) {
+      priority = rawPriority.toInt();
+    } else if (rawPriority != null) {
+      priority = int.tryParse(rawPriority.toString()) ?? 50;
+    }
     return InitScript(
       name: name,
       isEnabled: enabled,
       isRunning: running,
-      startPriority:
-          (json['index'] as num?)?.toInt() ??
-          (json['start'] as num?)?.toInt() ??
-          50,
+      startPriority: priority,
     );
   }
 }
@@ -227,20 +231,30 @@ class ServicesSystemOverview {
     final cronList = <CronJob>[];
 
     if (data != null) {
-      final servicesRaw = data['services'] as Map<String, dynamic>?;
-      if (servicesRaw != null) {
+      final dynamic servicesRaw = data['services'];
+      if (servicesRaw is Map) {
         servicesRaw.forEach((name, val) {
-          if (val is Map<String, dynamic>) {
-            serviceList.add(ProcdService.fromJson(name, val));
+          if (val is Map) {
+            serviceList.add(
+              ProcdService.fromJson(
+                name.toString(),
+                Map<String, dynamic>.from(val),
+              ),
+            );
           }
         });
       }
 
-      final initRaw = data['initScripts'] as Map<String, dynamic>?;
-      if (initRaw != null) {
+      final dynamic initRaw = data['initScripts'];
+      if (initRaw is Map) {
         initRaw.forEach((name, val) {
-          if (val is Map<String, dynamic>) {
-            initList.add(InitScript.fromJson(name, val));
+          if (val is Map) {
+            initList.add(
+              InitScript.fromJson(
+                name.toString(),
+                Map<String, dynamic>.from(val),
+              ),
+            );
           }
         });
       }
@@ -248,8 +262,8 @@ class ServicesSystemOverview {
       final cronRaw = data['cronJobs'];
       if (cronRaw is List) {
         for (final item in cronRaw) {
-          if (item is String && item.trim().isNotEmpty) {
-            cronList.add(CronJob.fromCronLine(item));
+          if (item != null && item.toString().trim().isNotEmpty) {
+            cronList.add(CronJob.fromCronLine(item.toString()));
           }
         }
       }

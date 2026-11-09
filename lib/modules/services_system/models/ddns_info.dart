@@ -329,7 +329,10 @@ class DdnsOverview {
       );
     }
 
-    final ddnsData = data['ddns'] as Map<String, dynamic>;
+    final ddnsRaw = data['ddns'];
+    final ddnsData = ddnsRaw is Map
+        ? Map<String, dynamic>.from(ddnsRaw)
+        : <String, dynamic>{};
     final installedPkgs =
         (data['installedPackages'] as List?)
             ?.map((e) => e.toString())
@@ -370,8 +373,10 @@ class DdnsOverview {
       globalEnabled = explicitGlobalEnabled!;
     } else {
       // Check init.d or procd service status for 'ddns' if UCI global section is absent
-      final initScripts = data['initScripts'] as Map<String, dynamic>?;
-      final services = data['services'] as Map<String, dynamic>?;
+      final dynamic initScriptsRaw = data['initScripts'];
+      final dynamic servicesRaw = data['services'];
+      final initScripts = initScriptsRaw is Map ? initScriptsRaw : null;
+      final services = servicesRaw is Map ? servicesRaw : null;
 
       if (services != null && services['ddns'] is Map) {
         final ddnsSvc = services['ddns'] as Map;

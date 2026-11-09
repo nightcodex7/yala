@@ -2103,9 +2103,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     final wanVpnInterfaces = interfaces.where((item) {
-      final interface = item as Map<String, dynamic>;
-      final name = interface['interface'] as String? ?? '';
-      final isUp = interface['up'] as bool? ?? false;
+      if (item is! Map) return false;
+      final interface = item;
+      final name = interface['interface']?.toString() ?? '';
+      final isUp =
+          interface['up'] == true ||
+          interface['up'] == 1 ||
+          interface['up'] == '1';
 
       // Skip loopback interface
       if (name == 'loopback' || name == 'lo') return false;
@@ -2127,10 +2131,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     final List<Widget> interfaceCardWidgets = [];
     for (var item in wanVpnInterfaces) {
-      final interface = item as Map<String, dynamic>;
-      final name = interface['interface'] as String? ?? 'N/A';
-      final isUp = interface['up'] as bool? ?? false;
-      final proto = (interface['proto'] as String? ?? '').toUpperCase();
+      if (item is! Map) continue;
+      final interface = item;
+      final name = interface['interface']?.toString() ?? 'N/A';
+      final isUp =
+          interface['up'] == true ||
+          interface['up'] == 1 ||
+          interface['up'] == '1';
+      final proto = (interface['proto']?.toString() ?? '').toUpperCase();
       final l3Dev =
           interface['l3_device']?.toString() ??
           interface['device']?.toString() ??
@@ -3314,8 +3322,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     for (final module in modules) {
       if (module.showInBottomNav) continue; // Skip core tab bar screens
-      final widget = module.buildDashboardWidget(context);
+      Widget? widget;
+      try {
+        widget = module.buildDashboardWidget(context);
+      } catch (e, stack) {
+        Logger.exception(
+          'Failed to build dashboard widget for module ${module.id}',
+          e,
+          stack,
+        );
+        continue;
+      }
       if (widget != null) {
+        if (widget is SizedBox &&
+            (widget.width == 0 || widget.width == null) &&
+            (widget.height == 0 || widget.height == null) &&
+            widget.child == null) {
+          continue;
+        }
         final isRestricted =
             isRpcMissing && rpcDependentModules.contains(module.id);
         widgets.add(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
 import 'package:yet_another_luci_app/main.dart';
+import 'package:yet_another_luci_app/utils/logger.dart';
 import '../models/services_system_info.dart';
 
 class ServicesSystemCard extends ConsumerWidget {
@@ -13,113 +14,118 @@ class ServicesSystemCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final appState = ref.watch(appStateProvider);
-    final overview = ServicesSystemOverview.fromDashboardData(
-      appState.dashboardData,
-      isReviewerMode: appState.reviewerModeEnabled,
-    );
+    try {
+      final l10n = AppLocalizations.of(context);
+      final appState = ref.watch(appStateProvider);
+      final overview = ServicesSystemOverview.fromDashboardData(
+        appState.dashboardData,
+        isReviewerMode: appState.reviewerModeEnabled,
+      );
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.settings_applications_outlined,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          l10n?.servicesSysCardTitle ?? 'Services & System',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 14.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.settings_applications_outlined,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    l10n?.servicesSysCardSubtitle(
-                          overview.runningServicesCount,
-                          overview.services.length,
-                        ) ??
-                        '${overview.runningServicesCount} Active / ${overview.services.length} Total',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.7),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n?.servicesSysCardTitle ?? 'Services & System',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMetricTile(
-                    context,
-                    label: l10n?.servicesSysCardProcd ?? 'Procd Services',
-                    value:
-                        l10n?.servicesSysCardProcdRunning(
-                          overview.runningServicesCount,
-                        ) ??
-                        '${overview.runningServicesCount} Running',
-                    icon: Icons.miscellaneous_services_outlined,
-                    color: Colors.green,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      l10n?.servicesSysCardSubtitle(
+                            overview.runningServicesCount,
+                            overview.services.length,
+                          ) ??
+                          '${overview.runningServicesCount} Active / ${overview.services.length} Total',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _buildMetricTile(
-                    context,
-                    label: l10n?.servicesSysCardInitScripts ?? 'Init Scripts',
-                    value:
-                        l10n?.servicesSysCardInitScriptsCount(
-                          overview.initScripts.length,
-                        ) ??
-                        '${overview.initScripts.length} Scripts',
-                    icon: Icons.playlist_add_check_outlined,
-                    color: Colors.blue,
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildMetricTile(
+                      context,
+                      label: l10n?.servicesSysCardProcd ?? 'Procd Services',
+                      value:
+                          l10n?.servicesSysCardProcdRunning(
+                            overview.runningServicesCount,
+                          ) ??
+                          '${overview.runningServicesCount} Running',
+                      icon: Icons.miscellaneous_services_outlined,
+                      color: Colors.green,
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _buildMetricTile(
-                    context,
-                    label: l10n?.servicesSysCardCronTasks ?? 'Cron Tasks',
-                    value:
-                        l10n?.servicesSysCardCronTasksCount(
-                          overview.cronJobs.length,
-                        ) ??
-                        '${overview.cronJobs.length} Jobs',
-                    icon: Icons.schedule_outlined,
-                    color: Colors.orange,
+                  Expanded(
+                    child: _buildMetricTile(
+                      context,
+                      label: l10n?.servicesSysCardInitScripts ?? 'Init Scripts',
+                      value:
+                          l10n?.servicesSysCardInitScriptsCount(
+                            overview.initScripts.length,
+                          ) ??
+                          '${overview.initScripts.length} Scripts',
+                      icon: Icons.playlist_add_check_outlined,
+                      color: Colors.blue,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  Expanded(
+                    child: _buildMetricTile(
+                      context,
+                      label: l10n?.servicesSysCardCronTasks ?? 'Cron Tasks',
+                      value:
+                          l10n?.servicesSysCardCronTasksCount(
+                            overview.cronJobs.length,
+                          ) ??
+                          '${overview.cronJobs.length} Jobs',
+                      icon: Icons.schedule_outlined,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e, stack) {
+      Logger.exception('Error rendering ServicesSystemCard', e, stack);
+      return const SizedBox.shrink();
+    }
   }
 
   Widget _buildMetricTile(

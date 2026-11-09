@@ -44,6 +44,32 @@ void main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 30 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 100;
 
+  // Global Flutter error boundary:
+  // In release mode, the default RenderErrorBox inflates to 100,000 pixels on unbounded constraints
+  // (such as inside a SingleChildScrollView / Column), causing infinite scrolling blank grey voids.
+  // Instead, gracefully log the exception and render a collapsed fallback box.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    Logger.exception(
+      'Flutter framework captured widget build exception',
+      details.exception,
+      details.stack ?? StackTrace.current,
+    );
+    bool isDebug = false;
+    assert(() {
+      isDebug = true;
+      return true;
+    }());
+    if (isDebug) {
+      return ErrorWidget.withDetails(
+        message: details.exception.toString(),
+        error: details.exception is FlutterError
+            ? details.exception as FlutterError
+            : null,
+      );
+    }
+    return const SizedBox.shrink();
+  };
+
   // Enable semantics early so AccessibilityNodeInfo reports scrollable to OEM screenshot engines immediately
   SemanticsBinding.instance.ensureSemantics();
 

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yet_another_luci_app/main.dart';
 import 'package:yet_another_luci_app/models/router_capabilities.dart';
 import 'package:yet_another_luci_app/l10n/app_localizations.dart';
+import 'package:yet_another_luci_app/utils/logger.dart';
 import '../models/firewall_info.dart';
 
 class FirewallSecurityCard extends ConsumerWidget {
@@ -14,108 +15,113 @@ class FirewallSecurityCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final appState = ref.watch(appStateProvider);
-    final backend =
-        appState.capabilities?.firewallBackend ?? FirewallBackend.fw4;
-    final uciFirewall = appState.dashboardData?['uciFirewallConfig'];
-    final overview = FirewallOverview.fromUciData(
-      uciFirewall,
-      backend: backend,
-      isReviewerMode: appState.reviewerModeEnabled,
-    );
+    try {
+      final l10n = AppLocalizations.of(context);
+      final appState = ref.watch(appStateProvider);
+      final backend =
+          appState.capabilities?.firewallBackend ?? FirewallBackend.fw4;
+      final uciFirewall = appState.dashboardData?['uciFirewallConfig'];
+      final overview = FirewallOverview.fromUciData(
+        uciFirewall,
+        backend: backend,
+        isReviewerMode: appState.reviewerModeEnabled,
+      );
 
-    final defPolicy = overview.defaultPolicy;
+      final defPolicy = overview.defaultPolicy;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.security_outlined,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          l10n?.firewallTitle ?? 'Firewall & Security',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 14.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.security_outlined,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n?.firewallTitle ?? 'Firewall & Security',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  l10n != null
-                      ? l10n.firewallZonesCount(overview.zones.length)
-                      : '${overview.zones.length} Zones',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(
+                  const SizedBox(width: 8),
+                  Text(
+                    l10n != null
+                        ? l10n.firewallZonesCount(overview.zones.length)
+                        : '${overview.zones.length} Zones',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildPolicyTile(
                       context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                      label: l10n?.firewallInputPolicy ?? 'Input Policy',
+                      value: defPolicy.input,
+                      color: _getPolicyColor(defPolicy.input),
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildPolicyTile(
-                    context,
-                    label: l10n?.firewallInputPolicy ?? 'Input Policy',
-                    value: defPolicy.input,
-                    color: _getPolicyColor(defPolicy.input),
+                  Expanded(
+                    child: _buildPolicyTile(
+                      context,
+                      label: l10n?.firewallOutputPolicy ?? 'Output Policy',
+                      value: defPolicy.output,
+                      color: _getPolicyColor(defPolicy.output),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _buildPolicyTile(
-                    context,
-                    label: l10n?.firewallOutputPolicy ?? 'Output Policy',
-                    value: defPolicy.output,
-                    color: _getPolicyColor(defPolicy.output),
+                  Expanded(
+                    child: _buildPolicyTile(
+                      context,
+                      label: l10n?.firewallForwardPolicy ?? 'Forward Policy',
+                      value: defPolicy.forward,
+                      color: _getPolicyColor(defPolicy.forward),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _buildPolicyTile(
-                    context,
-                    label: l10n?.firewallForwardPolicy ?? 'Forward Policy',
-                    value: defPolicy.forward,
-                    color: _getPolicyColor(defPolicy.forward),
+                  Expanded(
+                    child: _buildPolicyTile(
+                      context,
+                      label: 'SYN Flood',
+                      value: defPolicy.synFlood ? 'PROTECTED' : 'OFF',
+                      color: defPolicy.synFlood ? Colors.green : Colors.grey,
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _buildPolicyTile(
-                    context,
-                    label: 'SYN Flood',
-                    value: defPolicy.synFlood ? 'PROTECTED' : 'OFF',
-                    color: defPolicy.synFlood ? Colors.green : Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e, stack) {
+      Logger.exception('Error rendering FirewallSecurityCard', e, stack);
+      return const SizedBox.shrink();
+    }
   }
 
   Widget _buildPolicyTile(

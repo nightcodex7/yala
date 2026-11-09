@@ -11086,6 +11086,105 @@ rm -f "$leasePath" /tmp/dhcp.leases /var/dhcp.leases /tmp/dnsmasq.leases /var/li
     }
   }
 
+  Map<String, dynamic>? _unpackFileExecResponse(dynamic res) {
+    if (res is List && res.isNotEmpty) {
+      if (res[0] == 6) {
+        throw const LogFetchPermissionError();
+      }
+      if (res.length > 1 && res[1] is Map) {
+        return Map<String, dynamic>.from(res[1] as Map);
+      }
+    } else if (res is Map) {
+      return Map<String, dynamic>.from(res);
+    }
+    return null;
+  }
+
+  bool _isPermissionOrAuthError(dynamic e) {
+    if (e is LogFetchPermissionError) return true;
+    final str = e.toString().toLowerCase();
+    return str.contains('access denied') ||
+        str.contains('permission denied') ||
+        str.contains('code: 6') ||
+        str.contains('code: -32002');
+  }
+
+  bool _isTimeoutOrNetworkError(dynamic e) {
+    final str = e.toString().toLowerCase();
+    return str.contains('timeout') ||
+        str.contains('timed out') ||
+        str.contains('connection refused') ||
+        str.contains('network is unreachable') ||
+        str.contains('failed host lookup') ||
+        str.contains('connection reset') ||
+        str.contains('socketexception');
+  }
+
+  Future<Map<String, dynamic>?> _execLogCommand(
+    String ipAddress,
+    String sysauth,
+    bool useHttps, {
+    required List<String> binaryCandidates,
+    required List<String> args,
+    BuildContext? context,
+  }) async {
+    final mCtx = mountedContext(context);
+    dynamic lastException;
+
+    for (final bin in binaryCandidates) {
+      // 1. Try fileExecParams
+      try {
+        final res = await callWithContext(
+          ipAddress,
+          sysauth,
+          useHttps,
+          object: 'file',
+          method: 'exec',
+          params: fileExecParams(bin, args),
+          context: mCtx,
+        );
+        final map = _unpackFileExecResponse(res);
+        if (map != null) {
+          if (map['code'] == 127) continue;
+          return map;
+        }
+      } catch (e) {
+        lastException = e;
+        if (_isPermissionOrAuthError(e) || _isTimeoutOrNetworkError(e)) {
+          rethrow;
+        }
+      }
+
+      // 2. Try fileExecArgs (older rpcd compatibility)
+      try {
+        final res = await callWithContext(
+          ipAddress,
+          sysauth,
+          useHttps,
+          object: 'file',
+          method: 'exec',
+          params: fileExecArgs(bin, args),
+          context: mCtx,
+        );
+        final map = _unpackFileExecResponse(res);
+        if (map != null) {
+          if (map['code'] == 127) continue;
+          return map;
+        }
+      } catch (e) {
+        lastException = e;
+        if (_isPermissionOrAuthError(e) || _isTimeoutOrNetworkError(e)) {
+          rethrow;
+        }
+      }
+    }
+
+    if (lastException != null) {
+      throw lastException;
+    }
+    return null;
+  }
+
   @override
   Future<LogFetchResult> fetchSyslog(
     String ipAddress,
@@ -11096,29 +11195,80 @@ rm -f "$leasePath" /tmp/dhcp.leases /var/dhcp.leases /tmp/dnsmasq.leases /var/li
   }) async {
     final mCtx = mountedContext(context);
     try {
-      final res = await callWithContext(
+      // 1. Try logread with -l <lines>
+      Map<String, dynamic>? map = await _execLogCommand(
         ipAddress,
         sysauth,
         useHttps,
-        object: 'file',
-        method: 'exec',
-        params: fileExecParams('/sbin/logread', ['-l', lines.toString()]),
+        binaryCandidates: const [
+          '/sbin/logread',
+          '/usr/sbin/logread',
+          'logread',
+        ],
+        args: ['-l', lines.toString()],
         context: mCtx,
       );
-      if (res is Map && res['stdout'] is String) {
-        final raw = res['stdout'] as String;
-        final rawLines = const LineSplitter().convert(raw);
-        final entries = <LogEntry>[];
-        for (var i = 0; i < rawLines.length; i++) {
-          final l = rawLines[i].trim();
-          if (l.isNotEmpty) {
-            entries.add(LogEntry.fromSyslogLine(i, l));
-          }
-        }
-        return LogFetchSuccess(entries);
+
+      // If -l is unsupported or fails with non-zero code and empty stdout, fallback to bare logread
+      if (map == null ||
+          (map['code'] != null &&
+              map['code'] != 0 &&
+              (map['stdout']?.toString().trim().isEmpty ?? true))) {
+        map = await _execLogCommand(
+          ipAddress,
+          sysauth,
+          useHttps,
+          binaryCandidates: const [
+            '/sbin/logread',
+            '/usr/sbin/logread',
+            'logread',
+          ],
+          args: const [],
+          context: mCtx,
+        );
       }
-      return const LogFetchRpcError(message: 'Invalid logread response');
+
+      if (map == null) {
+        return const LogFetchBinaryMissing();
+      }
+
+      final stdout = map['stdout']?.toString() ?? '';
+      if (stdout.isEmpty && map['code'] != null && map['code'] != 0) {
+        if (map['code'] == 127) {
+          return const LogFetchBinaryMissing();
+        }
+        final stderr = map['stderr']?.toString().trim();
+        return LogFetchRpcError(
+          message: stderr != null && stderr.isNotEmpty
+              ? stderr
+              : 'logread exited with code ${map['code']}',
+        );
+      }
+
+      final rawLines = const LineSplitter().convert(stdout);
+      final entries = <LogEntry>[];
+      for (var i = 0; i < rawLines.length; i++) {
+        final l = rawLines[i].trim();
+        if (l.isNotEmpty) {
+          entries.add(LogEntry.fromSyslogLine(i, l));
+        }
+      }
+
+      final finalEntries = entries.length > lines
+          ? entries.sublist(entries.length - lines)
+          : entries;
+
+      return LogFetchSuccess(finalEntries);
+    } on LogFetchPermissionError {
+      return const LogFetchPermissionError();
     } catch (e) {
+      if (_isPermissionOrAuthError(e)) {
+        return const LogFetchPermissionError();
+      }
+      final str = e.toString().toLowerCase();
+      if (str.contains('timeout')) {
+        return const LogFetchTimeout();
+      }
       return LogFetchRpcError(message: e.toString());
     }
   }
@@ -11133,29 +11283,72 @@ rm -f "$leasePath" /tmp/dhcp.leases /var/dhcp.leases /tmp/dnsmasq.leases /var/li
   }) async {
     final mCtx = mountedContext(context);
     try {
-      final res = await callWithContext(
+      // 1. Try dmesg with -r (raw records including priority prefix)
+      Map<String, dynamic>? map = await _execLogCommand(
         ipAddress,
         sysauth,
         useHttps,
-        object: 'file',
-        method: 'exec',
-        params: fileExecParams('/bin/dmesg', ['-r']),
+        binaryCandidates: const ['/bin/dmesg', '/usr/bin/dmesg', 'dmesg'],
+        args: const ['-r'],
         context: mCtx,
       );
-      if (res is Map && res['stdout'] is String) {
-        final raw = res['stdout'] as String;
-        final rawLines = const LineSplitter().convert(raw);
-        final entries = <LogEntry>[];
-        for (var i = 0; i < rawLines.length; i++) {
-          final l = rawLines[i].trim();
-          if (l.isNotEmpty) {
-            entries.add(LogEntry.fromDmesgLine(i, l));
-          }
-        }
-        return LogFetchSuccess(entries);
+
+      // If -r is unsupported or fails with non-zero code and empty stdout, fallback to bare dmesg
+      if (map == null ||
+          (map['code'] != null &&
+              map['code'] != 0 &&
+              (map['stdout']?.toString().trim().isEmpty ?? true))) {
+        map = await _execLogCommand(
+          ipAddress,
+          sysauth,
+          useHttps,
+          binaryCandidates: const ['/bin/dmesg', '/usr/bin/dmesg', 'dmesg'],
+          args: const [],
+          context: mCtx,
+        );
       }
-      return const LogFetchRpcError(message: 'Invalid dmesg response');
+
+      if (map == null) {
+        return const LogFetchBinaryMissing();
+      }
+
+      final stdout = map['stdout']?.toString() ?? '';
+      if (stdout.isEmpty && map['code'] != null && map['code'] != 0) {
+        if (map['code'] == 127) {
+          return const LogFetchBinaryMissing();
+        }
+        final stderr = map['stderr']?.toString().trim();
+        return LogFetchRpcError(
+          message: stderr != null && stderr.isNotEmpty
+              ? stderr
+              : 'dmesg exited with code ${map['code']}',
+        );
+      }
+
+      final rawLines = const LineSplitter().convert(stdout);
+      final entries = <LogEntry>[];
+      for (var i = 0; i < rawLines.length; i++) {
+        final l = rawLines[i].trim();
+        if (l.isNotEmpty) {
+          entries.add(LogEntry.fromDmesgLine(i, l));
+        }
+      }
+
+      final finalEntries = entries.length > lines
+          ? entries.sublist(entries.length - lines)
+          : entries;
+
+      return LogFetchSuccess(finalEntries);
+    } on LogFetchPermissionError {
+      return const LogFetchPermissionError();
     } catch (e) {
+      if (_isPermissionOrAuthError(e)) {
+        return const LogFetchPermissionError();
+      }
+      final str = e.toString().toLowerCase();
+      if (str.contains('timeout')) {
+        return const LogFetchTimeout();
+      }
       return LogFetchRpcError(message: e.toString());
     }
   }

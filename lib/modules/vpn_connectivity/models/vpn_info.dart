@@ -31,27 +31,44 @@ class WireguardPeer {
       ips.add(allowed);
     }
 
+    num parseNum(dynamic a, dynamic b) {
+      if (a is num) return a;
+      if (b is num) return b;
+      if (a != null) {
+        final parsed = num.tryParse(a.toString());
+        if (parsed != null) return parsed;
+      }
+      if (b != null) {
+        final parsed = num.tryParse(b.toString());
+        if (parsed != null) return parsed;
+      }
+      return 0;
+    }
+
+    int? parseInt(dynamic a, dynamic b) {
+      if (a is num) return a.toInt();
+      if (b is num) return b.toInt();
+      if (a != null) {
+        final parsed = int.tryParse(a.toString());
+        if (parsed != null) return parsed;
+      }
+      if (b != null) {
+        final parsed = int.tryParse(b.toString());
+        if (parsed != null) return parsed;
+      }
+      return null;
+    }
+
     return WireguardPeer(
       publicKey: json['public_key']?.toString() ?? 'Unknown Key',
       endpoint: json['endpoint']?.toString(),
       allowedIps: ips,
-      rxBytes:
-          (json['rx_bytes'] as num?) ??
-          (json['transfer_rx'] as num?) ??
-          num.tryParse(json['rx_bytes']?.toString() ?? '') ??
-          num.tryParse(json['transfer_rx']?.toString() ?? '') ??
-          0,
-      txBytes:
-          (json['tx_bytes'] as num?) ??
-          (json['transfer_tx'] as num?) ??
-          num.tryParse(json['tx_bytes']?.toString() ?? '') ??
-          num.tryParse(json['transfer_tx']?.toString() ?? '') ??
-          0,
-      latestHandshakeTimestamp:
-          (json['latest_handshake'] as num?)?.toInt() ??
-          (json['last_handshake'] as num?)?.toInt() ??
-          int.tryParse(json['latest_handshake']?.toString() ?? '') ??
-          int.tryParse(json['last_handshake']?.toString() ?? ''),
+      rxBytes: parseNum(json['rx_bytes'], json['transfer_rx']),
+      txBytes: parseNum(json['tx_bytes'], json['transfer_tx']),
+      latestHandshakeTimestamp: parseInt(
+        json['latest_handshake'],
+        json['last_handshake'],
+      ),
     );
   }
 
@@ -104,10 +121,15 @@ class WireguardInterface {
     final upVal = json['up'] ?? json['is_up'] ?? json['status'];
     final isUp = upVal == true || upVal == 1 || upVal == '1' || upVal == 'up';
 
+    final rawPort = json['listen_port'];
+    final port = rawPort is num
+        ? rawPort.toInt()
+        : (rawPort != null ? int.tryParse(rawPort.toString()) ?? 51820 : 51820);
+
     return WireguardInterface(
       name: name,
       publicKey: json['public_key']?.toString() ?? 'WgPubKeyString...',
-      listenPort: (json['listen_port'] as num?)?.toInt() ?? 51820,
+      listenPort: port,
       isUp: isUp,
       peers: peerList,
     );
@@ -199,6 +221,11 @@ class TailscaleStatus {
     final state = json['state']?.toString() ?? 'Disabled';
     final isConfig =
         json['configured'] == true || nodeName.isNotEmpty || ip.isNotEmpty;
+    final rawPeers = json['peers_count'];
+    final peersCount = rawPeers is num
+        ? rawPeers.toInt()
+        : (rawPeers != null ? int.tryParse(rawPeers.toString()) ?? 0 : 0);
+
     return TailscaleStatus(
       isConfigured: isConfig,
       isRunning: json['running'] == true || state == 'Running',
@@ -207,7 +234,7 @@ class TailscaleStatus {
       backendState: state,
       tailnet: json['tailnet']?.toString() ?? '',
       magicDns: json['magic_dns']?.toString() ?? '',
-      peersCount: (json['peers_count'] as num?)?.toInt() ?? 0,
+      peersCount: peersCount,
       isExitNode: json['is_exit_node'] == true || json['is_exit_node'] == '1',
     );
   }
@@ -309,10 +336,12 @@ class CloudflaredStatus {
         json['running'] == true ||
         json['running'] == 1 ||
         (isEnabled && isConfigured);
-    final connCount =
-        (json['connections'] as num?)?.toInt() ??
-        (json['connections_count'] as num?)?.toInt() ??
-        (isRunning ? 4 : 0);
+    final rawConn = json['connections'] ?? json['connections_count'];
+    final connCount = rawConn is num
+        ? rawConn.toInt()
+        : (rawConn != null
+              ? int.tryParse(rawConn.toString()) ?? (isRunning ? 4 : 0)
+              : (isRunning ? 4 : 0));
 
     return CloudflaredStatus(
       isConfigured: isConfigured,
