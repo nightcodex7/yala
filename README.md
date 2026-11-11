@@ -44,7 +44,7 @@
 
 <br>
 
-**YALA (Yet Another LuCI App)** is an open-source mobile client for managing OpenWrt routers. It connects directly to your router using LuCI JSON-RPC, ubus, and standard OpenWrt system services, allowing you to monitor real-time bandwidth, manage connected devices, run network diagnostics, configure wireless radios, manage AdGuard Home DNS sinkhole, monitor VPN tunnels (WireGuard, OpenVPN, Tailscale), control Smart Queue Management (SQM/QoS), inspect storage, and update packages directly from your phone or tablet.
+**YALA (Yet Another LuCI App)** is an open-source mobile client for managing OpenWrt routers. It connects directly to your router using LuCI JSON-RPC, ubus, SSH, and standard OpenWrt system services, allowing you to monitor real-time bandwidth, enforce per-client speed limits, manage connected devices and parental controls, run network diagnostics and WAN speed tests, open an interactive SSH terminal, inspect system & kernel logs, configure wireless radios and AdGuard Home DNS, monitor VPN tunnels (WireGuard, OpenVPN, Tailscale), control Smart Queue Management (SQM/QoS), inspect storage, switch dual-boot firmware partitions, and update packages or router firmware directly from your phone or tablet.
 
 ---
 
@@ -78,12 +78,16 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 | **Firewall & Port Forwarding** | Zone rules, NAT, traffic rules, DNAT port forwarding |
 | **Package Manager** | Dual OPKG/APK engine, package search & install, LuCI app finder |
 | **SQM / QoS** | Bufferbloat control with Cake & FQ-CoDel, per-interface shaping |
-| **Bandwidth Monitor** | Per-client real-time Rx/Tx traffic rates |
-| **Parental Controls** | Device profiles, timed access windows, domain filtering |
-| **Services & Cron** | procd service control, crontab editor, DDNS management, SSH |
+| **Bandwidth Monitor & Limits** | Per-client real-time Rx/Tx traffic rates and per-device speed throttling |
+| **Parental Controls** | Device profiles with avatars, timed access schedules, domain filtering, bypass overrides |
+| **SSH Terminal** | Interactive persistent SSH shell with shortcuts, command history, and saved snippets |
+| **System & Kernel Logs** | Real-time syslog (`logread`) and kernel buffer (`dmesg`) viewer with filtering & export |
+| **Advanced Reboot** | Dual-firmware partition switching, ACPI/PMIC hardware power-off, boot diagnostics |
+| **Account & Access** | Read-only router account, effective RPC permissions, and SSH reachability inspector |
+| **Services & Cron** | procd service control, crontab editor, and DDNS management |
 | **Storage & Backup** | Flash/USB storage, JSON config export with redaction, backup/restore, sysupgrade |
 | **Network Diagnostics** | Router-side ping, traceroute, DNS lookup, ARP, conntrack, routes |
-| **Design & Localization** | Material 3 / Material You, responsive UI revamps, tablet & foldable layouts, 9 languages |
+| **Design & Localization** | Material 3 / Material You, responsive UI revamps, tablet & foldable layouts, 12 locales |
 
 <details>
 <summary><b>Show Full Feature Details</b></summary>
@@ -145,9 +149,10 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 - **Live Telemetry:** Real-time queue status polling with load indicators and applied configuration summaries.
 - **SQM Install Helper:** Detects whether `luci-app-sqm` and `sqm-scripts` are installed and guides one-tap installation via the package manager.
 
-### Client Bandwidth Monitor
+### Client Bandwidth Monitor & Speed Limits
 
 - **Per-Client Traffic Rates:** Real-time ingress and egress throughput per connected device, updated on configurable polling intervals.
+- **Per-Device Bandwidth Throttling:** Configure upload and download speed caps per client device and review all throttled devices in a dedicated summary view.
 - **Live Traffic Dashboard:** See which devices are actively consuming bandwidth at a glance with live Rx/Tx speed indicators.
 
 ### Dual Package Managers (OPKG & APK)
@@ -158,16 +163,35 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 
 ### Parental Controls & Timed Access
 
-- **Device Profiling:** Group household devices under customizable profiles.
+- **Device Profiling:** Group household devices under customizable profiles with dedicated avatars and detail views.
 - **Automated Access Windows:** Enforce firewall blocking rules during scheduled restriction hours (such as study or bedtime) and restore access automatically.
 - **Domain Filtering & Overrides:** Filter specific domains per profile or toggle instant unrestricted bypass overrides when needed.
+
+### SSH Terminal & Saved Commands
+
+- **Interactive Persistent Shell:** Full `xterm`-powered SSH terminal directly in the app with quick shortcut keys (Tab, Ctrl+C, arrow keys, etc.) and scroll/buffer controls.
+- **Command History & Snippets:** Browse, save, import/export, and reuse frequently run maintenance commands with built-in risk-level indicators.
+
+### System & Kernel Log Viewer
+
+- **Dual-Tab Log Inspection:** View both the system ring log (`logread`) and kernel message buffer (`dmesg`) with robust BusyBox fallback handling.
+- **Severity Filtering & Export:** Filter logs by severity level or keyword, jump quickly to the top/bottom, and copy filtered logs to your clipboard.
+
+### Advanced Reboot & Power Management
+
+- **Dual-Firmware Partition Switching:** Capability-based detection and safe switching across U-Boot (`boot_part`, `DualImageFlag`) and UBI dual-boot slots (`active` / `boot_bank`).
+- **Hardware Power-Off & Diagnostics:** Supports ACPI/PMIC shutdown on supported targets alongside read-only runtime boot environment diagnostics.
+
+### Account & Access Inspector
+
+- **Strictly Read-Only Diagnostics:** Inspect router accounts (single-user vs multi-account), active session details, effective ubus/RPCD method permissions, and SSH reachability without modifying state.
 
 ### System Services, Cron & Dynamic DNS (DDNS)
 
 - **Services Control:** View active `procd` daemons and `/etc/init.d/` startup scripts; start, stop, restart, enable, or disable services remotely.
 - **Cron Scheduler:** View, add, edit, or delete scheduled crontab jobs (`/etc/crontabs/root`).
 - **Dynamic DNS:** Monitor DDNS sync status, trigger forced IP updates, and view service status.
-- **Optional SSH Service:** Connect via SSH for advanced router maintenance and SoC thermal sensor monitoring.
+- **Optional SSH Service:** Connect via SSH for interactive shell maintenance and SoC thermal sensor monitoring.
 
 ### Firmware Upgrade Center
 
@@ -195,7 +219,7 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 
 ### Safety Guardrails & Atomic Rollbacks
 
-- **Self-Device Guard:** Automatically detects the managing phone's local IP and MAC address to prevent accidental self-lockouts during access rule changes.
+- **Self-Device Guard:** Automatically detects the managing phone's local IP, MAC address, and active Wi-Fi interface/SSID to prevent accidental self-lockouts during firewall or wireless access rule changes.
 - **Atomic UCI Rollback:** Automatically executes `uci revert` across target configuration files if an intermediate multi-step RPC request fails.
 
 ### Adaptive Design, Theming & Localization
@@ -203,7 +227,7 @@ YALA is purpose-built for mobile, tablet, and touch-first form factors:
 - **Material 3 & Material You:** Dynamic wallpaper-extracted color palettes on supported Android devices, along with the signature YALA Amber theme.
 - **Theme Modes:** Full Light and Dark mode support.
 - **Responsive UI Revamps:** Redesigned wizards, cleaner dialog layouts, improved responsiveness across various screen sizes, and performance optimizations.
-- **Localization:** Available in English, German, Spanish, French, Indonesian, Portuguese, Brazilian Portuguese, Russian, and Chinese with extended coverage.
+- **Localization:** Available across 12 locales — English, German, Spanish, French, Indonesian, Italian, Japanese, Portuguese (Portugal), Portuguese (Brazil), Russian, Ukrainian, and Chinese (Simplified) — with extended coverage.
 - **Tablet & Foldable Optimization:** Responsive two-column and three-column layouts designed for tablets, foldables, and Chromebooks.
 
 </details>
@@ -413,17 +437,24 @@ yala/
 │   ├── l10n/                  # Multi-language localization resources
 │   ├── models/                # Data models (Client, Interface, Router, etc.)
 │   ├── modules/               # Feature modules
+│   │   ├── account_access/    # Read-only router account, RPC permission & SSH inspector
 │   │   ├── adguard_home/      # AdGuard Home DNS sinkhole management & telemetry
-│   │   ├── bandwidth_monitor/ # Per-client real-time traffic rate monitoring
+│   │   ├── advanced_reboot/   # Dual-partition switching, power management & boot diagnostics
+│   │   ├── bandwidth_monitor/ # Per-client traffic monitoring & speed throttling summary
 │   │   ├── charting/          # Real-time throughput charts & graph widgets
+│   │   ├── core/              # Module contract & dynamic registry
 │   │   ├── dhcp_dns/          # DHCP leases, static reservations & DNS settings
-│   │   ├── diagnostics/       # Ping, traceroute, DNS lookup, routes, ARP, conntrack
+│   │   ├── diagnostics/       # Speed test, ping, traceroute, DNS lookup, routes & ARP
 │   │   ├── domain_blocking/   # Domain-level blocking rules & per-profile overrides
 │   │   ├── firewall_security/ # Firewall zones, rules, NAT & port forwarding
+│   │   ├── json_export/       # Privacy-redacted JSON router configuration export
+│   │   ├── log_viewer/        # System log (logread) & kernel buffer (dmesg) viewer
+│   │   ├── network_diagnostic/# Gateway/WAN diagnostic checks
 │   │   ├── package_manager/   # OPKG/APK dual-engine package management
 │   │   ├── parental_controls/ # Device profiles, timed access & domain filtering
 │   │   ├── services_system/   # Init scripts, cron scheduler & Dynamic DNS
 │   │   ├── sqm/               # Smart Queue Management (SQM/QoS) bufferbloat control
+│   │   ├── ssh_console/       # Interactive SSH shell & saved command library
 │   │   ├── storage_monitoring/# Root/overlay flash & external USB storage tracking
 │   │   ├── system_backup_upgrade/ # Config backup, sysupgrade & MTD partition tools
 │   │   ├── system_monitoring/ # CPU, RAM, swap gauges & system info
@@ -496,10 +527,10 @@ apk add rpcd-mod-luci rpcd-mod-iwinfo luci-mod-status
 
 ### Prerequisites
 
-- **Flutter SDK:** 3.27.0+ (or Flutter 3.32+)
+- **Flutter SDK:** 3.47.1+ (minimum 3.27.0+)
 - **Dart SDK:** 3.8.1+
 - **JDK:** OpenJDK 17 or higher
-- **Android Studio / Android SDK:** API level 35/36 (for Android builds)
+- **Android Studio / Android SDK:** API level 36/37 (compileSdk 37, targetSdk 36)
 - **Xcode:** 15.0+ (optional, for macOS/iOS builds)
 
 ### Quick Local Run
@@ -534,7 +565,7 @@ flutter run
   ```bash
   flutter build ios --no-codesign --release
   ```
-  *(Or trigger the manual GitHub Actions workflow `.github/workflows/build-ipa.yml` to produce an unsigned `.ipa` artifact for testing. Pre-built packages are also available on [GitHub Releases](https://github.com/nightcodex7/yala/releases/tag/v2.1.0-beta-ipa))*
+  *(Or trigger the manual GitHub Actions workflow `.github/workflows/build-ipa.yml` to produce an unsigned `.ipa` artifact for testing. Pre-built packages are also available on [GitHub Releases](https://github.com/nightcodex7/yala/releases/tag/v2.8.10-beta-ipa))*
 
 </details>
 

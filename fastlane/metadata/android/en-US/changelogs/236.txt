@@ -1,0 +1,7 @@
+What's new in v2.8.9:
+• Parental Controls: Overhauled profiles, avatars, schedules & bypass modes
+• SSH Terminal: Persistent shell with shortcuts, history & saved snippets
+• Client Bandwidth Limits: Per-device download & upload speed throttling
+• System Tools: Advanced Reboot, logread/dmesg Log Viewer & Account Inspector
+• Translations: Added Italian, Japanese & Ukrainian (12 locales total)
+• UI & Stability: Material 3 refinements and general bug fixes

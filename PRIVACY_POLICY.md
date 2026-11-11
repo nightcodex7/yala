@@ -1,9 +1,9 @@
 # Privacy Policy
 
 **Yet Another LuCI App**
-Last updated: September 07, 2026
+Last updated: November 11, 2026
 
-I am committed to protecting your privacy. This Privacy Policy explains how Yet Another LuCI App ("App") handles your information when you use the App to manage your OpenWrt/LuCI routers.
+I am committed to protecting your privacy. This Privacy Policy explains how Yet Another LuCI App ("App") handles your information when you use the App to manage your OpenWrt/LuCI routers and local AdGuard Home instances.
 
 ---
 
@@ -11,25 +11,27 @@ I am committed to protecting your privacy. This Privacy Policy explains how Yet 
 
 ### a. Local Router Credentials & Configuration Data
 
-- The App requires your router's IP address, port, username, and password to establish direct connections with your OpenWrt router on your local Wi-Fi or VPN network.
-- All router credentials are encrypted and stored locally on your device using hardware-backed secure storage (via `flutter_secure_storage` / KeyStore).
-- Credentials and network layout data are used **exclusively** for direct HTTP/HTTPS and JSON-RPC communication between your mobile device and your OpenWrt router.
-- I do **not** collect, transmit, upload, or store your router credentials, IP addresses, network topology, or router configurations on any external server or developer database.
+- The App requires your router's (and, where configured, local or private AdGuard Home instance's) IP address, port, username, and password to establish direct connections over your local Wi-Fi or private VPN network.
+- All router, SSH, and AdGuard Home credentials, as well as saved SSH command snippets, are stored locally on your device using hardware-backed secure storage (Android Keystore / iOS Keychain via `flutter_secure_storage`) and local application preferences.
+- Credentials and network layout data are used **exclusively** for direct HTTP/HTTPS, JSON-RPC, ubus, REST API, and SSH communication between your mobile device and your target router or local service.
+- Router diagnostics, system/kernel logs (`logread` / `dmesg`), SQM telemetry, and live interface/client metrics are processed in volatile memory on-device. When using JSON Config Export, sensitive secrets and private keys are automatically redacted locally.
+- I do **not** collect, transmit, upload, or store your router credentials, IP addresses, network topology, logs, or router configurations on any external server or developer database.
 
-### b. Local Network Access Permission
+### b. Network Permissions & User-Initiated External Queries
 
-- To discover, monitor, and manage OpenWrt routers on modern Android versions (Android 15+ / API 35+ / API 37), the App requests the `ACCESS_LOCAL_NETWORK` runtime permission.
-- This permission is used strictly to establish socket and HTTP/HTTPS connections to local gateway IP addresses (such as `192.168.1.1` or `10.0.0.1`).
+- **Local Network Access (`ACCESS_LOCAL_NETWORK`):** On modern Android versions (Android 15+) and iOS/iPadOS, the App requests local network access strictly to discover and connect directly to local gateway IP addresses (such as `192.168.1.1` or `10.0.0.1`).
+- **`INTERNET`:** Required to open local socket connections to your router and, only when explicitly initiated by the user, to check official OpenWrt firmware release APIs (in Firmware Upgrade Center) or official GitHub Releases for Community Edition updates (disabled in F-Droid builds).
 
 ---
 
 ## 2. Edition Breakdown & Third-Party Services
 
-### a. Community Edition (GitHub Releases / FOSS)
+### a. Community Edition (GitHub Releases / F-Droid / FOSS)
 
 - **100% Free & Ad-Free**: Contains zero advertisements, does not collect Advertising IDs (`AD_ID`), and does not integrate third-party ad networks.
-- **No In-App Purchases**: Fully open-source under the GNU General Public License v3.0 (GPLv3) with unlimited router profiles.
+- **No In-App Purchases**: Fully open-source under the GNU General Public License v3.0 (GPL-3.0-or-later) with unlimited router profiles.
 - **Zero Telemetry or Analytics**: Contains no background tracking, crash telemetry, or third-party analytics SDKs.
+- **F-Droid Compliance**: F-Droid builds (`FDROID_BUILD=true`) disable in-app GitHub update checking and external binary prompts.
 
 ### b. Play Store / Official Edition (Google Play)
 
@@ -38,6 +40,10 @@ I am committed to protecting your privacy. This Privacy Policy explains how Yet 
   - **No In-App Purchases**: Contains zero paywalls, locked features, or billing SDKs.
   - **Zero Ad Identifiers**: The App does not collect, process, or transmit Advertising IDs (`AD_ID`), device identifiers for advertising, or user tracking metrics.
 - **Zero Telemetry or Analytics**: Contains no background tracking, crash telemetry, or third-party analytics SDKs.
+
+### c. iOS / iPadOS Beta (GitHub IPA)
+
+- Built with the same local-first architecture, storing router and service credentials exclusively in the Apple iOS Keychain with zero analytics or tracking SDKs.
 
 ---
 

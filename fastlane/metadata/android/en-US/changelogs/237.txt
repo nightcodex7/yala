@@ -1,0 +1,5 @@
+What's new in v2.8.10:
+• Hotfix: Fixed log viewer (logread/dmesg) RPC parsing & BusyBox fallbacks
+• Hotfix: Fixed Wi-Fi Access Control false self-device guard triggers
+• Hotfix: Fixed Dashboard indefinite blank grey box on string rc.list indexes
+• Includes v2.8.9 updates: Parental controls overhaul, SSH terminal, per-device bandwidth throttling, Advanced Reboot, Account Inspector & 12 locales

@@ -27,7 +27,7 @@ All contributions to this repository must be licensed under the **GNU General Pu
 
 ### Prerequisites
 
-- Flutter SDK (version 3.27.0 or higher)
+- Flutter SDK (version 3.47.1 recommended; 3.27.0 or higher supported)
 - Dart SDK (version 3.8.1 or higher)
 - Git
 - An IDE (VS Code, Android Studio, or IntelliJ IDEA)

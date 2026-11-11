@@ -2,6 +2,58 @@
 
 All notable changes to **yala** will be documented in this file.
 
+## [2.8.10+237] - 2026-11-09
+
+### Hotfix
+- **Log Viewer**: Fixed `fetchSyslog` and `fetchKernelLog` 2-tuple RPC result unpacking and added BusyBox flag/path fallbacks for `logread` and `dmesg`.
+- **Wi-Fi Access Control**: Resolved `Set<String>` typecast crash in `_loadClients()`, removed fallback client guessing in `_detectPhoneMac()`, and made self-device lockout prevention interface/SSID-aware.
+- **Dashboard Startup Resilience**: Coerced string-typed `rc.list` / `service.list` priority indexes (`index`, `start`, `stop`) and hardened defensive model parsing across cards to fix the indefinite blank grey box on affected OpenWrt 25.x firmware builds.
+
+## [2.8.9+236] - 2026-11-08
+
+### Added & Changed
+- **Parental Controls Overhaul**: Rebuilt profile management with customizable avatars, detailed schedule/rule sheets, scheduled firewall enforcement, domain filtering, and quick bypass overrides.
+- **SSH Terminal**: Interactive persistent `xterm`-based SSH console with quick shortcut keys, risk classification, command history, and importable/exportable saved commands.
+- **Client Bandwidth Limits**: Per-device download and upload speed throttling controls with a dedicated throttling summary screen.
+- **Advanced Reboot**: Capability-based dual-firmware partition switching (U-Boot/UBI), ACPI/PMIC hardware power-off, and read-only boot environment diagnostics.
+- **System & Kernel Log Viewer**: Dual-tab viewer for router syslog (`logread`) and kernel ring buffer (`dmesg`) with severity badges, filtering, and clipboard copy.
+- **Account & Access Inspector**: Read-only router account, effective ubus/RPCD permissions, and SSH reachability diagnostics.
+- **Translations**: Added Italian (`it`), Japanese (`ja`), and Ukrainian (`uk`) localizations (expanding support to 12 locales).
+- **UI & Fixes**: Material 3 dynamic color updates, chart/SQM telemetry improvements, and general bug fixes.
+
+## [2.6.0+232] - 2026-10-25
+
+### Added & Changed
+- **Firmware Upgrade Center**: Official OpenWrt release checks, preserved file & storage impact review, SHA256 verification, and safe sysupgrade flashing.
+- **JSON Config Export**: Clean JSON export for router configuration (firewall, DHCP, Wi-Fi, DDNS) with automatic privacy redactions.
+- **Router Speed Test**: Native router-side WAN speed test engine with multi-stage sampling.
+- **UI & Performance**: Redesigned setup wizards, improved dialog responsiveness, high refresh rate & edge-to-edge fixes, and extended localization coverage.
+
+## [2.5.1+227] - 2026-10-16
+
+### Added & Changed
+- **AdGuard Home**: Network-wide DNS sinkhole management, filter lists, query statistics, top lists, DNS pipeline topology card, and multi-instance profiles.
+- **Advanced Firewall**: Enhanced firewall rule creation and management across `fw3` (iptables) and `fw4` (nftables).
+- **Device Access Controls**: Granular per-device IPv4 and IPv6 internet access toggles.
+- **Security & Reliability**: Hardened privileged RPC operations, self-lockout guardrails, and certificate trust validation.
+
+## [2.2.5+225] - 2026-10-06
+
+### Added & Changed
+- **Bandwidth Monitor**: Real-time per-client Rx/Tx traffic rate monitoring.
+- **Smart Queue Management (SQM QoS)**: Complete bufferbloat mitigation supporting Cake and FQ-CoDel queue disciplines with link-layer adaptation.
+- **Storage & Disk Monitoring**: Live capacity tracking across root/overlay flash and mounted USB drives with low-space alerts.
+- **DHCP/DNS & Multi-Router Hardening**: Responsive UI overhaul, fixed static lease validation/deletion, live router hostname editor, granular RPC permissions dialog, and isolated multi-router credentials.
+- **F-Droid & FOSS Compliance**: Locally bundled Geist and Geist Mono fonts with zero runtime network fetching, and update checker suppression for F-Droid builds.
+
+## [2.1.0+224] - 2026-10-01
+
+### Added & Changed
+- **OPKG & APK Package Manager**: Filter, search, batch upgrade (`Upgrade All`), and install packages via custom URLs.
+- **Network Diagnostics Suite**: Integrated router-side ping, visual traceroute, DNS lookup, and exportable reports.
+- **Hardware Temperature**: Live SoC thermal zone monitoring (°C / °F).
+- **Multi-Language Support (Beta)**: Initial 9 locales (`EN`, `DE`, `ES`, `FR`, `ID`, `PT`, `PT-BR`, `RU`, `ZH`).
+
 ## [2.0.0+220] - 2026-09-14
 
 ### Note

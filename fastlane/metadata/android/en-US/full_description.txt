@@ -1,78 +1,61 @@
-Manage OpenWrt routers directly from Android with a modern, high-performance native interface built for administration, wireless monitoring, and network control.
+Manage OpenWrt routers directly from Android with a modern, high-performance interface built for administration, wireless monitoring, and network control.
 
-Yet Another LuCI App (YALA) is a privacy-first mobile client connecting directly to your router via standard LuCI HTTP/HTTPS and ubus JSON-RPC APIs. Designed for speed, it provides a touch-friendly alternative to mobile browsers without depending on cloud servers, external accounts, or remote telemetry.
+Yet Another LuCI App (YALA) is a privacy-first mobile client connecting directly to your router via LuCI HTTP/HTTPS, ubus JSON-RPC, and SSH. Designed for phones, tablets, and foldables, it runs completely cloud-free without telemetry.
 
 COMPATIBLE FIRMWARES & ROUTERS
-Works with OpenWrt (19.07–24.10+), ImmortalWrt, Turris OS, GL.iNet, Gargoyle, and FriendlyWrt across TP-Link, Netgear, Linksys, Asus, and x86/ARM devices with LuCI or ubus RPC.
+Works with OpenWrt (19.07–25.x+), ImmortalWrt, Turris OS, GL.iNet, Gargoyle, and FriendlyWrt across TP-Link, Netgear, Linksys, Asus, and x86/ARM devices with LuCI or ubus RPC.
 
 KEY FEATURES
 
 MULTI-ROUTER MANAGEMENT & SECURE VAULT
-• Manage multiple OpenWrt routers with quick profile switching
-• Encrypted local vault backed by Android Keystore
+• Manage multiple OpenWrt routers with isolated profiles
+• Hardware-backed encrypted local vault (Android Keystore)
 • Supports LuCI RPC, ubus JSON-RPC, and sysauth logins
 
-CONNECTED CLIENTS & DUMB AP SUPPORT
-• Live view of active wired, wireless, and DHCP lease clients
-• Dumb AP support: inspect clients connected to secondary bridged APs
-• Per-client real-time transfer speed badges (RX / TX)
-• Filter by hostname, IP, MAC address, or Wi-Fi band
-• 1-tap MAC access control and static DHCP lease management
+CONNECTED CLIENTS & BANDWIDTH LIMITS
+• Live wired, wireless, and DHCP lease clients + Dumb AP support
+• Per-client real-time transfer rates (RX / TX) & speed throttling limits
+• Filter by hostname, IP, MAC, or band; static DHCP lease management
 
-HARDWARE TEMPERATURE & REAL-TIME VITALS
-• Live SoC hardware temperature across thermal zones (°C / °F)
-• CPU load, RAM usage, load averages, and uptime
-• Live network throughput graphs with continuous streaming
-• One-tap SSH terminal launcher and quick reboot actions
+ADGUARD HOME & SQM / QOS
+• Manage AdGuard Home DNS sinkholes, filter lists, query stats & topology
+• Bufferbloat mitigation with SQM (Cake / FQ-CoDel) & live queue telemetry
 
-NETWORK DIAGNOSTICS SUITE
-• Integrated Ping utility with latency and jitter tracking
-• Visual Traceroute showing route hops and transit delays
-• Real-time DNS lookup resolver (A, AAAA, CNAME)
-• Gateway and WAN reachability verification
+SSH TERMINAL, LOGS & SYSTEM TOOLS
+• Interactive persistent SSH terminal with shortcuts, history & saved commands
+• System log (logread) & kernel buffer (dmesg) viewer with filtering & copy
+• Advanced Reboot: dual-firmware partition switching & ACPI power-off
+• Read-only Account & Access inspector for RPC permissions & SSH checks
+• Live SoC hardware temperature, CPU/RAM/Swap gauges & throughput graphs
 
-OPKG & APK PACKAGE MANAGER
-• Dual package manager for opkg and modern apk (OpenWrt 24.10+)
-• Tabbed browsing: Installed, Upgradable (with update badges), Available
-• 1-tap batch upgrades (Upgrade All) with real-time logs
-• Custom package install by name or external package URL
-• Manage package feeds, repositories, and distribution URLs
-• Manage system services (start/stop/restart) and crontab tasks
+FIRMWARE UPGRADE CENTER & BACKUPS
+• Check official OpenWrt updates, review preservation & flash sysupgrade safely
+• Export privacy-redacted JSON router configs, backup/restore & MTD dump
+• Live flash/overlay & USB storage tracking with low-space alerts
 
-PARENTAL CONTROLS & SCHEDULES
-• Group devices into customizable parental profiles
-• Access schedules with automatic firewall enforcement
-• 1-tap internet pause, resume, and temporary bypass modes
+NETWORK DIAGNOSTICS & SPEED TEST
+• Router-side WAN speed test engine with multi-stage sampling
+• Ping, visual Traceroute, DNS lookup, ARP, conntrack & routing inspection
 
-ISOLATED GUEST WI-FI
-• 1-tap provisioning of dedicated guest Wi-Fi networks
-• Firewall rules isolating guests from your private LAN
-• L2 client isolation (ap_isolate) preventing client snooping
-• Wi-Fi QR code sharing for instant guest onboarding
+PARENTAL CONTROLS & GUEST WI-FI
+• Overhauled profiles with avatars, schedules, domain filtering & bypass modes
+• 1-tap isolated Guest Wi-Fi provisioning with L2 isolation & QR sharing
+• Tri-band 2.4/5/6 GHz radios, stations & 802.11r/k/v fast roaming
 
-WIRELESS & FAST ROAMING
-• Tri-band 2.4, 5, and 6 GHz radios, channels, and transmit power
-• 802.11r/k/v fast roaming for seamless mesh transitions
-• Monitor connected stations, signal strength (dBm), and noise floor
-
-FIREWALL, ROUTING & VPN
-• Supports both iptables (fw3) and modern nftables (fw4)
-• Manage firewall zones, port forwards, and custom traffic rules
-• Inspect kernel IPv4 routing tables and ARP neighbor lists
+PACKAGE MANAGER, FIREWALL & VPN
+• Dual OPKG & APK package manager, feed management, services & cron editor
+• Firewall zones, port forwarding & custom rules (fw3 iptables & fw4 nftables)
 • Monitor WireGuard, OpenVPN, Tailscale, Cloudflare Tunnels, and NextDNS
 
-LOCALIZATION & MULTI-LANGUAGE (BETA)
-• Available in English, German, Spanish, French, Indonesian, Portuguese, Russian, and Simplified Chinese
-• Adaptive responsive UI supporting system accessibility text scaling
+LOCALIZATION (12 LOCALES)
+• Available in English, German, Spanish, French, Indonesian, Italian, Japanese, Portuguese (PT & BR), Russian, Ukrainian, and Simplified Chinese
 
-SECURITY & SAFETY GUARDRAILS
-• Active self-device guard prevents accidental management lockout
-• Debounced, asynchronous state management for toggles & DDNS services
-• Atomic UCI commits with automatic rollback on network error
-• 100% Cloud-Free: Direct local connection with zero telemetry
+SECURITY & PRIVACY
+• Interface-aware self-device guard & atomic UCI rollback
+• 100% Free, Ad-Free, and cloud-free with zero telemetry
 
-ORIGIN & ACKNOWLEDGEMENTS
-Free, open-source software licensed under GPLv3. Modernized standalone app originally based on cogwheel0's luci-mobile with Material 3 design, new network modules, and robust safety guardrails.
+ORIGIN & LICENSING
+Open-source (GPLv3) standalone app originally based on cogwheel0's luci-mobile.
 
 DISCLAIMER
-Independent open-source application not affiliated with or endorsed by the OpenWrt Project or GL.iNet. OpenWrt, LuCI, and brand names are trademarks of their respective owners.
+Independent project not affiliated with the OpenWrt Project, AdGuard, WireGuard, Tailscale, Cloudflare, or NextDNS. Trademarks belong to their respective owners.
