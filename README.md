@@ -23,7 +23,7 @@
   </a>
 
   <p>
-    <a href="https://github.com/nightcodex7/yala/releases/tag/v2.6.0-beta-ipa">
+    <a href="https://github.com/nightcodex7/yala/releases/tag/v2.8.10-beta-ipa">
       <b>iOS Beta IPA Available on GitHub Releases</b>
     </a>
   </p>
